@@ -174,14 +174,14 @@ def ajustar_janela(x: int, y: int, w: int, h: int) -> None:
     u32.SetWindowPos.argtypes = [W.HWND, W.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, W.UINT]
     u32.ShowWindow.argtypes = [W.HWND, ctypes.c_int]
     u32.SetForegroundWindow.argtypes = [W.HWND]
-    for _ in range(100):  # até 10 s
+    for _ in range(500):  # até 10 s
         hwnd = u32.FindWindowW("Chrome_WidgetWin_1", "RenanTalk")
         if hwnd:
             u32.ShowWindow(hwnd, 9)  # SW_RESTORE
             u32.SetWindowPos(hwnd, None, x, y, w, h, 0x4)  # SWP_NOZORDER
             u32.SetForegroundWindow(hwnd)
             return
-        time.sleep(0.1)
+        time.sleep(0.02)
 
 
 def main() -> None:
@@ -203,7 +203,7 @@ def main() -> None:
     edge = achar_edge()
     if edge:
         perfil = os.path.join(os.environ["LOCALAPPDATA"], "RenanTalk", "ui-perfil")
-        subprocess.Popen([edge, f"--app={url}", f"--user-data-dir={perfil}", f"--window-size={w},{h}",
+        nav = subprocess.Popen([edge, f"--app={url}", f"--user-data-dir={perfil}", f"--window-size={w},{h}",
                           f"--window-position={x},{y}", "--no-first-run", "--no-default-browser-check",
                           "--disable-extensions", "--disable-sync", "--disable-background-networking",
                           "--disable-component-update", "--disable-default-apps", "--disable-breakpad",
@@ -212,12 +212,15 @@ def main() -> None:
                           "msShoppingTrigger,EdgeCollections,msUndersideButton"])
         threading.Thread(target=ajustar_janela, args=(x, y, w, h), daemon=True).start()
     else:
+        nav = None
         os.startfile(url)
     global ultimo_ping
     ultimo_ping = time.time() + 20  # tempo para o Edge abrir
     while time.time() - ultimo_ping < 8:
         time.sleep(1)
     srv.shutdown()
+    if nav:  # garante que nenhum processo do Edge fique para trás depois de fechar a janela
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(nav.pid)], capture_output=True, creationflags=0x08000000)
 
 
 if __name__ == "__main__":

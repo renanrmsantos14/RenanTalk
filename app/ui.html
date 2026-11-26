@@ -146,7 +146,7 @@ function adicionar() {
   $('novo').value = ''; $('novo').focus();
 }
 $('add').onclick = adicionar;
-$('novo').onkeydown = e => e.key === 'Enter' && adicionar();
+$('novo').addEventListener('keydown', e => { if (e.key === 'Enter') adicionar(); });
 
 async function salvarChave() {
   const k = $('nova').value.trim(), m = $('kmsg');
@@ -158,7 +158,7 @@ async function salvarChave() {
   else { m.className = 'msg err'; m.textContent = r.erro; }
 }
 $('salvar').onclick = salvarChave;
-$('nova').onkeydown = e => e.key === 'Enter' && salvarChave();
+$('nova').addEventListener('keydown', e => { if (e.key === 'Enter') salvarChave(); });
 
 $('atual').onclick = async () => {
   const m = $('amsg'); $('atual').disabled = true; m.className = 'msg mut'; m.textContent = 'Procurando…';
