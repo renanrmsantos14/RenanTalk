@@ -78,3 +78,22 @@ class TeclasTest {
         assertEquals(listOf(10, 8), Teclas.SIMBOLOS.map { it.length })
     }
 }
+
+class AjustesTest {
+    @Test fun cronometro() {
+        assertEquals("0:00", Regras.cronometro(400))
+        assertEquals("0:03", Regras.cronometro(3_200))
+        assertEquals("1:25", Regras.cronometro(85_000))
+    }
+
+    @Test fun temaSistemaSegueOAparelho() {
+        assertEquals(Ajustes.paleta("escuro", false, "azul"), Ajustes.paleta("sistema", true, "azul"))
+        assertEquals(Ajustes.paleta("claro", true, "azul"), Ajustes.paleta("sistema", false, "azul"))
+    }
+
+    @Test fun destaqueDesconhecidoViraAzul() =
+        assertEquals(Ajustes.paleta("preto", false, "azul"), Ajustes.paleta("preto", false, "xyz"))
+
+    @Test fun alturaPadraoEstaNaLista() =
+        assertTrue(Ajustes.ALTURAS.any { it.first.toFloat() == Ajustes.Teclado().altura })
+}

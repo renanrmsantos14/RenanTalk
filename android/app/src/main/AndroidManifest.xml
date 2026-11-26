@@ -24,6 +24,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".AjustesActivity"
+            android:exported="false"
+            android:label="Personalizar teclado"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".TecladoService"
             android:exported="true"

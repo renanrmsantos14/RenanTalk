@@ -83,4 +83,10 @@ object Regras {
         }
         return false
     }
+
+    /** Tempo de gravação no painel de voz: 0:03, 1:25. */
+    fun cronometro(ms: Long): String {
+        val s = (ms / 1000).coerceAtLeast(0)
+        return "%d:%02d".format(s / 60, s % 60)
+    }
 }

@@ -59,6 +59,10 @@ class ConfigActivity : Activity() {
         coluna.addView(cartao("Chave Groq", secaoChave()))
         coluna.addView(cartao("Vocabulário", secaoVocabulario()))
         coluna.addView(cartao("Testar", secaoTeste()))
+        coluna.addView(cartao("Teclado", coluna().apply {
+            addView(texto("Tema, cores, altura, vibração, som, números e atalhos, como no Gboard.", 13f, fraco = true))
+            addView(botao("Personalizar teclado") { startActivity(Intent(this@ConfigActivity, AjustesActivity::class.java)) })
+        }))
         coluna.addView(cartao("Atualização", secaoAtualizacao()))
         coluna.addView(texto("O áudio de cada ditado vai só para a Groq transcrever; nada é gravado no aparelho. " +
             "A chave fica cifrada pelo Android Keystore e não sai do celular.", 12f, fraco = true))
@@ -238,7 +242,7 @@ class ConfigActivity : Activity() {
 
     private fun secaoTeste(): View {
         val caixa = coluna()
-        caixa.addView(texto("Toque no campo e segure o microfone ou o espaço para falar. Segure o enter para trocar de teclado.", 13f, fraco = true))
+        caixa.addView(texto("Toque no campo e segure o microfone ou o espaço para falar; arraste para cima para cancelar. Segure a vírgula para personalizar e o enter para trocar de teclado.", 13f, fraco = true))
         caixa.addView(EditText(this).apply {
             hint = "Fale aqui…"
             minLines = 3
