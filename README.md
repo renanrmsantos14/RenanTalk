@@ -30,6 +30,7 @@ O instalador baixa o último release, instala as dependências, coloca o RenanTa
 
 Clique no ícone do RenanTalk (na área de notificação ou na setinha `^`):
 
+- **Vocabulário…**: nomes, siglas e termos que o ditado deve escrever certo (um por linha, ex.: nomes de clientes, `Dataverse`, `RD Station`). Vão como contexto para o Whisper em todo ditado e valem na hora. Cabem cerca de 850 caracteres; o que passar disso é ignorado (a janela avisa).
 - **Trocar chave Groq…**: cola a chave nova; ela é validada na Groq antes de ser salva e vale na hora.
 - **Procurar atualização**: verifica agora em vez de esperar o ciclo automático.
 - **Ver log** e **Sair**.
@@ -46,6 +47,7 @@ O app instalado procura releases 1 minuto depois de iniciar e depois a cada 6 ho
 |---|---|
 | Programa | `%LOCALAPPDATA%\RenanTalk\app` |
 | Chave da Groq | `%APPDATA%\RenanTalk\chave.txt` (nunca vai para o repositório) |
+| Vocabulário | `%APPDATA%\RenanTalk\vocabulario.txt` (um termo por linha; `#` comenta) |
 | Log | `%APPDATA%\RenanTalk\ditado.log` |
 | Início automático | `shell:startup\RenanTalk.lnk` |
 

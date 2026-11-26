@@ -27,7 +27,7 @@ import pyperclip
 import sounddevice as sd
 
 import atualizador
-from bandeja import ARQ_LOG, Bandeja, ler_chave
+from bandeja import ARQ_LOG, Bandeja, ler_chave, prompt_vocabulario
 from luz import Luz
 
 LUZ = Luz()
@@ -37,11 +37,6 @@ bandeja = None
 _mutex = None
 URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 MODELO = "whisper-large-v3"
-# Termos que o Whisper deve grafar certo (vai como contexto, não como ordem).
-VOCABULARIO = (
-    "Betinhos, Betinhos Executive Service, Dataverse, Power Apps, Power Automate, "
-    "Power BI, SharePoint, Microsoft 365, RD Station, WebResource, Planner, Teams, WhatsApp."
-)
 TAXA = 16000
 MINIMO_S = 0.4  # gravações mais curtas são ignoradas (toque acidental)
 SILENCIO = 800  # pico abaixo disso (de 32767) é tratado como silêncio
@@ -117,7 +112,10 @@ def wav(audio: bytes) -> bytes:
 
 def transcrever(audio: bytes) -> str:
     limite = uuid.uuid4().hex
-    campos = {"model": MODELO, "language": "pt", "temperature": "0", "prompt": VOCABULARIO, "response_format": "json"}
+    # Vocabulário do menu vai como contexto (não como ordem) para o Whisper grafar certo; relido a cada ditado.
+    campos = {"model": MODELO, "language": "pt", "temperature": "0", "response_format": "json"}
+    if vocab := prompt_vocabulario():
+        campos["prompt"] = vocab
     corpo = io.BytesIO()
     for nome, valor in campos.items():
         corpo.write(f'--{limite}\r\nContent-Disposition: form-data; name="{nome}"\r\n\r\n{valor}\r\n'.encode())

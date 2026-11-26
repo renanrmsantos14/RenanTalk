@@ -20,7 +20,11 @@ ARQ_CHAVE = os.path.join(PASTA, "chave.txt")
 ARQ_LOG = os.path.join(PASTA, "ditado.log")
 ICONE = os.path.join(PASTA, "renantalk.ico")
 WM_TRAY = 0x8000 + 1
-ITEM_CHAVE, ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR = 1, 2, 3, 4
+ARQ_VOCAB = os.path.join(PASTA, "vocabulario.txt")
+ITEM_CHAVE, ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR, ITEM_VOCAB = 1, 2, 3, 4, 5
+VOCAB_PADRAO = ["Betinhos", "Betinhos Executive Service", "Dataverse", "Power Apps", "Power Automate", "Power BI",
+                "SharePoint", "Microsoft 365", "RD Station", "WebResource", "Planner", "Teams", "WhatsApp"]
+LIMITE_VOCAB = 850  # caracteres; o Whisper só aproveita ~224 tokens de contexto
 
 os.makedirs(PASTA, exist_ok=True)
 if not os.path.exists(ARQ_CHAVE) and os.path.exists(os.path.join(ANTIGA, "chave.txt")):
@@ -109,6 +113,77 @@ def ler_chave() -> str:
             return f.read().strip()
     except FileNotFoundError:
         return ""
+
+
+def ler_vocabulario() -> list[str]:
+    """Uma palavra ou expressão por linha; linhas vazias e começadas com # são ignoradas."""
+    if not os.path.exists(ARQ_VOCAB):
+        with open(ARQ_VOCAB, "w", encoding="utf-8") as f:
+            f.write("\n".join(VOCAB_PADRAO) + "\n")
+    with open(ARQ_VOCAB, encoding="utf-8") as f:
+        return [l.strip() for l in f if l.strip() and not l.lstrip().startswith("#")]
+
+
+def prompt_vocabulario() -> str:
+    texto = ""
+    for termo in ler_vocabulario():  # corta no limite sem quebrar um termo ao meio
+        if len(texto) + len(termo) + 2 > LIMITE_VOCAB:
+            break
+        texto += (", " if texto else "") + termo
+    return texto + "." if texto else ""
+
+
+def janela_vocabulario() -> None:
+    import tkinter as tk
+    from tkinter import ttk
+
+    root = tk.Tk()
+    root.title(f"{NOME} · Vocabulário")
+    root.attributes("-topmost", True)
+    try:
+        root.iconbitmap(ICONE)
+    except tk.TclError:
+        pass
+    f = ttk.Frame(root, padding=18)
+    f.pack(fill="both", expand=True)
+    ttk.Label(f, text="Vocabulário", font=("Segoe UI Semibold", 11)).pack(anchor="w")
+    ttk.Label(f, text="Nomes, siglas e termos para o ditado escrever certo. Um por linha.",
+              foreground="#64748b").pack(anchor="w", pady=(2, 10))
+    caixa = tk.Text(f, width=48, height=14, font=("Segoe UI", 10), relief="solid", borderwidth=1, undo=True,
+                    padx=8, pady=6)
+    caixa.pack(fill="both", expand=True)
+    caixa.insert("1.0", "\n".join(ler_vocabulario()))
+    status = ttk.Label(f, text="", foreground="#64748b")
+    status.pack(anchor="w", pady=(6, 10))
+
+    def contar(_e=None) -> None:
+        termos = [l.strip() for l in caixa.get("1.0", "end").splitlines() if l.strip()]
+        tam = len(", ".join(termos))
+        if tam > LIMITE_VOCAB:
+            status.config(text=f"{len(termos)} termos · passou do limite: os do fim serão ignorados", foreground="#d97706")
+        else:
+            status.config(text=f"{len(termos)} termos · {tam} de {LIMITE_VOCAB} caracteres", foreground="#64748b")
+
+    def salvar(_e=None) -> None:
+        termos = [l.strip() for l in caixa.get("1.0", "end").splitlines() if l.strip()]
+        with open(ARQ_VOCAB, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(termos) + "\n")
+        status.config(text="Salvo. Já vale no próximo ditado.", foreground="#16a34a")
+        root.after(800, root.destroy)
+
+    botoes = ttk.Frame(f)
+    botoes.pack(anchor="e")
+    ttk.Button(botoes, text="Cancelar", command=root.destroy).pack(side="left", padx=(0, 6))
+    ttk.Button(botoes, text="Salvar", command=salvar, default="active").pack(side="left")
+    caixa.bind("<KeyRelease>", contar)
+    root.bind("<Control-s>", salvar)
+    root.bind("<Escape>", lambda _e: root.destroy())
+    contar()
+    root.update_idletasks()
+    w, h = root.winfo_width(), root.winfo_height()
+    root.geometry(f"+{(root.winfo_screenwidth() - w) // 2}+{(root.winfo_screenheight() - h) // 2}")
+    root.after(50, caixa.focus_force)
+    root.mainloop()
 
 
 def validar_chave(chave: str) -> str | None:
@@ -223,6 +298,7 @@ class Bandeja:
         u32.AppendMenuW(m, 0x1, 0, f"{NOME} · Ctrl+Win para ditar")  # MF_GRAYED
         u32.AppendMenuW(m, 0x1, 0, f"v{self.versao}")
         u32.AppendMenuW(m, 0x800, 0, None)  # separador
+        u32.AppendMenuW(m, 0, ITEM_VOCAB, "Vocabulário…")
         u32.AppendMenuW(m, 0, ITEM_CHAVE, "Trocar chave Groq…")
         u32.AppendMenuW(m, 0, ITEM_ATUALIZAR, "Procurar atualização")
         u32.AppendMenuW(m, 0, ITEM_LOG, "Ver log")
@@ -236,6 +312,8 @@ class Bandeja:
         u32.DestroyMenu(m)
         if item == ITEM_CHAVE:
             self.abrir_chave()
+        elif item == ITEM_VOCAB:
+            self._abrir(janela_vocabulario)
         elif item == ITEM_ATUALIZAR:
             threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start()
         elif item == ITEM_LOG and os.path.exists(ARQ_LOG):
@@ -245,11 +323,15 @@ class Bandeja:
             self.ao_sair()
 
     def abrir_chave(self) -> None:
+        self._abrir(janela_chave)
+
+    def _abrir(self, janela) -> None:
+        """Uma janela por vez (o Tk não convive bem com duas instâncias em threads diferentes)."""
         def rodar() -> None:
             if not self.janela_aberta.acquire(blocking=False):
-                return  # já está aberta
+                return
             try:
-                janela_chave()
+                janela()
             finally:
                 self.janela_aberta.release()
         threading.Thread(target=rodar, daemon=True).start()
