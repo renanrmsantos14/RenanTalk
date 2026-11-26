@@ -2,7 +2,7 @@
 
 - **Nível:** 2 (feature grande)
 - **Etapa:** 2 de 6 — plano técnico proposto; aguardando o "Go" do Renan
-- **Próximo passo:** Renan responde o card do Go (plano, layout do teclado, chave de assinatura).
+- **Próximo passo:** Renan escolhe a base (pronto × fork × código próprio) no card; depois, Go.
 
 ## Decisões (26/11/2026)
 - Formato: **teclado (IME) com botão de microfone** — segura, fala, solta; o texto entra no campo focado. Linha azul animada no teclado (mesma identidade da luz do desktop).
@@ -30,6 +30,18 @@
 - **Assinatura:** keystore gerado com `keytool` nesta máquina; secrets `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_SENHA`, `ANDROID_CHAVE_ALIAS`, `ANDROID_CHAVE_SENHA`. Backup do keystore fora do repo é obrigatório: sem ele, nenhum APK futuro instala por cima.
 - **CI (`release.yml`):** `android/**` entra nos `paths`; job novo `android` (ubuntu, JDK 17, cache do Gradle) em paralelo ao `janela`. PR: `assembleDebug` + testes unitários, sem secrets. Push na main: `assembleRelease` assinado com a versão do job `versao`; o job `release` passa a depender dele e anexa `RenanTalk.apk`. Windows/Linux não mudam.
 - **Testes:** unitários para a decisão silêncio/toque curto, montagem do WAV e corte do vocabulário; prova final no celular do Renan via adb (vídeo da tela).
+
+## Respostas do card (26/11/2026)
+- Layout: **faixa compacta** (globo, apagar, microfone grande, espaço, enter, linha azul em cima, versão no canto).
+- Assinatura: **a IA faz tudo** (gera keystore, cadastra os secrets via `gh`, entrega o arquivo para backup).
+- Go: ainda não; Renan pediu para ver antes se existe teclado open source para partir dele.
+
+## Teclados open source avaliados (26/11/2026, via GitHub API)
+| Projeto | Licença | Tamanho | Encaixe |
+|---|---|---|---|
+| DevEmperor/DictateKeyboard (v6.5.0, ativo) | Apache-2.0 | ~100 MB de repo, teclado completo | Já tem Groq, segurar para falar, Whisper. Grande demais para fork enxuto; bom para **usar pronto** ou como referência de código (Apache permite copiar com atribuição). |
+| j3soon/whisper-to-input | GPL-3.0 | ~60 KB de Kotlin | Layout quase igual ao nosso, endpoint configurável; mas é tocar-para-ligar, sem prompt/silêncio/Keystore/atualização, e obriga GPL-3 no `android/`. |
+| florisboard, HeliBoard | Apache-2.0 / GPL-3.0 | teclados de digitação completos | Sem ditado por API; fork pesado. |
 
 ## Riscos conhecidos
 - Release com mudança só no Android gera versão nova e os PCs se "atualizam" para o mesmo código (um reinício inofensivo). Aceito para manter uma versão única.
