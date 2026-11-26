@@ -234,24 +234,32 @@ fn main() {
     // Uma janela por vez: a porta fica presa enquanto esta instância vive.
     let Ok(_trava) = TcpListener::bind("127.0.0.1:47819") else { return };
     let args: Vec<String> = std::env::args().collect();
-    let app_dir = args.get(4).map(PathBuf::from).unwrap_or_else(|| {
+    // Aberta pelo atalho da barra (sem parâmetros): usa o que o ditado em execução gravou em ditado.json.
+    let salvo: Value = fs::read_to_string(pasta().join("ditado.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(Value::Null);
+    let app_dir = args.get(4).map(PathBuf::from).or_else(|| salvo["app"].as_str().map(PathBuf::from)).unwrap_or_else(|| {
         std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from)).unwrap_or_default()
     });
     let _ = CTX.set(Ctx {
-        pid: args.get(1).and_then(|p| p.parse().ok()).unwrap_or(0),
+        pid: args.get(1).and_then(|p| p.parse().ok()).or_else(|| salvo["pid"].as_u64().map(|p| p as u32)).unwrap_or(0),
         aba: args.get(2).cloned().unwrap_or_else(|| "voc".into()),
-        python: args.get(3).cloned().unwrap_or_else(|| if cfg!(windows) { "python".into() } else { "python3".into() }),
+        python: args.get(3).cloned().or_else(|| salvo["python"].as_str().map(String::from))
+            .unwrap_or_else(|| if cfg!(windows) { "py".into() } else { "python3".into() }),
         app: app_dir,
     });
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![estado, salvar_vocab, salvar_chave, atualizar, abrir, mostrar, fechar])
         .setup(|app| {
-            // rede de segurança: se a página não pedir para aparecer, mostra assim mesmo
+            // Mostra a janela na hora (como o RenanMail), já com o fundo do tema para não piscar branco;
+            // o conteúdo aparece assim que o WebView2 termina de carregar.
             let j = app.get_webview_window("main").expect("janela");
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(1500));
-                let _ = j.show();
-            });
+            let escuro = j.theme().map(|t| t == tauri::Theme::Dark).unwrap_or(true);
+            let fundo = if escuro { tauri::window::Color(11, 16, 32, 255) } else { tauri::window::Color(255, 255, 255, 255) };
+            let _ = j.set_background_color(Some(fundo));
+            let _ = j.show();
+            let _ = j.set_focus();
             Ok(())
         })
         .run(tauri::generate_context!())

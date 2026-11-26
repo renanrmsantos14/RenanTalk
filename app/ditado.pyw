@@ -192,6 +192,10 @@ if __name__ == "__main__":
     atualizador.limpar_antigos()
     versao = atualizador.versao_texto()
     log(f"iniciado v{versao} ({sys.platform})")
+    # Para a janela de configurações aberta pelo atalho da barra (sem parâmetros) achar o ditado e o Python.
+    with open(os.path.join(os.path.dirname(ARQ_LOG), "ditado.json"), "w", encoding="utf-8") as f:
+        python_cli = os.path.join(os.path.dirname(sys.executable), "python.exe") if WINDOWS else sys.executable
+        json.dump({"pid": os.getpid(), "python": python_cli, "app": os.path.dirname(os.path.abspath(__file__))}, f)
     bandeja = plat.Bandeja(ao_sair=lambda: os._exit(0), ao_atualizar=atualizar, versao=versao)
     if not ler_chave():
         bandeja.abrir_configuracoes("key")
