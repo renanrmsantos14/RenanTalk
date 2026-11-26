@@ -25,7 +25,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -52,7 +51,6 @@ class TecladoService : InputMethodService() {
     private var ultimoShift = 0L
     private var simbolos = false
     private lateinit var teclas: LinearLayout
-    private lateinit var variantes: LinearLayout
     private val letras = mutableListOf<TextView>()
     private var shiftTecla: ImageView? = null
 
@@ -65,8 +63,7 @@ class TecladoService : InputMethodService() {
         luz = LuzView(this)
         raiz.addView(luz, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (10 * dp).toInt()))
 
-        // Barra no lugar das sugestões do Gboard: versão/mensagens ou os acentos da tecla segurada.
-        val barra = FrameLayout(this)
+        // Barra no lugar das sugestões do Gboard: versão e mensagens do ditado.
         status = TextView(this).apply {
             textSize = 11f
             setTextColor(cor(R.color.texto_fraco))
@@ -74,15 +71,7 @@ class TecladoService : InputMethodService() {
             setPadding(0, 0, (8 * dp).toInt(), 0)
             setOnClickListener { abrirConfiguracoes() }
         }
-        variantes = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-        }
-        val cheio = FrameLayout.LayoutParams.MATCH_PARENT
-        barra.addView(status, FrameLayout.LayoutParams(cheio, cheio))
-        barra.addView(variantes, FrameLayout.LayoutParams(cheio, cheio))
-        raiz.addView(barra, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (36 * dp).toInt()))
+        raiz.addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (36 * dp).toInt()))
 
         teclas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         raiz.addView(teclas)
@@ -276,12 +265,27 @@ class TecladoService : InputMethodService() {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 v.isPressed = false
                 principal.removeCallbacks(segurarEspaco)
-                if (espacoSegurado) parar(mic) else if (e.actionMasked == MotionEvent.ACTION_UP) digitar(" ")
+                if (espacoSegurado) parar(mic) else if (e.actionMasked == MotionEvent.ACTION_UP) espaco()
             }
         }
         return true
     }
 
+    /** Espaço duplo vira ". " (como o Gboard). */
+    private fun espaco() {
+        val agora = System.currentTimeMillis()
+        val antes = currentInputConnection?.getTextBeforeCursor(2, 0)?.toString() ?: ""
+        if (agora - ultimoEspaco < 500 && antes.length == 2 && antes[1] == ' ' && antes[0].isLetterOrDigit()) {
+            currentInputConnection?.deleteSurroundingText(1, 0)
+            digitar(". ")
+            ultimoEspaco = 0
+        } else {
+            digitar(" ")
+            ultimoEspaco = agora
+        }
+    }
+
+    private var ultimoEspaco = 0L
     private var espacoSegurado = false
     private val segurarEspaco = Runnable { espacoSegurado = true; comecar(mic) }
 
@@ -328,8 +332,11 @@ class TecladoService : InputMethodService() {
         addState(intArrayOf(), pilula(cor(corId)))
     }
 
-    /** Tecla de texto; segurar mostra os acentos na barra (como o Gboard). */
-    @SuppressLint("ClickableViewAccessibility") // o toque só mostra o balão; o clique segue normal
+    /**
+     * Tecla de texto. Como no Gboard: segurar abre os acentos acima da tecla,
+     * deslizar o dedo escolhe e soltar digita o destacado.
+     */
+    @SuppressLint("ClickableViewAccessibility") // o toque só mostra balão/acentos; o clique segue normal
     private fun simbolo(s: String, registrar: Boolean = false) = TextView(this).apply {
         text = s
         textSize = 22f
@@ -341,12 +348,14 @@ class TecladoService : InputMethodService() {
         setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { toque(v); mostrarBalao(v as TextView) }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> esconderBalao()
+                MotionEvent.ACTION_MOVE -> if (acentos.isShowing) destacarAcento(v, e.x)
+                MotionEvent.ACTION_UP -> { esconderBalao(); if (acentos.isShowing) escolherAcento() }
+                MotionEvent.ACTION_CANCEL -> { esconderBalao(); esconderVariantes() }
             }
             false // deixa o clique e o segurar seguirem normalmente
         }
         val vars = Teclas.variantes(s[0])
-        if (vars.isNotEmpty()) setOnLongClickListener { esconderBalao(); toque(it); mostrarVariantes(vars); true }
+        if (vars.isNotEmpty()) setOnLongClickListener { esconderBalao(); toque(it); mostrarVariantes(it, vars); true }
         if (registrar) letras += this
     }
 
@@ -409,30 +418,70 @@ class TecladoService : InputMethodService() {
         }
     }
 
-    private fun mostrarVariantes(vars: List<String>) {
-        variantes.removeAllViews()
-        val m = (3 * dp).toInt()
+    // ---------- acentos (popup acima da tecla, escolhido deslizando) ----------
+
+    private val acentosLinha by lazy {
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = pilula(cor(R.color.tecla_especial))
+            val p = (4 * dp).toInt()
+            setPadding(p, p, p, p)
+        }
+    }
+    private val acentos by lazy {
+        PopupWindow(acentosLinha).apply { isClippingEnabled = false; isTouchable = false; elevation = 8 * dp }
+    }
+    private var acentoX = 0 // x da popup na janela do teclado
+    private var acentoCelula = 1
+    private var acentoSel = 0
+
+    private fun mostrarVariantes(tecla: View, vars: List<String>) {
+        acentosLinha.removeAllViews()
+        acentoCelula = tecla.width
+        val h = (tecla.height * 1.15f).toInt()
         vars.forEach { v ->
-            val s = Teclas.caixa(v, shift != Shift.NAO)
-            variantes.addView(TextView(this).apply {
-                text = s
-                textSize = 20f
+            acentosLinha.addView(TextView(this).apply {
+                text = Teclas.caixa(v, shift != Shift.NAO)
+                textSize = 22f
                 gravity = Gravity.CENTER
                 setTextColor(cor(R.color.texto))
-                background = pilula(cor(R.color.tecla))
-                isClickable = true
-                setOnClickListener { toque(it); digitar(s) }
-            }, LinearLayout.LayoutParams((46 * dp).toInt(), LinearLayout.LayoutParams.MATCH_PARENT).apply { setMargins(m, m, m, m) })
+            }, LinearLayout.LayoutParams(acentoCelula, LinearLayout.LayoutParams.MATCH_PARENT))
         }
-        status.visibility = View.INVISIBLE
-        variantes.visibility = View.VISIBLE
+        val pad = (8 * dp).toInt()
+        val w = acentoCelula * vars.size + pad
+        val pos = IntArray(2).also { tecla.getLocationInWindow(it) }
+        val largura = tecla.rootView.width
+        acentoX = (pos[0] - pad / 2).coerceIn(0, maxOf(0, largura - w)) // começa sobre a tecla, como o Gboard
+        val y = maxOf(0, pos[1] - h)
+        acentos.width = w; acentos.height = h
+        acentos.showAtLocation(tecla, Gravity.NO_GRAVITY, acentoX, y)
+        acentoSel = 0
+        pintarAcento()
     }
 
-    private fun esconderVariantes() {
-        if (!::variantes.isInitialized || variantes.visibility != View.VISIBLE) return
-        variantes.visibility = View.GONE
-        status.visibility = View.VISIBLE
+    private fun destacarAcento(tecla: View, xNaTecla: Float) {
+        val pos = IntArray(2).also { tecla.getLocationInWindow(it) }
+        val x = pos[0] + xNaTecla - acentoX - 4 * dp
+        val novo = (x / acentoCelula).toInt().coerceIn(0, acentosLinha.childCount - 1)
+        if (novo != acentoSel) { acentoSel = novo; pintarAcento(); toque(tecla) }
     }
+
+    private fun pintarAcento() {
+        for (i in 0 until acentosLinha.childCount) {
+            val t = acentosLinha.getChildAt(i) as TextView
+            val ativo = i == acentoSel
+            t.background = if (ativo) pilula(cor(R.color.azul)) else null
+            t.setTextColor(if (ativo) 0xFFFFFFFF.toInt() else cor(R.color.texto))
+        }
+    }
+
+    private fun escolherAcento() {
+        val t = acentosLinha.getChildAt(acentoSel) as? TextView
+        esconderVariantes()
+        t?.let { digitar(it.text.toString()) }
+    }
+
+    private fun esconderVariantes() { if (acentos.isShowing) acentos.dismiss() }
 
     private fun seletorDeTeclado() =
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()

@@ -61,7 +61,7 @@ class RegrasTest {
 }
 
 class TeclasTest {
-    @Test fun acentosDoA() = assertEquals(listOf("á", "à", "â", "ã", "ä"), Teclas.variantes('a'))
+    @Test fun acentosDoA() = assertEquals(listOf("á", "ã", "â", "à", "ä"), Teclas.variantes('a'))
 
     @Test fun acentoComMaiuscula() = assertEquals(listOf("ç"), Teclas.variantes('C'))
 

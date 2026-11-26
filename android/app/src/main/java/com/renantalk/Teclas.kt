@@ -7,7 +7,7 @@ object Teclas {
     val SIMBOLOS = listOf("@#\$_&-+()/", "%*\"':;!?")
 
     private val VARIANTES = mapOf(
-        'a' to "áàâãä", 'e' to "éêè", 'i' to "íî", 'o' to "óôõò", 'u' to "úü",
+        'a' to "áãâàä", 'e' to "éêè", 'i' to "íî", 'o' to "óõôò", 'u' to "úü",
         'c' to "ç", 'n' to "ñ", '.' to ",?!…:;", '-' to "–—", '$' to "€£",
     )
 
