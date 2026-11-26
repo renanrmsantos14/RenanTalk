@@ -160,7 +160,9 @@ def reiniciar() -> None:
 
     bandeja.remover()
     plat.liberar_instancia()
-    subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=os.path.dirname(os.path.abspath(__file__)))
+    subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=os.path.dirname(os.path.abspath(__file__)),
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=sys.platform != "win32")  # não herda o terminal de quem chamou
     os._exit(0)
 
 

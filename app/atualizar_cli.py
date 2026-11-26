@@ -32,5 +32,6 @@ if situacao == "atualizado":
     python = sys.executable
     if sys.platform == "win32":
         python = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")  # sem janela de console
-    subprocess.Popen([python, os.path.join(APP, "ditado.pyw")], cwd=APP,
-                     start_new_session=sys.platform != "win32")
+    # sem herdar a saída de quem chamou: senão um "| tail" no terminal fica preso até o app fechar
+    subprocess.Popen([python, os.path.join(APP, "ditado.pyw")], cwd=APP, stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=sys.platform != "win32")
