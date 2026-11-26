@@ -105,7 +105,12 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
   </section>
 </main>
 <script>
-const api = (r, corpo) => fetch('api/' + r, corpo === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(x => x.json());
+// Na janela Tauri (Rust) chama os comandos direto; no modo antigo (Python + navegador) usa HTTP.
+const TAURI = window.__TAURI__?.core;
+const COMANDOS = {estado: 'estado', vocab: 'salvar_vocab', chave: 'salvar_chave', atualizar: 'atualizar', abrir: 'abrir'};
+const api = (r, corpo) => TAURI
+  ? TAURI.invoke(COMANDOS[r], corpo || {})
+  : fetch('api/' + r, corpo === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(x => x.json());
 const $ = id => document.getElementById(id);
 let termos = [], limite = 850, tSalvar;
 
@@ -168,7 +173,7 @@ $('atual').onclick = async () => {
   m.className = 'msg ' + (r.situacao === 'erro' ? 'err' : 'ok'); m.textContent = txt[r.situacao] || 'Não consegui procurar agora. Veja o log.';
 };
 document.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => api('abrir', {alvo: b.dataset.abrir}));
-document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') TAURI ? TAURI.invoke('fechar') : window.close(); });
 
 api('estado').then(e => {
   termos = e.vocab; limite = e.limite; desenhar();
@@ -180,9 +185,12 @@ api('estado').then(e => {
   $('sd').textContent = e.ditados_hoje;
   $('su').textContent = e.verificacao ? 'Última verificação: ' + e.verificacao : 'Ainda não verificou hoje';
   aba(e.aba || 'voc');
+  TAURI?.invoke('mostrar');  // só aparece já desenhada, sem piscar branco
 });
-setInterval(() => fetch('api/ping').catch(() => {}), 2000);
-addEventListener('pagehide', () => navigator.sendBeacon('api/fim', ''));
+if (!TAURI) {  // modo antigo: avisa o servidor Python que a janela segue aberta
+  setInterval(() => fetch('api/ping').catch(() => {}), 2000);
+  addEventListener('pagehide', () => navigator.sendBeacon('api/fim', ''));
+}
 </script>
 </body>
 </html>

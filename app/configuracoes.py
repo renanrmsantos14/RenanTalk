@@ -1,8 +1,9 @@
 """Janela de configurações do RenanTalk (processo separado, só existe enquanto a janela está aberta).
 
-Uso: pythonw configuracoes.py <pid_do_ditado> [aba]
-Sobe um servidor HTTP em 127.0.0.1 (porta aleatória, token na URL), abre ui.html
-numa janela de aplicativo do Edge e encerra sozinho quando a janela fecha (sem batimento por 8 s).
+Uso: python configuracoes.py <pid_do_ditado> [aba]
+Sobe um servidor HTTP em 127.0.0.1 (porta aleatória, token na URL), abre ui.html numa janela de
+aplicativo (Edge no Windows; Brave, Chromium ou Chrome no Linux, com Firefox como reserva) e encerra
+sozinho quando a janela fecha (sem batimento por 8 s).
 """
 import ctypes
 import datetime
@@ -13,11 +14,12 @@ import subprocess
 import sys
 import threading
 import time
-from ctypes import wintypes as W
+import shutil
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import atualizador
-from bandeja import (ARQ_LOG, ARQ_VOCAB, LIMITE_VOCAB, PASTA, ler_chave, ler_vocabulario, validar_chave)
+from comum import (ARQ_LOG, ARQ_VOCAB, LIMITE_VOCAB, PASTA, WINDOWS, abrir, ler_chave, ler_vocabulario,
+                   salvar_chave, validar_chave)
 
 APP = os.path.dirname(os.path.abspath(__file__))
 REPO_URL = f"https://github.com/{atualizador.REPO}"
@@ -27,13 +29,26 @@ ABA = sys.argv[2] if len(sys.argv) > 2 else "voc"
 ultimo_ping = time.time()
 
 
-class PMC(ctypes.Structure):
-    _fields_ = [("cb", W.DWORD), ("PageFaultCount", W.DWORD)] + [(n, ctypes.c_size_t) for n in (
-        "PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage",
-        "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage", "PrivateUsage")]
+if WINDOWS:  # wintypes só existe de verdade no Windows
+    from ctypes import wintypes as W
+
+    class PMC(ctypes.Structure):
+        _fields_ = [("cb", W.DWORD), ("PageFaultCount", W.DWORD)] + [(n, ctypes.c_size_t) for n in (
+            "PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage",
+            "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage",
+            "PrivateUsage")]
 
 
 def memoria_mb(pid: int) -> int | None:
+    if not WINDOWS:  # memória própria do processo (RssAnon), equivalente ao "privado" do Windows
+        try:
+            with open(f"/proc/{pid}/status") as f:
+                for linha in f:
+                    if linha.startswith("RssAnon:"):
+                        return round(int(linha.split()[1]) / 1024)
+        except OSError:
+            return None
+        return None
     k32 = ctypes.windll.kernel32
     k32.OpenProcess.restype = W.HANDLE
     h = k32.OpenProcess(0x1000 | 0x10, False, pid)  # QUERY_LIMITED_INFORMATION | VM_READ
@@ -105,7 +120,7 @@ class Api(BaseHTTPRequestHandler):
             return
         rota = self.path.split(TOKEN, 1)[1].split("?")[0]
         if rota in ("", "/"):
-            with open(os.path.join(APP, "ui.html"), "rb") as f:
+            with open(os.path.join(APP, "ui", "index.html"), "rb") as f:
                 self._ok(f.read(), "text/html; charset=utf-8")
         elif rota == "/api/estado":
             self._ok(estado())
@@ -136,8 +151,7 @@ class Api(BaseHTTPRequestHandler):
             if erro:
                 self._ok({"ok": False, "erro": erro})
                 return
-            with open(os.path.join(PASTA, "chave.txt"), "w", encoding="utf-8") as f:
-                f.write(k)
+            salvar_chave(k)
             self._ok({"ok": True, "chave": f"{k[:4]}{'•' * 10}{k[-4:]}"})
         elif rota == "/api/atualizar":
             situacao, detalhe = atualizador.verificar_e_aplicar()
@@ -149,7 +163,7 @@ class Api(BaseHTTPRequestHandler):
         elif rota == "/api/abrir":
             alvo = {"log": ARQ_LOG, "repo": REPO_URL, "groq": "https://console.groq.com/keys"}.get(dados.get("alvo"))
             if alvo:
-                os.startfile(alvo)
+                abrir(alvo)
             self._ok({"ok": bool(alvo)})
         elif rota == "/api/fim":
             ultimo_ping = 0
@@ -184,14 +198,50 @@ def ajustar_janela(x: int, y: int, w: int, h: int) -> None:
         time.sleep(0.02)
 
 
+def ja_aberta() -> bool:
+    if WINDOWS:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateMutexW(None, False, "RenanTalkConfiguracoes")
+        return ctypes.get_last_error() == 183
+    import fcntl
+
+    global _trava
+    _trava = open(os.path.join(PASTA, ".configuracoes"), "w")
+    try:
+        fcntl.flock(_trava, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return False
+    except OSError:
+        return True
+
+
+def abrir_linux(url: str):
+    perfil = os.path.join(os.path.expanduser("~/.local/share/RenanTalk"), "ui-perfil")
+    for nav in ("brave-browser", "chromium", "chromium-browser", "google-chrome"):
+        if shutil.which(nav):
+            return subprocess.Popen([nav, f"--app={url}", f"--user-data-dir={perfil}", "--window-size=800,580",
+                              "--no-first-run", "--no-default-browser-check", "--disable-extensions",
+                              "--disable-sync", "--disable-background-networking", "--disable-component-update",
+                              "--renderer-process-limit=1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    abrir(url)  # Firefox ou o navegador padrão: abre como janela comum
+    return None
+
+
 def main() -> None:
-    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    k32.CreateMutexW(None, False, "RenanTalkConfiguracoes")
-    if ctypes.get_last_error() == 183:  # já aberta
+    if ja_aberta():
         return
     srv = ThreadingHTTPServer(("127.0.0.1", 0), Api)
     url = f"http://127.0.0.1:{srv.server_address[1]}/{TOKEN}/"
     threading.Thread(target=srv.serve_forever, daemon=True).start()
+    global ultimo_ping
+    if not WINDOWS:
+        nav = abrir_linux(url)
+        ultimo_ping = time.time() + 20
+        while time.time() - ultimo_ping < 8:
+            time.sleep(1)
+        srv.shutdown()
+        if nav:  # o navegador aberto com perfil próprio não deve ficar para trás
+            nav.terminate()
+        return
     u32 = ctypes.windll.user32
     try:
         u32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
@@ -213,8 +263,7 @@ def main() -> None:
         threading.Thread(target=ajustar_janela, args=(x, y, w, h), daemon=True).start()
     else:
         nav = None
-        os.startfile(url)
-    global ultimo_ping
+        abrir(url)
     ultimo_ping = time.time() + 20  # tempo para o Edge abrir
     while time.time() - ultimo_ping < 8:
         time.sleep(1)
