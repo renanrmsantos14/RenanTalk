@@ -1,4 +1,5 @@
-keyboard>=0.13.5
-numpy>=2.0
-pyperclip>=1.9
+numpy>=1.26
 sounddevice>=0.5
+keyboard>=0.13.5; sys_platform == "win32"
+pyperclip>=1.9; sys_platform == "win32"
+python-xlib>=0.33; sys_platform == "linux"

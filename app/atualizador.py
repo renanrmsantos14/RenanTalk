@@ -68,9 +68,14 @@ def verificar_e_aplicar() -> tuple[str, str]:
                 return "erro", "pacote do release sem ditado.pyw"
             shutil.copytree(tmp, APP, dirs_exist_ok=True)  # .py não fica travado no Windows: dá para sobrescrever
         if _ler(os.path.join(APP, "requirements.txt")) != req_antes:
-            python = os.path.join(os.path.dirname(sys.executable), "python.exe")
-            subprocess.run([python, "-m", "pip", "install", "--user", "-q", "-r", os.path.join(APP, "requirements.txt")],
-                           timeout=600, creationflags=SEM_JANELA)
+            req = os.path.join(APP, "requirements.txt")
+            if sys.platform == "win32":
+                python = os.path.join(os.path.dirname(sys.executable), "python.exe")  # pythonw não roda pip
+                subprocess.run([python, "-m", "pip", "install", "--user", "-q", "-r", req],
+                               timeout=600, creationflags=SEM_JANELA)
+            else:
+                subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--break-system-packages", "-q",
+                                "-r", req], timeout=600)
         return "atualizado", f"v{nova}"
     except Exception as e:  # noqa: BLE001 - sem internet, GitHub fora etc.: tenta de novo mais tarde
         return "erro", repr(e)
