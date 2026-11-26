@@ -57,6 +57,8 @@ class RegrasTest {
     @Test fun nivelDaLuz() {
         assertEquals(0f, Regras.nivel(ShortArray(4), 4))
         assertEquals(1f, Regras.nivel(ShortArray(4) { 5000 }, 4))
+        assertEquals(0f, Regras.nivel(ShortArray(4) { 30 }, 4)) // ruído de fundo não acende
+        assertEquals(0.65f, Regras.nivel(ShortArray(4) { 1000 }, 4), 0.03f) // voz normal já acende bem
     }
 }
 

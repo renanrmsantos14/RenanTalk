@@ -50,6 +50,7 @@ class TecladoService : InputMethodService(), SharedPreferences.OnSharedPreferenc
     private var transcrevendo = false
     private var cancelando = false
     private var inicioGravacao = 0L
+    private var ultimaVoz = 0L
 
     private var aj = Ajustes.Teclado()
     private lateinit var pal: Ajustes.Paleta
@@ -79,6 +80,10 @@ class TecladoService : InputMethodService(), SharedPreferences.OnSharedPreferenc
         override fun run() {
             if (!gravador.ativo) return
             if (!cancelando) painelTitulo.text = "Ouvindo · ${Regras.cronometro(SystemClock.elapsedRealtime() - inicioGravacao)}"
+            val agora = SystemClock.elapsedRealtime()
+            if (onda.nivel > 0.3f) ultimaVoz = agora
+            if (!cancelando) painelDica.text = if (agora - ultimaVoz > 1800) "Não estou ouvindo · fale mais perto do celular"
+                else "Solte para enviar  ·  arraste para cima para cancelar"
             val escala = 1f + 0.22f * onda.nivel // o microfone pulsa com a voz
             mic.scaleX = escala; mic.scaleY = escala
             principal.postDelayed(this, 50)
@@ -255,6 +260,7 @@ class TecladoService : InputMethodService(), SharedPreferences.OnSharedPreferenc
         v.isPressed = true
         cancelando = false
         inicioGravacao = SystemClock.elapsedRealtime()
+        ultimaVoz = inicioGravacao
         mic.background = pilula(escurecer(pal.destaque))
         mostrarPainel("Ouvindo · 0:00", "Solte para enviar  ·  arraste para cima para cancelar", OndaView.Estado.REC)
         principal.post(relogio)

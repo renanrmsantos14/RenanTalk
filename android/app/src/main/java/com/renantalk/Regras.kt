@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
+import kotlin.math.log10
 import kotlin.math.sqrt
 
 /** Regras do ditado, iguais às de app/ditado.pyw e app/comum.py (sem dependência de Android, para testar). */
@@ -38,7 +39,11 @@ object Regras {
         if (n <= 0) return 0f
         var soma = 0.0
         for (i in 0 until n) soma += amostras[i].toDouble() * amostras[i]
-        return minOf(1.0, sqrt(soma / n) / 2500).toFloat()
+        val rms = sqrt(soma / n)
+        if (rms < 1) return 0f
+        // escala em dB, como o ouvido: ruído (~-55 dBFS) = 0, voz alta (~-17 dBFS) = 1
+        val db = 20 * log10(rms / 32768)
+        return ((db + 55) / 38).coerceIn(0.0, 1.0).toFloat()
     }
 
     /** Termos separados por vírgula, cortando no limite sem quebrar um termo ao meio. */
