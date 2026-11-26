@@ -59,3 +59,22 @@ class RegrasTest {
         assertEquals(1f, Regras.nivel(ShortArray(4) { 5000 }, 4))
     }
 }
+
+class TeclasTest {
+    @Test fun acentosDoA() = assertEquals(listOf("á", "à", "â", "ã", "ä"), Teclas.variantes('a'))
+
+    @Test fun acentoComMaiuscula() = assertEquals(listOf("ç"), Teclas.variantes('C'))
+
+    @Test fun teclaSemAcento() = assertTrue(Teclas.variantes('q').isEmpty())
+
+    @Test fun caixa() {
+        assertEquals("Á", Teclas.caixa("á", true))
+        assertEquals("q", Teclas.caixa("Q", false))
+    }
+
+    @Test fun fileirasComoGboard() {
+        assertEquals(10, Teclas.NUMEROS.length)
+        assertEquals(listOf(10, 9, 7), Teclas.LETRAS.map { it.length })
+        assertEquals(listOf(10, 8), Teclas.SIMBOLOS.map { it.length })
+    }
+}

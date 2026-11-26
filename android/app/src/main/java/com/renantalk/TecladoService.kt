@@ -20,6 +20,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -40,56 +41,47 @@ class TecladoService : InputMethodService() {
     private val dp get() = resources.displayMetrics.density
     private fun cor(id: Int) = getColor(id)
 
-    @SuppressLint("ClickableViewAccessibility")
+    // Layout copiado do Gboard do Renan: fileira de números, QWERTY, ⇧/⌫, ?123 e espaço.
+    private enum class Shift { NAO, UMA, TRAVADA }
+    private var shift = Shift.NAO
+    private var ultimoShift = 0L
+    private var simbolos = false
+    private lateinit var teclas: LinearLayout
+    private lateinit var variantes: LinearLayout
+    private val letras = mutableListOf<TextView>()
+    private var shiftTecla: TextView? = null
+
     override fun onCreateInputView(): View {
         val raiz = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(cor(R.color.superficie))
-            setPadding((6 * dp).toInt(), 0, (6 * dp).toInt(), (4 * dp).toInt())
+            setPadding((3 * dp).toInt(), 0, (3 * dp).toInt(), (4 * dp).toInt())
         }
         luz = LuzView(this)
         raiz.addView(luz, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (10 * dp).toInt()))
 
-        val linha = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val globo = tecla(R.drawable.ic_globo, "Trocar teclado")
-        globo.setOnClickListener { toque(it); trocarTeclado() }
-        globo.setOnLongClickListener {
-            (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker(); true
-        }
-        val apagar = tecla(R.drawable.ic_apagar, "Apagar")
-        repetirAoSegurar(apagar) { sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL) }
-
-        mic = ImageView(this).apply {
-            setImageResource(R.drawable.ic_mic)
-            imageTintList = ColorStateList.valueOf(0xFFFFFFFF.toInt())
-            scaleType = ImageView.ScaleType.CENTER
-            contentDescription = "Segure para falar"
-            background = pilula(cor(R.color.azul))
-            setOnTouchListener { v, e -> aoTocarMic(v, e) }
-        }
-        val espaco = tecla(R.drawable.ic_espaco, "Espaço")
-        espaco.setOnClickListener { toque(it); currentInputConnection?.commitText(" ", 1) }
-        val enter = tecla(R.drawable.ic_enter, "Enter")
-        enter.setOnClickListener { toque(it); enter() }
-
-        val alt = (56 * dp).toInt()
-        val margem = (3 * dp).toInt()
-        fun lp(larg: Int, peso: Float = 0f) = LinearLayout.LayoutParams(larg, alt, peso).apply { setMargins(margem, margem, margem, margem) }
-        linha.addView(globo, lp((52 * dp).toInt()))
-        linha.addView(apagar, lp((52 * dp).toInt()))
-        linha.addView(mic, lp(0, 1f))
-        linha.addView(espaco, lp((60 * dp).toInt()))
-        linha.addView(enter, lp((52 * dp).toInt()))
-        raiz.addView(linha)
-
+        // Barra no lugar das sugestões do Gboard: versão/mensagens ou os acentos da tecla segurada.
+        val barra = FrameLayout(this)
         status = TextView(this).apply {
             textSize = 11f
             setTextColor(cor(R.color.texto_fraco))
-            gravity = Gravity.END
-            setPadding(0, 0, (6 * dp).toInt(), 0)
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            setPadding(0, 0, (8 * dp).toInt(), 0)
             setOnClickListener { abrirConfiguracoes() }
         }
-        raiz.addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        variantes = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        val cheio = FrameLayout.LayoutParams.MATCH_PARENT
+        barra.addView(status, FrameLayout.LayoutParams(cheio, cheio))
+        barra.addView(variantes, FrameLayout.LayoutParams(cheio, cheio))
+        raiz.addView(barra, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (36 * dp).toInt()))
+
+        teclas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        raiz.addView(teclas)
+        montar()
         mostrarVersao()
         procurarAtualizacaoSeVencido()
         return raiz
@@ -103,11 +95,20 @@ class TecladoService : InputMethodService() {
             InputType.TYPE_TEXT_VARIATION_PASSWORD, InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
             InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
         )) || (classe == InputType.TYPE_CLASS_NUMBER && variacao == InputType.TYPE_NUMBER_VARIATION_PASSWORD)
-        if (::mic.isInitialized) mic.alpha = if (campoSenha) 0.35f else 1f
+        simbolos = classe == InputType.TYPE_CLASS_NUMBER || classe == InputType.TYPE_CLASS_PHONE ||
+            classe == InputType.TYPE_CLASS_DATETIME
+        shift = Shift.NAO
+        if (::teclas.isInitialized) { montar(); autoMaiuscula() }
         if (::status.isInitialized) mostrarVersao()
     }
 
+    override fun onUpdateSelection(a: Int, b: Int, novoInicio: Int, novoFim: Int, c: Int, d: Int) {
+        super.onUpdateSelection(a, b, novoInicio, novoFim, c, d)
+        autoMaiuscula()
+    }
+
     override fun onFinishInputView(finishingInput: Boolean) {
+        esconderVariantes()
         if (gravador.ativo) { // teclado fechou no meio: descarta
             gravador.parar()
             luz.definir(LuzView.Estado.FEITO)
@@ -188,9 +189,178 @@ class TecladoService : InputMethodService() {
 
     // ---------- teclas ----------
 
+    @SuppressLint("ClickableViewAccessibility")
+    private fun montar() {
+        teclas.removeAllViews()
+        letras.clear()
+        shiftTecla = null
+        esconderVariantes()
+        val linhas = if (simbolos) 4 else 5
+        val alt = (48 * dp * 5 / linhas).toInt() // altura total igual nas duas camadas
+        val m = (2.5f * dp).toInt()
+        fun linha(itens: List<Pair<View, Float>>, recuo: Float = 0f) {
+            val l = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; weightSum = 10f }
+            if (recuo > 0) l.addView(View(this), LinearLayout.LayoutParams(0, alt, recuo))
+            itens.forEach { (v, peso) ->
+                l.addView(v, LinearLayout.LayoutParams(0, alt, peso).apply { setMargins(m, m, m, m) })
+            }
+            if (recuo > 0) l.addView(View(this), LinearLayout.LayoutParams(0, alt, recuo))
+            teclas.addView(l)
+        }
+        fun texto(fileira: String, registrar: Boolean = false) =
+            fileira.map { simbolo(it.toString(), registrar) to 1f }
+
+        linha(texto(Teclas.NUMEROS))
+        val apagar = icone(R.drawable.ic_apagar, "Apagar").also { a ->
+            repetirAoSegurar(a) { esconderVariantes(); sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL) }
+        }
+        if (simbolos) {
+            linha(texto(Teclas.SIMBOLOS[0]))
+            linha(texto(Teclas.SIMBOLOS[1]) + (apagar to 2f))
+        } else {
+            linha(texto(Teclas.LETRAS[0], true))
+            linha(texto(Teclas.LETRAS[1], true), recuo = 0.5f)
+            val sh = especial("⇧", "Maiúscula") { alternarShift() }
+            shiftTecla = sh
+            linha(listOf<Pair<View, Float>>(sh to 1.5f) + texto(Teclas.LETRAS[2], true) + (apagar to 1.5f))
+            atualizarShift()
+        }
+
+        val camada = especial(if (simbolos) "ABC" else "?123", "Trocar letras e símbolos") {
+            simbolos = !simbolos; montar(); autoMaiuscula()
+        }.apply { textSize = 15f }
+        val globo = icone(R.drawable.ic_globo, "Trocar teclado").apply {
+            setOnClickListener { toque(it); trocarTeclado() }
+            setOnLongClickListener { seletorDeTeclado(); true }
+        }
+        mic = ImageView(this).apply {
+            setImageResource(R.drawable.ic_mic)
+            imageTintList = ColorStateList.valueOf(0xFFFFFFFF.toInt())
+            scaleType = ImageView.ScaleType.CENTER
+            contentDescription = "Segure para falar"
+            background = pilula(cor(R.color.azul))
+            alpha = if (campoSenha) 0.35f else 1f
+            setOnTouchListener { v, e -> aoTocarMic(v, e) }
+        }
+        val espaco = TextView(this).apply {
+            text = "Português"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(cor(R.color.texto_fraco))
+            background = pilula(cor(R.color.tecla))
+            contentDescription = "Espaço"
+            isClickable = true
+            setOnClickListener { toque(it); digitar(" ") }
+            setOnLongClickListener { seletorDeTeclado(); true }
+        }
+        val enter = icone(R.drawable.ic_enter, "Enter").apply { setOnClickListener { toque(it); enter() } }
+        linha(listOf(
+            camada to 1.2f, simbolo(",") to 0.9f, globo to 0.9f, mic to 1.3f,
+            espaco to 3.4f, simbolo(".") to 0.9f, enter to 1.4f,
+        ))
+    }
+
+    /** Tecla de texto; segurar mostra os acentos na barra (como o Gboard). */
+    private fun simbolo(s: String, registrar: Boolean = false) = TextView(this).apply {
+        text = s
+        textSize = 22f
+        gravity = Gravity.CENTER
+        setTextColor(cor(R.color.texto))
+        background = pilula(cor(R.color.tecla))
+        isClickable = true
+        setOnClickListener { toque(it); digitar(text.toString()) }
+        val vars = Teclas.variantes(s[0])
+        if (vars.isNotEmpty()) setOnLongClickListener { toque(it); mostrarVariantes(vars); true }
+        if (registrar) letras += this
+    }
+
+    private fun especial(rotulo: String, descricao: String, acao: () -> Unit) = TextView(this).apply {
+        text = rotulo
+        textSize = 20f
+        gravity = Gravity.CENTER
+        setTextColor(cor(R.color.texto))
+        background = pilula(cor(R.color.tecla_especial))
+        contentDescription = descricao
+        isClickable = true
+        setOnClickListener { toque(it); acao() }
+    }
+
+    private fun icone(id: Int, descricao: String) = ImageView(this).apply {
+        setImageResource(id)
+        imageTintList = ColorStateList.valueOf(cor(R.color.texto))
+        scaleType = ImageView.ScaleType.CENTER
+        contentDescription = descricao
+        background = pilula(cor(R.color.tecla_especial))
+        isClickable = true
+    }
+
+    private fun digitar(s: String) {
+        esconderVariantes()
+        currentInputConnection?.commitText(s, 1)
+        if (shift == Shift.UMA) { shift = Shift.NAO; atualizarShift() }
+    }
+
+    private fun alternarShift() {
+        val agora = System.currentTimeMillis()
+        shift = when {
+            shift == Shift.TRAVADA -> Shift.NAO
+            agora - ultimoShift < 350 -> Shift.TRAVADA // toque duplo trava
+            shift == Shift.UMA -> Shift.NAO
+            else -> Shift.UMA
+        }
+        ultimoShift = agora
+        atualizarShift()
+    }
+
+    private fun autoMaiuscula() {
+        if (simbolos || shift == Shift.TRAVADA || !::teclas.isInitialized) return
+        val tipo = currentInputEditorInfo?.inputType ?: 0
+        val caps = tipo != 0 && (currentInputConnection?.getCursorCapsMode(tipo) ?: 0) != 0
+        val novo = if (caps) Shift.UMA else Shift.NAO
+        if (novo != shift) { shift = novo; atualizarShift() }
+    }
+
+    private fun atualizarShift() {
+        val maiuscula = shift != Shift.NAO
+        letras.forEach { it.text = Teclas.caixa(it.text.toString(), maiuscula) }
+        shiftTecla?.apply {
+            text = if (shift == Shift.TRAVADA) "⇪" else "⇧"
+            background = pilula(cor(if (maiuscula) R.color.azul else R.color.tecla_especial))
+            setTextColor(if (maiuscula) 0xFFFFFFFF.toInt() else cor(R.color.texto))
+        }
+    }
+
+    private fun mostrarVariantes(vars: List<String>) {
+        variantes.removeAllViews()
+        val m = (3 * dp).toInt()
+        vars.forEach { v ->
+            val s = Teclas.caixa(v, shift != Shift.NAO)
+            variantes.addView(TextView(this).apply {
+                text = s
+                textSize = 20f
+                gravity = Gravity.CENTER
+                setTextColor(cor(R.color.texto))
+                background = pilula(cor(R.color.tecla))
+                isClickable = true
+                setOnClickListener { toque(it); digitar(s) }
+            }, LinearLayout.LayoutParams((46 * dp).toInt(), LinearLayout.LayoutParams.MATCH_PARENT).apply { setMargins(m, m, m, m) })
+        }
+        status.visibility = View.INVISIBLE
+        variantes.visibility = View.VISIBLE
+    }
+
+    private fun esconderVariantes() {
+        if (!::variantes.isInitialized || variantes.visibility != View.VISIBLE) return
+        variantes.visibility = View.GONE
+        status.visibility = View.VISIBLE
+    }
+
+    private fun seletorDeTeclado() =
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
+
     private fun trocarTeclado() {
         val trocou = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && switchToNextInputMethod(false)
-        if (!trocou) (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
+        if (!trocou) seletorDeTeclado()
     }
 
     private fun enter() {
@@ -218,16 +388,7 @@ class TecladoService : InputMethodService() {
         }
     }
 
-    private fun tecla(icone: Int, descricao: String) = ImageView(this).apply {
-        setImageResource(icone)
-        imageTintList = ColorStateList.valueOf(cor(R.color.texto))
-        scaleType = ImageView.ScaleType.CENTER
-        contentDescription = descricao
-        background = pilula(cor(R.color.tecla))
-        isClickable = true
-    }
-
-    private fun pilula(c: Int) = GradientDrawable().apply { cornerRadius = 14 * dp; setColor(c) }
+    private fun pilula(c: Int) = GradientDrawable().apply { cornerRadius = 8 * dp; setColor(c) }
 
     private fun toque(v: View) = v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
 
