@@ -16,15 +16,15 @@ import zipfile
 REPO = "renanrmsantos14/RenanTalk"
 APP = os.path.dirname(os.path.abspath(__file__))
 SEM_JANELA = 0x08000000  # CREATE_NO_WINDOW
-CAB = {"User-Agent": "renantalk-atualizador", "Accept": "application/vnd.github+json"}
-
-
 def versao_texto() -> str:
     try:
         with open(os.path.join(APP, "VERSION"), encoding="utf-8") as f:
             return f.read().strip()
     except FileNotFoundError:
         return "0.0.0 · dev"
+
+
+CAB = {"User-Agent": f"renantalk/{versao_texto().split(' ')[0]}", "Accept": "application/vnd.github+json"}
 
 
 def eh_dev() -> bool:
