@@ -9,7 +9,7 @@
 - Tecnologia: **Kotlin nativo** (Tauri mobile não faz IME).
 - Transcrição: Groq `whisper-large-v3`, `language=pt`, vocabulário como `prompt` (mesma lógica de `app/ditado.pyw`), ignorar silêncio/toques curtos.
 - Chave Groq: digitada no app, guardada só no aparelho (armazenamento criptografado).
-- Vocabulário: **sincronizar com os PCs** (decisão do Renan). Ponto em aberto: onde guardar a lista comum (ex.: Gist privado exige token GitHub em cada aparelho; avaliar alternativa sem novo segredo antes do Go).
+- Vocabulário: **lista própria no celular**, independente dos PCs (decisão do Renan em 26/11/2026, depois de ver que sincronizar exigiria um token em cada aparelho). Vem com os mesmos termos padrão do desktop e é editada no app. Sincronização fica para depois, se fizer falta.
 - Distribuição: APK assinado no mesmo release do GitHub (`RenanTalk.apk`); chave de assinatura como secret do repositório; app checa o último release e abre o instalador (Android exige confirmação do usuário).
 - Teste: **celular do Renan** com depuração USB/sem fio (adb).
 - CI: entra no `.github/workflows/release.yml` (PR compila; merge publica), sem quebrar os pacotes Windows/Linux.
@@ -19,7 +19,7 @@
 - Ramos abertos: `janela-instantanea` (janela aparece mais cedo + ditado.json; sem PR) e PR #3 (reinício não prende terminal).
 
 ## Tarefas
-- [ ] Plano técnico (módulos, permissões, layout do teclado, sincronização do vocabulário) + Go
+- [ ] Plano técnico (módulos, permissões, layout do teclado, vocabulário local) + Go
 - [ ] Projeto Android (Gradle/Kotlin) em `android/`
 - [ ] Teclado + gravação + Groq + inserir texto
 - [ ] Tela de configurações (chave, vocabulário) e atualização pelo release
