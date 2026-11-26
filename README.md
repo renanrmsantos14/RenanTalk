@@ -30,9 +30,13 @@ O instalador baixa o último release, instala as dependências, coloca o RenanTa
 
 Clique no ícone do RenanTalk (na área de notificação ou na setinha `^`):
 
-- **Vocabulário…**: nomes, siglas e termos que o ditado deve escrever certo (um por linha, ex.: nomes de clientes, `Dataverse`, `RD Station`). Vão como contexto para o Whisper em todo ditado e valem na hora. Cabem cerca de 850 caracteres; o que passar disso é ignorado (a janela avisa).
-- **Trocar chave Groq…**: cola a chave nova; ela é validada na Groq antes de ser salva e vale na hora.
+- **Configurações…**: abre a janela do RenanTalk (segue o tema claro/escuro do Windows):
+  - **Vocabulário**: nomes, siglas e termos que o ditado deve escrever certo (ex.: nomes de clientes, `Dataverse`, `RD Station`). Adicione com Enter, remova no ✕; salva sozinho e vale no próximo ditado. Cabem cerca de 850 caracteres; o que passar fica riscado e de fora.
+  - **Chave Groq**: cola a chave nova; ela é validada na Groq antes de ser salva.
+  - **Sobre**: versão, memória em uso, ditados do dia, atualização e log.
 - **Procurar atualização**: verifica agora em vez de esperar o ciclo automático.
+
+A janela de configurações roda num processo à parte (janela de aplicativo do Edge + servidor local em `127.0.0.1` com token). Ela usa cerca de 500 MB **só enquanto está aberta**; ao fechar, tudo encerra e o RenanTalk volta aos ~30 MB.
 - **Ver log** e **Sair**.
 
 ## Atualização automática
@@ -57,7 +61,9 @@ O app instalado procura releases 1 minuto depois de iniciar e depois a cada 6 ho
 app/
   ditado.pyw      atalho, gravação, envio à Groq, colagem e ciclo de atualização
   luz.py          linha de luz (janela em camadas, transparente e sem foco)
-  bandeja.py      ícone, menu, notificações e janela da chave
+  bandeja.py      ícone, menu, notificações, chave e vocabulário
+  configuracoes.py  janela de configurações (servidor local + Edge em modo app)
+  ui.html         interface da janela de configurações
   atualizador.py  leitura do último release e troca dos arquivos
   VERSION         preenchido pelo workflow de release ("dev" localmente)
 .github/workflows/release.yml

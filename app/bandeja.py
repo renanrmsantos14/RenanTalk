@@ -21,7 +21,7 @@ ARQ_LOG = os.path.join(PASTA, "ditado.log")
 ICONE = os.path.join(PASTA, "renantalk.ico")
 WM_TRAY = 0x8000 + 1
 ARQ_VOCAB = os.path.join(PASTA, "vocabulario.txt")
-ITEM_CHAVE, ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR, ITEM_VOCAB = 1, 2, 3, 4, 5
+ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR, ITEM_VOCAB = 2, 3, 4, 5
 VOCAB_PADRAO = ["Betinhos", "Betinhos Executive Service", "Dataverse", "Power Apps", "Power Automate", "Power BI",
                 "SharePoint", "Microsoft 365", "RD Station", "WebResource", "Planner", "Teams", "WhatsApp"]
 LIMITE_VOCAB = 850  # caracteres; o Whisper só aproveita ~224 tokens de contexto
@@ -133,59 +133,6 @@ def prompt_vocabulario() -> str:
     return texto + "." if texto else ""
 
 
-def janela_vocabulario() -> None:
-    import tkinter as tk
-    from tkinter import ttk
-
-    root = tk.Tk()
-    root.title(f"{NOME} · Vocabulário")
-    root.attributes("-topmost", True)
-    try:
-        root.iconbitmap(ICONE)
-    except tk.TclError:
-        pass
-    f = ttk.Frame(root, padding=18)
-    f.pack(fill="both", expand=True)
-    ttk.Label(f, text="Vocabulário", font=("Segoe UI Semibold", 11)).pack(anchor="w")
-    ttk.Label(f, text="Nomes, siglas e termos para o ditado escrever certo. Um por linha.",
-              foreground="#64748b").pack(anchor="w", pady=(2, 10))
-    caixa = tk.Text(f, width=48, height=14, font=("Segoe UI", 10), relief="solid", borderwidth=1, undo=True,
-                    padx=8, pady=6)
-    caixa.pack(fill="both", expand=True)
-    caixa.insert("1.0", "\n".join(ler_vocabulario()))
-    status = ttk.Label(f, text="", foreground="#64748b")
-    status.pack(anchor="w", pady=(6, 10))
-
-    def contar(_e=None) -> None:
-        termos = [l.strip() for l in caixa.get("1.0", "end").splitlines() if l.strip()]
-        tam = len(", ".join(termos))
-        if tam > LIMITE_VOCAB:
-            status.config(text=f"{len(termos)} termos · passou do limite: os do fim serão ignorados", foreground="#d97706")
-        else:
-            status.config(text=f"{len(termos)} termos · {tam} de {LIMITE_VOCAB} caracteres", foreground="#64748b")
-
-    def salvar(_e=None) -> None:
-        termos = [l.strip() for l in caixa.get("1.0", "end").splitlines() if l.strip()]
-        with open(ARQ_VOCAB, "w", encoding="utf-8") as fh:
-            fh.write("\n".join(termos) + "\n")
-        status.config(text="Salvo. Já vale no próximo ditado.", foreground="#16a34a")
-        root.after(800, root.destroy)
-
-    botoes = ttk.Frame(f)
-    botoes.pack(anchor="e")
-    ttk.Button(botoes, text="Cancelar", command=root.destroy).pack(side="left", padx=(0, 6))
-    ttk.Button(botoes, text="Salvar", command=salvar, default="active").pack(side="left")
-    caixa.bind("<KeyRelease>", contar)
-    root.bind("<Control-s>", salvar)
-    root.bind("<Escape>", lambda _e: root.destroy())
-    contar()
-    root.update_idletasks()
-    w, h = root.winfo_width(), root.winfo_height()
-    root.geometry(f"+{(root.winfo_screenwidth() - w) // 2}+{(root.winfo_screenheight() - h) // 2}")
-    root.after(50, caixa.focus_force)
-    root.mainloop()
-
-
 def validar_chave(chave: str) -> str | None:
     """None se a Groq aceitar; senão, a mensagem para mostrar."""
     req = urllib.request.Request("https://api.groq.com/openai/v1/models",
@@ -200,72 +147,12 @@ def validar_chave(chave: str) -> str | None:
         return "Sem conexão com a Groq. Tente de novo."
 
 
-def janela_chave() -> None:
-    import tkinter as tk
-    from tkinter import ttk
-
-    root = tk.Tk()
-    root.title(NOME)
-    root.resizable(False, False)
-    root.attributes("-topmost", True)
-    try:
-        root.iconbitmap(ICONE)
-    except tk.TclError:
-        pass
-    f = ttk.Frame(root, padding=18)
-    f.pack()
-    ttk.Label(f, text="Chave da API Groq", font=("Segoe UI Semibold", 11)).grid(row=0, column=0, columnspan=2, sticky="w")
-    atual = ler_chave()
-    dica = f"Atual: {atual[:4]}…{atual[-4:]}" if len(atual) > 8 else "Nenhuma chave salva"
-    ttk.Label(f, text=dica, foreground="#64748b").grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
-    var = tk.StringVar()
-    ent = ttk.Entry(f, textvariable=var, show="•", width=46)
-    ent.grid(row=2, column=0, columnspan=2, sticky="we")
-    status = ttk.Label(f, text="", foreground="#64748b")
-    status.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 10))
-    link = ttk.Label(f, text="Criar chave em console.groq.com", foreground="#2563eb", cursor="hand2")
-    link.grid(row=4, column=0, sticky="w")
-    link.bind("<Button-1>", lambda _e: os.startfile("https://console.groq.com/keys"))
-
-    def salvar(_e=None) -> None:
-        k = var.get().strip()
-        if not k.startswith("gsk_"):
-            status.config(text="A chave da Groq começa com gsk_.", foreground="#dc2626")
-            return
-        status.config(text="Validando na Groq…", foreground="#64748b")
-        b_salvar.state(["disabled"])
-        root.update()
-        erro = validar_chave(k)
-        b_salvar.state(["!disabled"])
-        if erro:
-            status.config(text=erro, foreground="#dc2626")
-            return
-        with open(ARQ_CHAVE, "w", encoding="utf-8") as fh:
-            fh.write(k)
-        status.config(text="Chave salva. Já está em uso.", foreground="#16a34a")
-        root.after(900, root.destroy)
-
-    botoes = ttk.Frame(f)
-    botoes.grid(row=4, column=1, sticky="e")
-    ttk.Button(botoes, text="Cancelar", command=root.destroy).pack(side="left", padx=(0, 6))
-    b_salvar = ttk.Button(botoes, text="Salvar", command=salvar, default="active")
-    b_salvar.pack(side="left")
-    root.bind("<Return>", salvar)
-    root.bind("<Escape>", lambda _e: root.destroy())
-    root.update_idletasks()
-    w, h = root.winfo_width(), root.winfo_height()
-    root.geometry(f"+{(root.winfo_screenwidth() - w) // 2}+{(root.winfo_screenheight() - h) // 2}")
-    root.after(50, ent.focus_force)
-    root.mainloop()
-
-
 # ---------- bandeja ----------
 class Bandeja:
     def __init__(self, ao_sair, ao_atualizar, versao: str) -> None:
         self.ao_sair = ao_sair
         self.ao_atualizar = ao_atualizar
         self.versao = versao
-        self.janela_aberta = threading.Lock()
         gerar_icone()
         threading.Thread(target=self._loop, daemon=True).start()
 
@@ -298,8 +185,7 @@ class Bandeja:
         u32.AppendMenuW(m, 0x1, 0, f"{NOME} · Ctrl+Win para ditar")  # MF_GRAYED
         u32.AppendMenuW(m, 0x1, 0, f"v{self.versao}")
         u32.AppendMenuW(m, 0x800, 0, None)  # separador
-        u32.AppendMenuW(m, 0, ITEM_VOCAB, "Vocabulário…")
-        u32.AppendMenuW(m, 0, ITEM_CHAVE, "Trocar chave Groq…")
+        u32.AppendMenuW(m, 0, ITEM_VOCAB, "Configurações…")
         u32.AppendMenuW(m, 0, ITEM_ATUALIZAR, "Procurar atualização")
         u32.AppendMenuW(m, 0, ITEM_LOG, "Ver log")
         u32.AppendMenuW(m, 0x800, 0, None)
@@ -310,10 +196,8 @@ class Bandeja:
         item = u32.TrackPopupMenu(m, 0x100 | 0x2, p.x, p.y, 0, self.hwnd, None)  # RETURNCMD | RIGHTBUTTON
         u32.PostMessageW(self.hwnd, 0, 0, 0)
         u32.DestroyMenu(m)
-        if item == ITEM_CHAVE:
-            self.abrir_chave()
-        elif item == ITEM_VOCAB:
-            self._abrir(janela_vocabulario)
+        if item == ITEM_VOCAB:
+            self.abrir_configuracoes()
         elif item == ITEM_ATUALIZAR:
             threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start()
         elif item == ITEM_LOG and os.path.exists(ARQ_LOG):
@@ -322,19 +206,13 @@ class Bandeja:
             self.remover()
             self.ao_sair()
 
-    def abrir_chave(self) -> None:
-        self._abrir(janela_chave)
+    def abrir_configuracoes(self, aba: str = "voc") -> None:
+        """Processo à parte: só consome memória enquanto a janela está aberta."""
+        import subprocess
+        import sys
 
-    def _abrir(self, janela) -> None:
-        """Uma janela por vez (o Tk não convive bem com duas instâncias em threads diferentes)."""
-        def rodar() -> None:
-            if not self.janela_aberta.acquire(blocking=False):
-                return
-            try:
-                janela()
-            finally:
-                self.janela_aberta.release()
-        threading.Thread(target=rodar, daemon=True).start()
+        app = os.path.dirname(os.path.abspath(__file__))
+        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba], cwd=app)
 
     def _proc_janela(self, h, msg, wp, lp):
         if msg == WM_TRAY and lp in (0x202, 0x205):  # LBUTTONUP, RBUTTONUP

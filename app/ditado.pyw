@@ -219,7 +219,7 @@ if __name__ == "__main__":
     log(f"iniciado v{versao}")
     bandeja = Bandeja(ao_sair=lambda: os._exit(0), ao_atualizar=atualizar, versao=versao)
     if not ler_chave():
-        bandeja.abrir_chave()
+        bandeja.abrir_configuracoes("key")
     threading.Thread(target=ciclo_atualizacao, daemon=True).start()
     keyboard.hook(ao_teclado)
     keyboard.wait()
