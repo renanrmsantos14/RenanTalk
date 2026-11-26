@@ -1,11 +1,9 @@
 """Partes do RenanTalk que valem para Windows e Linux: pastas, chave, vocabulário, ícone e validação."""
 import json
 import os
-import struct
 import sys
 import urllib.error
 import urllib.request
-import zlib
 
 NOME = "RenanTalk"
 WINDOWS = sys.platform == "win32"
@@ -18,8 +16,10 @@ else:
 ARQ_CHAVE = os.path.join(PASTA, "chave.txt")
 ARQ_LOG = os.path.join(PASTA, "ditado.log")
 ARQ_VOCAB = os.path.join(PASTA, "vocabulario.txt")
-ICONE = os.path.join(PASTA, "renantalk.ico")  # Windows
-ICONE_PNG = os.path.join(PASTA, "renantalk.png")  # Linux
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+ICONES = os.path.join(APP_DIR, "icones")  # gerados de assets/icone.svg
+ICONE = os.path.join(ICONES, "renantalk.ico")  # Windows
+ICONE_PNG = os.path.join(ICONES, "renantalk-64.png")  # Linux
 VOCAB_PADRAO = ["Betinhos", "Betinhos Executive Service", "Dataverse", "Power Apps", "Power Automate", "Power BI",
                 "SharePoint", "Microsoft 365", "RD Station", "WebResource", "Planner", "Teams", "WhatsApp"]
 LIMITE_VOCAB = 850  # caracteres; o Whisper só aproveita ~224 tokens de contexto
@@ -55,52 +55,46 @@ def abrir_configuracoes(aba: str = "voc") -> None:
         subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba], cwd=app)
 
 
-# ---------- ícone (gerado uma vez: quadrado escuro com a linha de luz azul) ----------
-def _png_rgba(a) -> bytes:
-    h, w = a.shape[:2]
-    raw = b"".join(b"\x00" + a[y].tobytes() for y in range(h))
-    ch = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)  # noqa: E731
-    return (b"\x89PNG\r\n\x1a\n" + ch(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
-            + ch(b"IDAT", zlib.compress(raw, 9)) + ch(b"IEND", b""))
-
-
-def _desenho(n: int):
-    import numpy as np  # só aqui: a janela de configurações não precisa carregar o numpy
-
-    s = 4
-    N = n * s
-    y, x = np.mgrid[0:N, 0:N].astype(np.float32) + 0.5
-    m, r = N * 0.03, N * 0.24
-    dx = np.maximum(np.abs(x - N / 2) - (N / 2 - m - r), 0)
-    dy = np.maximum(np.abs(y - N / 2) - (N / 2 - m - r), 0)
-    fundo = (np.hypot(dx, dy) <= r).astype(np.float32)
-    fx = np.abs(x - N / 2) / (N * 0.40)
-    queda = np.clip(1 - fx, 0, 1) ** 1.6
-    nucleo = (np.abs(y - N * 0.60) < N * 0.06) * queda
-    brilho = np.exp(-np.abs(y - N * 0.60) / (N * 0.09)) * queda * 0.8
-    cor = np.zeros((N, N, 3), np.float32) + np.array([15, 23, 42], np.float32)
-    cor += nucleo[..., None] * np.array([150, 195, 255], np.float32) + brilho[..., None] * np.array([45, 110, 255], np.float32)
-    img = np.concatenate([np.clip(cor, 0, 255), fundo[..., None] * 255], -1)
-    img = img.reshape(n, s, n, s, 4).mean((1, 3))
-    return img.round().astype(np.uint8)
-
-
 def gerar_icone() -> None:
-    if not os.path.exists(ICONE_PNG):
-        with open(ICONE_PNG, "wb") as f:
-            f.write(_png_rgba(_desenho(64)))
-    if os.path.exists(ICONE):
+    """Mantido por compatibilidade: os ícones agora vêm prontos em app/icones."""
+
+
+# ---------- início automático ----------
+_ATALHO_WIN = os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows", "Start Menu", "Programs", "Startup",
+                           "RenanTalk.lnk")
+_AUTOSTART_LINUX = os.path.join(os.path.expanduser("~/.config/autostart"), "renantalk.desktop")
+
+
+def inicio_automatico() -> bool:
+    return os.path.exists(_ATALHO_WIN if WINDOWS else _AUTOSTART_LINUX)
+
+
+def definir_inicio_automatico(ligar: bool) -> None:
+    """Liga/desliga o início com o sistema (atalho na pasta Inicializar ou .desktop no autostart)."""
+    import subprocess
+
+    script = os.path.join(APP_DIR, "ditado.pyw")
+    if WINDOWS:
+        if not ligar:
+            if os.path.exists(_ATALHO_WIN):
+                os.remove(_ATALHO_WIN)
+            return
+        pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        ps = ("$l=(New-Object -ComObject WScript.Shell).CreateShortcut($env:A); $l.TargetPath=$env:P; "
+              "$l.Arguments='\"'+$env:S+'\"'; $l.WorkingDirectory=$env:D; $l.IconLocation=$env:I; "
+              "$l.Description='RenanTalk - ditado por voz (Ctrl+Win)'; $l.Save()")
+        env = dict(os.environ, A=_ATALHO_WIN, P=pythonw, S=script, D=APP_DIR, I=ICONE)
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps], env=env, capture_output=True,
+                       creationflags=0x08000000)
         return
-    tamanhos = [16, 20, 24, 32, 48, 64]
-    pngs = [_png_rgba(_desenho(t)) for t in tamanhos]
-    off = 6 + 16 * len(tamanhos)
-    cab = struct.pack("<HHH", 0, 1, len(tamanhos))
-    ent = b""
-    for t, p in zip(tamanhos, pngs):
-        ent += struct.pack("<BBBBHHII", t % 256, t % 256, 0, 0, 1, 32, len(p), off)
-        off += len(p)
-    with open(ICONE, "wb") as f:
-        f.write(cab + ent + b"".join(pngs))
+    if not ligar:
+        if os.path.exists(_AUTOSTART_LINUX):
+            os.remove(_AUTOSTART_LINUX)
+        return
+    os.makedirs(os.path.dirname(_AUTOSTART_LINUX), exist_ok=True)
+    with open(_AUTOSTART_LINUX, "w", encoding="utf-8") as f:
+        f.write("[Desktop Entry]\nType=Application\nName=RenanTalk\nComment=Ditado por voz (segure Ctrl+Super)\n"
+                f"Exec=python3 {script}\nIcon={ICONE_PNG}\nX-GNOME-Autostart-enabled=true\n")
 
 
 # ---------- chave e vocabulário ----------

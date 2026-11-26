@@ -4,11 +4,12 @@ import os
 import threading
 from ctypes import wintypes as W
 
-from comum import ARQ_LOG, ICONE, NOME, abrir_configuracoes, gerar_icone
+from comum import (ARQ_LOG, ICONE, ICONES, NOME, abrir_configuracoes, definir_inicio_automatico,
+                   inicio_automatico)
 from luz import WNDCLASSW, WNDPROC, k32, u32
 
 WM_TRAY = 0x8000 + 1
-ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR, ITEM_VOCAB = 2, 3, 4, 5
+ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR, ITEM_VOCAB, ITEM_INICIO = 2, 3, 4, 5, 6
 
 s32 = ctypes.windll.shell32
 
@@ -24,6 +25,24 @@ class NOTIFYICONDATAW(ctypes.Structure):
                 ("guidItem", GUID), ("hBalloonIcon", W.HICON)]
 
 
+class MENUITEMINFOW(ctypes.Structure):
+    _fields_ = [("cbSize", W.UINT), ("fMask", W.UINT), ("fType", W.UINT), ("fState", W.UINT), ("wID", W.UINT),
+                ("hSubMenu", W.HMENU), ("hbmpChecked", W.HBITMAP), ("hbmpUnchecked", W.HBITMAP),
+                ("dwItemData", ctypes.c_size_t), ("dwTypeData", W.LPWSTR), ("cch", W.UINT), ("hbmpItem", W.HBITMAP)]
+
+
+class BMIH(ctypes.Structure):
+    _fields_ = [("biSize", W.DWORD), ("biWidth", W.LONG), ("biHeight", W.LONG), ("biPlanes", W.WORD),
+                ("biBitCount", W.WORD), ("biCompression", W.DWORD), ("biSizeImage", W.DWORD),
+                ("biXPelsPerMeter", W.LONG), ("biYPelsPerMeter", W.LONG), ("biClrUsed", W.DWORD), ("biClrImportant", W.DWORD)]
+
+
+g32 = ctypes.windll.gdi32
+g32.CreateDIBSection.argtypes = [W.HDC, ctypes.c_void_p, W.UINT, ctypes.POINTER(ctypes.c_void_p), W.HANDLE, W.DWORD]
+g32.CreateDIBSection.restype = W.HBITMAP
+u32.SetMenuItemInfoW.argtypes = [W.HMENU, W.UINT, W.BOOL, ctypes.POINTER(MENUITEMINFOW)]
+u32.SetMenuDefaultItem.argtypes = [W.HMENU, W.UINT, W.UINT]
+u32.GetMenuItemCount.argtypes = [W.HMENU]
 s32.Shell_NotifyIconW.argtypes = [W.DWORD, ctypes.POINTER(NOTIFYICONDATAW)]
 u32.LoadImageW.argtypes = [W.HINSTANCE, W.LPCWSTR, W.UINT, ctypes.c_int, ctypes.c_int, W.UINT]
 u32.LoadImageW.restype = W.HANDLE
@@ -47,7 +66,7 @@ class Bandeja:
         self.ao_sair = ao_sair
         self.ao_atualizar = ao_atualizar
         self.versao = versao
-        gerar_icone()
+        self._bitmaps: dict[str, int] = {}
         threading.Thread(target=self._loop, daemon=True).start()
 
     def _dados(self) -> NOTIFYICONDATAW:
@@ -74,16 +93,40 @@ class Bandeja:
     def remover(self) -> None:
         s32.Shell_NotifyIconW(2, ctypes.byref(self._dados()))  # NIM_DELETE
 
+    def _bitmap(self, nome: str):
+        """Bitmap 32 bits com transparência (gerado de SVG em app/icones) no tamanho de ícone de menu do sistema."""
+        if nome not in self._bitmaps:
+            alvo = u32.GetSystemMetrics(71)  # SM_CXMENUCHECK: ~16 px a 100%, maior em telas com escala
+            tam = min((16, 20, 24, 32), key=lambda t: abs(t - alvo))
+            caminho = os.path.join(ICONES, f"{nome}-{tam}.bgra")
+            if not os.path.exists(caminho):
+                return None
+            dados = open(caminho, "rb").read()
+            bi = BMIH(biSize=ctypes.sizeof(BMIH), biWidth=tam, biHeight=-tam, biPlanes=1, biBitCount=32)
+            bits = ctypes.c_void_p()
+            hbmp = g32.CreateDIBSection(None, ctypes.byref(bi), 0, ctypes.byref(bits), None, 0)
+            ctypes.memmove(bits, dados, len(dados))
+            self._bitmaps[nome] = hbmp
+        return self._bitmaps[nome]
+
+    def _item(self, m, ident: int, texto: str, icone: str | None = None, flags: int = 0) -> None:
+        u32.AppendMenuW(m, flags, ident, texto)
+        if icone and (bmp := self._bitmap(icone)):
+            info = MENUITEMINFOW(cbSize=ctypes.sizeof(MENUITEMINFOW), fMask=0x80, hbmpItem=bmp)  # MIIM_BITMAP
+            u32.SetMenuItemInfoW(m, u32.GetMenuItemCount(m) - 1, True, ctypes.byref(info))
+
     def _menu(self) -> None:
         m = u32.CreatePopupMenu()
-        u32.AppendMenuW(m, 0x1, 0, f"{NOME} · Ctrl+Win para ditar")  # MF_GRAYED
-        u32.AppendMenuW(m, 0x1, 0, f"v{self.versao}")
+        self._item(m, 0, f"{NOME}   ·   v{self.versao.split(' ')[0]}", "marca")
+        self._item(m, 0, "Segure Ctrl + Win para ditar", flags=0x1)  # MF_GRAYED
         u32.AppendMenuW(m, 0x800, 0, None)  # separador
-        u32.AppendMenuW(m, 0, ITEM_VOCAB, "Configurações…")
-        u32.AppendMenuW(m, 0, ITEM_ATUALIZAR, "Procurar atualização")
-        u32.AppendMenuW(m, 0, ITEM_LOG, "Ver log")
+        self._item(m, ITEM_VOCAB, "Configurações…", "menu-config")
+        self._item(m, ITEM_ATUALIZAR, "Procurar atualização", "menu-atualizar")
+        self._item(m, ITEM_LOG, "Ver log", "menu-log")
+        self._item(m, ITEM_INICIO, "Iniciar com o Windows", flags=0x8 if inicio_automatico() else 0)  # MF_CHECKED
         u32.AppendMenuW(m, 0x800, 0, None)
-        u32.AppendMenuW(m, 0, ITEM_SAIR, f"Sair do {NOME}")
+        self._item(m, ITEM_SAIR, f"Sair do {NOME}", "menu-sair")
+        u32.SetMenuDefaultItem(m, ITEM_VOCAB, False)  # ação principal em negrito
         p = W.POINT()
         u32.GetCursorPos(ctypes.byref(p))
         u32.SetForegroundWindow(self.hwnd)  # sem isso o menu não fecha ao clicar fora
@@ -96,6 +139,8 @@ class Bandeja:
             threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start()
         elif item == ITEM_LOG and os.path.exists(ARQ_LOG):
             os.startfile(ARQ_LOG)
+        elif item == ITEM_INICIO:
+            threading.Thread(target=definir_inicio_automatico, args=(not inicio_automatico(),), daemon=True).start()
         elif item == ITEM_SAIR:
             self.remover()
             self.ao_sair()

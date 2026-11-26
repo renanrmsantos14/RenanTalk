@@ -24,7 +24,8 @@ from Xlib import X, XK, display  # noqa: E402
 from Xlib.ext import record, xtest  # noqa: E402
 from Xlib.protocol import rq  # noqa: E402
 
-from comum import ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, abrir_configuracoes, gerar_icone  # noqa: E402
+from comum import (ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, abrir_configuracoes,  # noqa: E402
+                   definir_inicio_automatico, inicio_automatico)
 
 TERMINAIS = ("terminal", "xterm", "urxvt", "kitty", "alacritty", "konsole", "tilix", "terminator", "wezterm", "foot")
 _trava_arquivo = None
@@ -263,26 +264,36 @@ class Luz:
 class Bandeja:
     def __init__(self, ao_sair, ao_atualizar, versao: str) -> None:
         self.ao_sair, self.ao_atualizar, self.versao = ao_sair, ao_atualizar, versao
-        gerar_icone()
         menu = Gtk.Menu()
 
-        def item(rotulo: str, acao=None) -> None:
-            mi = Gtk.MenuItem(label=rotulo)
+        def item(rotulo: str, acao=None, negrito: bool = False, icone: str | None = None) -> None:
+            mi = Gtk.MenuItem()
+            caixa = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            if icone:
+                caixa.pack_start(Gtk.Image.new_from_icon_name(icone, Gtk.IconSize.MENU), False, False, 0)
+            rot = Gtk.Label(xalign=0)
+            rot.set_markup(f"<b>{rotulo}</b>" if negrito else GLib.markup_escape_text(rotulo))
+            caixa.pack_start(rot, True, True, 0)
+            mi.add(caixa)
             if acao:
                 mi.connect("activate", lambda *_: acao())
             else:
                 mi.set_sensitive(False)
             menu.append(mi)
 
-        item(f"{NOME} · Ctrl+Super para ditar")
-        item(f"v{versao}")
+        item(f"{NOME}   ·   v{versao.split(' ')[0]}", icone="audio-input-microphone")
+        item("Segure Ctrl + Super para ditar")
         menu.append(Gtk.SeparatorMenuItem())
-        item("Configurações…", lambda: self.abrir_configuracoes())
+        item("Configurações…", lambda: self.abrir_configuracoes(), negrito=True, icone="preferences-system")
         item("Procurar atualização",
-             lambda: threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start())
-        item("Ver log", lambda: abrir(ARQ_LOG))
+             lambda: threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start(), icone="view-refresh")
+        item("Ver log", lambda: abrir(ARQ_LOG), icone="text-x-generic")
+        inicio = Gtk.CheckMenuItem(label="Iniciar com a sessão")
+        inicio.set_active(inicio_automatico())
+        inicio.connect("toggled", lambda w: definir_inicio_automatico(w.get_active()))
+        menu.append(inicio)
         menu.append(Gtk.SeparatorMenuItem())
-        item(f"Sair do {NOME}", self._sair)
+        item(f"Sair do {NOME}", self._sair, icone="system-shutdown")
         menu.show_all()
         self.menu = menu
         dica = f"{NOME} v{versao.split(' ')[0]} · segure Ctrl+Super para ditar"
