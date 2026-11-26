@@ -7,8 +7,6 @@ import urllib.error
 import urllib.request
 import zlib
 
-import numpy as np
-
 NOME = "RenanTalk"
 WINDOWS = sys.platform == "win32"
 if WINDOWS:
@@ -44,7 +42,7 @@ def abrir(alvo: str) -> None:
 
 
 # ---------- ícone (gerado uma vez: quadrado escuro com a linha de luz azul) ----------
-def _png_rgba(a: np.ndarray) -> bytes:
+def _png_rgba(a) -> bytes:
     h, w = a.shape[:2]
     raw = b"".join(b"\x00" + a[y].tobytes() for y in range(h))
     ch = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)  # noqa: E731
@@ -52,7 +50,9 @@ def _png_rgba(a: np.ndarray) -> bytes:
             + ch(b"IDAT", zlib.compress(raw, 9)) + ch(b"IEND", b""))
 
 
-def _desenho(n: int) -> np.ndarray:
+def _desenho(n: int):
+    import numpy as np  # só aqui: a janela de configurações não precisa carregar o numpy
+
     s = 4
     N = n * s
     y, x = np.mgrid[0:N, 0:N].astype(np.float32) + 0.5

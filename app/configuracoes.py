@@ -188,14 +188,14 @@ def ajustar_janela(x: int, y: int, w: int, h: int) -> None:
     u32.SetWindowPos.argtypes = [W.HWND, W.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, W.UINT]
     u32.ShowWindow.argtypes = [W.HWND, ctypes.c_int]
     u32.SetForegroundWindow.argtypes = [W.HWND]
-    for _ in range(100):  # até 10 s
+    for _ in range(500):  # até 10 s
         hwnd = u32.FindWindowW("Chrome_WidgetWin_1", "RenanTalk")
         if hwnd:
             u32.ShowWindow(hwnd, 9)  # SW_RESTORE
             u32.SetWindowPos(hwnd, None, x, y, w, h, 0x4)  # SWP_NOZORDER
             u32.SetForegroundWindow(hwnd)
             return
-        time.sleep(0.1)
+        time.sleep(0.02)
 
 
 def ja_aberta() -> bool:
@@ -214,16 +214,16 @@ def ja_aberta() -> bool:
         return True
 
 
-def abrir_linux(url: str) -> None:
+def abrir_linux(url: str):
     perfil = os.path.join(os.path.expanduser("~/.local/share/RenanTalk"), "ui-perfil")
     for nav in ("brave-browser", "chromium", "chromium-browser", "google-chrome"):
         if shutil.which(nav):
-            subprocess.Popen([nav, f"--app={url}", f"--user-data-dir={perfil}", "--window-size=800,580",
+            return subprocess.Popen([nav, f"--app={url}", f"--user-data-dir={perfil}", "--window-size=800,580",
                               "--no-first-run", "--no-default-browser-check", "--disable-extensions",
                               "--disable-sync", "--disable-background-networking", "--disable-component-update",
                               "--renderer-process-limit=1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return
     abrir(url)  # Firefox ou o navegador padrão: abre como janela comum
+    return None
 
 
 def main() -> None:
@@ -234,11 +234,13 @@ def main() -> None:
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     global ultimo_ping
     if not WINDOWS:
-        abrir_linux(url)
+        nav = abrir_linux(url)
         ultimo_ping = time.time() + 20
         while time.time() - ultimo_ping < 8:
             time.sleep(1)
         srv.shutdown()
+        if nav:  # o navegador aberto com perfil próprio não deve ficar para trás
+            nav.terminate()
         return
     u32 = ctypes.windll.user32
     try:
@@ -251,7 +253,7 @@ def main() -> None:
     edge = achar_edge()
     if edge:
         perfil = os.path.join(os.environ["LOCALAPPDATA"], "RenanTalk", "ui-perfil")
-        subprocess.Popen([edge, f"--app={url}", f"--user-data-dir={perfil}", f"--window-size={w},{h}",
+        nav = subprocess.Popen([edge, f"--app={url}", f"--user-data-dir={perfil}", f"--window-size={w},{h}",
                           f"--window-position={x},{y}", "--no-first-run", "--no-default-browser-check",
                           "--disable-extensions", "--disable-sync", "--disable-background-networking",
                           "--disable-component-update", "--disable-default-apps", "--disable-breakpad",
@@ -260,11 +262,14 @@ def main() -> None:
                           "msShoppingTrigger,EdgeCollections,msUndersideButton"])
         threading.Thread(target=ajustar_janela, args=(x, y, w, h), daemon=True).start()
     else:
+        nav = None
         abrir(url)
     ultimo_ping = time.time() + 20  # tempo para o Edge abrir
     while time.time() - ultimo_ping < 8:
         time.sleep(1)
     srv.shutdown()
+    if nav:  # garante que nenhum processo do Edge fique para trás depois de fechar a janela
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(nav.pid)], capture_output=True, creationflags=0x08000000)
 
 
 if __name__ == "__main__":
