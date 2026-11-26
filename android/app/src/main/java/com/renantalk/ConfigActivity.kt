@@ -238,7 +238,7 @@ class ConfigActivity : Activity() {
 
     private fun secaoTeste(): View {
         val caixa = coluna()
-        caixa.addView(texto("Toque no campo, escolha o RenanTalk (globo) e segure o microfone.", 13f, fraco = true))
+        caixa.addView(texto("Toque no campo e segure o microfone ou o espaço para falar. Segure o enter para trocar de teclado.", 13f, fraco = true))
         caixa.addView(EditText(this).apply {
             hint = "Fale aqui…"
             minLines = 3

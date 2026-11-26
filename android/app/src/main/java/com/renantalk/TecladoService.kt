@@ -8,6 +8,11 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.widget.PopupWindow
 import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.os.Handler
@@ -49,7 +54,7 @@ class TecladoService : InputMethodService() {
     private lateinit var teclas: LinearLayout
     private lateinit var variantes: LinearLayout
     private val letras = mutableListOf<TextView>()
-    private var shiftTecla: TextView? = null
+    private var shiftTecla: ImageView? = null
 
     override fun onCreateInputView(): View {
         val raiz = LinearLayout(this).apply {
@@ -109,6 +114,8 @@ class TecladoService : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         esconderVariantes()
+        esconderBalao()
+        principal.removeCallbacks(segurarEspaco)
         if (gravador.ativo) { // teclado fechou no meio: descarta
             gravador.parar()
             luz.definir(LuzView.Estado.FEITO)
@@ -220,7 +227,7 @@ class TecladoService : InputMethodService() {
         } else {
             linha(texto(Teclas.LETRAS[0], true))
             linha(texto(Teclas.LETRAS[1], true), recuo = 0.5f)
-            val sh = especial("⇧", "Maiúscula") { alternarShift() }
+            val sh = icone(R.drawable.ic_shift, "Maiúscula").apply { setOnClickListener { toque(it); alternarShift() } }
             shiftTecla = sh
             linha(listOf<Pair<View, Float>>(sh to 1.5f) + texto(Teclas.LETRAS[2], true) + (apagar to 1.5f))
             atualizarShift()
@@ -229,10 +236,6 @@ class TecladoService : InputMethodService() {
         val camada = especial(if (simbolos) "ABC" else "?123", "Trocar letras e símbolos") {
             simbolos = !simbolos; montar(); autoMaiuscula()
         }.apply { textSize = 15f }
-        val globo = icone(R.drawable.ic_globo, "Trocar teclado").apply {
-            setOnClickListener { toque(it); trocarTeclado() }
-            setOnLongClickListener { seletorDeTeclado(); true }
-        }
         mic = ImageView(this).apply {
             setImageResource(R.drawable.ic_mic)
             imageTintList = ColorStateList.valueOf(0xFFFFFFFF.toInt())
@@ -247,30 +250,103 @@ class TecladoService : InputMethodService() {
             textSize = 14f
             gravity = Gravity.CENTER
             setTextColor(cor(R.color.texto_fraco))
-            background = pilula(cor(R.color.tecla))
-            contentDescription = "Espaço"
+            background = fundoTecla(R.color.tecla)
+            contentDescription = "Espaço; segure para falar"
             isClickable = true
-            setOnClickListener { toque(it); digitar(" ") }
-            setOnLongClickListener { seletorDeTeclado(); true }
+            setOnTouchListener { v, e -> aoTocarEspaco(v, e) }
         }
-        val enter = icone(R.drawable.ic_enter, "Enter").apply { setOnClickListener { toque(it); enter() } }
+        // Segurar o enter abre a escolha de teclado (substitui o globo).
+        val enter = icone(R.drawable.ic_enter, "Enter; segure para trocar de teclado").apply {
+            setOnClickListener { toque(it); enter() }
+            setOnLongClickListener { toque(it); seletorDeTeclado(); true }
+        }
         linha(listOf(
-            camada to 1.2f, simbolo(",") to 0.9f, globo to 0.9f, mic to 1.3f,
-            espaco to 3.4f, simbolo(".") to 0.9f, enter to 1.4f,
+            camada to 1.4f, simbolo(",") to 1f, mic to 1.3f,
+            espaco to 4f, simbolo(".") to 1f, enter to 1.3f,
         ))
     }
 
+    /** Toque no espaço digita espaço; segurar liga o microfone até soltar. */
+    private fun aoTocarEspaco(v: View, e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                v.isPressed = true; toque(v); espacoSegurado = false
+                principal.postDelayed(segurarEspaco, 350)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                v.isPressed = false
+                principal.removeCallbacks(segurarEspaco)
+                if (espacoSegurado) parar(mic) else if (e.actionMasked == MotionEvent.ACTION_UP) digitar(" ")
+            }
+        }
+        return true
+    }
+
+    private var espacoSegurado = false
+    private val segurarEspaco = Runnable { espacoSegurado = true; comecar(mic) }
+
+    // ---------- balão da tecla (como o Gboard) e vibração ----------
+
+    private val balaoTexto by lazy {
+        TextView(this).apply {
+            textSize = 30f
+            gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+            setPadding(0, (8 * dp).toInt(), 0, 0)
+            setTextColor(cor(R.color.texto))
+            background = pilula(cor(R.color.tecla_especial))
+        }
+    }
+    private val balao by lazy {
+        PopupWindow(balaoTexto).apply { isClippingEnabled = false; isTouchable = false; elevation = 6 * dp }
+    }
+
+    private fun mostrarBalao(t: TextView) {
+        balaoTexto.text = t.text
+        val w = t.width + (10 * dp).toInt()
+        val h = (t.height * 2.1f).toInt()
+        val pos = IntArray(2).also { t.getLocationInWindow(it) }
+        val x = maxOf(0, pos[0] - (w - t.width) / 2)
+        val y = pos[1] + t.height - h
+        if (balao.isShowing) balao.update(x, y, w, h) else {
+            balao.width = w; balao.height = h
+            balao.showAtLocation(t, Gravity.NO_GRAVITY, x, y)
+        }
+    }
+
+    private fun esconderBalao() { if (balao.isShowing) balao.dismiss() }
+
+    private val vibrador: Vibrator? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION") getSystemService(Context.VIBRATOR_SERVICE) as Vibrator?
+        }
+    }
+
+    private fun fundoTecla(corId: Int) = StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_pressed), pilula(cor(R.color.tecla_pressionada)))
+        addState(intArrayOf(), pilula(cor(corId)))
+    }
+
     /** Tecla de texto; segurar mostra os acentos na barra (como o Gboard). */
+    @SuppressLint("ClickableViewAccessibility") // o toque só mostra o balão; o clique segue normal
     private fun simbolo(s: String, registrar: Boolean = false) = TextView(this).apply {
         text = s
         textSize = 22f
         gravity = Gravity.CENTER
         setTextColor(cor(R.color.texto))
-        background = pilula(cor(R.color.tecla))
+        background = fundoTecla(R.color.tecla)
         isClickable = true
-        setOnClickListener { toque(it); digitar(text.toString()) }
+        setOnClickListener { digitar(text.toString()) }
+        setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { toque(v); mostrarBalao(v as TextView) }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> esconderBalao()
+            }
+            false // deixa o clique e o segurar seguirem normalmente
+        }
         val vars = Teclas.variantes(s[0])
-        if (vars.isNotEmpty()) setOnLongClickListener { toque(it); mostrarVariantes(vars); true }
+        if (vars.isNotEmpty()) setOnLongClickListener { esconderBalao(); toque(it); mostrarVariantes(vars); true }
         if (registrar) letras += this
     }
 
@@ -279,7 +355,7 @@ class TecladoService : InputMethodService() {
         textSize = 20f
         gravity = Gravity.CENTER
         setTextColor(cor(R.color.texto))
-        background = pilula(cor(R.color.tecla_especial))
+        background = fundoTecla(R.color.tecla_especial)
         contentDescription = descricao
         isClickable = true
         setOnClickListener { toque(it); acao() }
@@ -290,7 +366,7 @@ class TecladoService : InputMethodService() {
         imageTintList = ColorStateList.valueOf(cor(R.color.texto))
         scaleType = ImageView.ScaleType.CENTER
         contentDescription = descricao
-        background = pilula(cor(R.color.tecla_especial))
+        background = fundoTecla(R.color.tecla_especial)
         isClickable = true
     }
 
@@ -324,9 +400,12 @@ class TecladoService : InputMethodService() {
         val maiuscula = shift != Shift.NAO
         letras.forEach { it.text = Teclas.caixa(it.text.toString(), maiuscula) }
         shiftTecla?.apply {
-            text = if (shift == Shift.TRAVADA) "⇪" else "⇧"
-            background = pilula(cor(if (maiuscula) R.color.azul else R.color.tecla_especial))
-            setTextColor(if (maiuscula) 0xFFFFFFFF.toInt() else cor(R.color.texto))
+            setImageResource(when (shift) {
+                Shift.NAO -> R.drawable.ic_shift
+                Shift.UMA -> R.drawable.ic_shift_ativo
+                Shift.TRAVADA -> R.drawable.ic_capslock
+            })
+            imageTintList = ColorStateList.valueOf(if (shift == Shift.TRAVADA) cor(R.color.azul) else cor(R.color.texto))
         }
     }
 
@@ -358,10 +437,6 @@ class TecladoService : InputMethodService() {
     private fun seletorDeTeclado() =
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
 
-    private fun trocarTeclado() {
-        val trocou = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && switchToNextInputMethod(false)
-        if (!trocou) seletorDeTeclado()
-    }
 
     private fun enter() {
         val info = currentInputEditorInfo
@@ -390,7 +465,16 @@ class TecladoService : InputMethodService() {
 
     private fun pilula(c: Int) = GradientDrawable().apply { cornerRadius = 8 * dp; setColor(c) }
 
-    private fun toque(v: View) = v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    /** Vibração curta e firme a cada tecla (o KEYBOARD_TAP do sistema é fraco ou desligado no Xiaomi). */
+    @Suppress("UNUSED_PARAMETER")
+    private fun toque(v: View) {
+        val vib = vibrador ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            vib.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+        } else {
+            vib.vibrate(VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE))
+        }
+    }
 
     // ---------- status, configurações e atualização ----------
 

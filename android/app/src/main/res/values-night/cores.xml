@@ -6,6 +6,7 @@
     <color name="texto_fraco">#94A3B8</color>
     <color name="tecla">#1E293B</color>
     <color name="tecla_especial">#334155</color>
+    <color name="tecla_pressionada">#475569</color>
     <color name="azul">#3B82F6</color>
     <color name="azul_escuro">#1E3A8A</color>
     <color name="erro">#F87171</color>
