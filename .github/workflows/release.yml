@@ -1,52 +1,125 @@
 name: Release
 
-# Todo push na main que mexe no app gera um release novo (PATCH + 1).
-# O RenanTalk instalado procura releases a cada 6 h e se atualiza sozinho.
+# PR para a main: compila e checa (não publica).
+# Merge/push na main que mexe no app ou na janela: release novo (PATCH + 1) com Windows e Linux.
+# O RenanTalk instalado procura releases a cada 6 h (ou pelo menu) e se atualiza sozinho.
+# A janela em Rust só é recompilada quando config/ ou app/ui/ mudam; senão, reaproveita os
+# executáveis do último release (release em ~1 min em vez de vários).
 on:
   push:
     branches: [main]
-    paths: ["app/**", "requirements.txt"]
+    paths: ["app/**", "config/**", "requirements.txt", ".github/workflows/release.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["app/**", "config/**", "requirements.txt", ".github/workflows/release.yml"]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: release
-  cancel-in-progress: false
+  group: release-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  release:
+  versao:
     runs-on: ubuntu-latest
+    outputs:
+      versao: ${{ steps.v.outputs.versao }}
+      data: ${{ steps.v.outputs.data }}
+      recompilar: ${{ steps.v.outputs.recompilar }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Checar sintaxe
+      - name: Checar sintaxe do Python
         run: python3 -m py_compile app/*.py app/*.pyw
-
       - name: Próxima versão
         id: v
         run: |
           ultima=$(git tag -l 'v*' --sort=-v:refname | head -n1)
           [ -z "$ultima" ] && ultima=v0.0.0
           IFS=. read -r maior menor patch <<< "${ultima#v}"
-          nova="$maior.$menor.$((patch + 1))"
-          echo "versao=$nova" >> "$GITHUB_OUTPUT"
+          echo "versao=$maior.$menor.$((patch + 1))" >> "$GITHUB_OUTPUT"
           echo "data=$(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')" >> "$GITHUB_OUTPUT"
+          # A janela embute app/ui; sem mudança ali nem em config/ desde o último release, reaproveita o binário.
+          if [ "${{ github.event_name }}" = "pull_request" ] || [ "$ultima" = "v0.0.0" ]              || ! gh release view "$ultima" --json assets --jq '.assets[].name' 2>/dev/null | grep -q RenanTalk-linux.zip              || ! git diff --quiet "$ultima" HEAD -- config app/ui; then
+            echo "recompilar=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "recompilar=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "ultima=$ultima" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
+  janela:
+    needs: versao
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            bin: renantalk-config.exe
+            nome: windows
+          - os: ubuntu-22.04
+            bin: renantalk-config
+            nome: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reaproveitar a janela do último release (sem mudanças nela)
+        if: needs.versao.outputs.recompilar != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pacote=$([ "${{ matrix.nome }}" = "windows" ] && echo RenanTalk.zip || echo RenanTalk-linux.zip)
+          gh release download --repo "${{ github.repository }}" --pattern "$pacote" --dir anterior
+          mkdir -p config/target/release
+          python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extract(sys.argv[2], 'config/target/release')" "anterior/$pacote" "${{ matrix.bin }}"
+      - name: Dependências do Tauri (Linux, com cache)
+        if: needs.versao.outputs.recompilar == 'true' && runner.os == 'Linux'
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev
+          version: 1
+      - uses: dtolnay/rust-toolchain@stable
+        if: needs.versao.outputs.recompilar == 'true'
+      - uses: Swatinem/rust-cache@v2
+        if: needs.versao.outputs.recompilar == 'true'
+        with:
+          workspaces: config
+          save-if: ${{ github.event_name != 'pull_request' }}
+      - name: Compilar janela de configurações
+        if: needs.versao.outputs.recompilar == 'true'
+        run: cargo build --release --manifest-path config/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: janela-${{ matrix.nome }}
+          path: config/target/release/${{ matrix.bin }}
+
+  release:
+    needs: [versao, janela]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
       - name: Empacotar
         run: |
-          echo "${{ steps.v.outputs.versao }} · ${{ steps.v.outputs.data }}" > app/VERSION
+          echo "${{ needs.versao.outputs.versao }} · ${{ needs.versao.outputs.data }}" > app/VERSION
           cp requirements.txt app/
-          cd app && zip -r ../RenanTalk.zip . -x '__pycache__/*'
-
+          rm -rf app/__pycache__
+          cp -r app pacote-windows && cp dist/janela-windows/renantalk-config.exe pacote-windows/
+          cp -r app pacote-linux && cp dist/janela-linux/renantalk-config pacote-linux/ && chmod +x pacote-linux/renantalk-config
+          (cd pacote-windows && zip -qr ../RenanTalk.zip .)
+          (cd pacote-linux && zip -qr ../RenanTalk-linux.zip .)
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.v.outputs.versao }}" RenanTalk.zip \
-            --title "RenanTalk v${{ steps.v.outputs.versao }}" \
-            --notes "Publicado em ${{ steps.v.outputs.data }} (America/Sao_Paulo). O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
+          gh release create "v${{ needs.versao.outputs.versao }}" RenanTalk.zip RenanTalk-linux.zip \
+            --title "RenanTalk v${{ needs.versao.outputs.versao }}" \
+            --notes "Publicado em ${{ needs.versao.outputs.data }} (America/Sao_Paulo). RenanTalk.zip = Windows; RenanTalk-linux.zip = Linux. O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
             --target "${{ github.sha }}"

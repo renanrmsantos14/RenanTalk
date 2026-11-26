@@ -48,6 +48,32 @@ def _ler(caminho: str) -> str:
         return ""
 
 
+PACOTE = "RenanTalk.zip" if sys.platform == "win32" else "RenanTalk-linux.zip"
+
+
+def _liberar_executaveis(novos: str) -> None:
+    """No Windows um .exe aberto não pode ser sobrescrito, mas pode ser renomeado: tira do caminho."""
+    if sys.platform != "win32":
+        return
+    for nome in os.listdir(novos):
+        destino = os.path.join(APP, nome)
+        if nome.endswith(".exe") and os.path.exists(destino):
+            try:
+                os.replace(destino, destino + ".old")
+            except OSError:
+                pass
+
+
+def limpar_antigos() -> None:
+    """Apaga os .exe.old deixados por uma atualização anterior (chamado ao iniciar)."""
+    for nome in os.listdir(APP):
+        if nome.endswith(".old"):
+            try:
+                os.remove(os.path.join(APP, nome))
+            except OSError:
+                pass
+
+
 def verificar_e_aplicar() -> tuple[str, str]:
     """Retorna (situação, detalhe). Situação: 'atualizado', 'em_dia', 'dev' ou 'erro'."""
     if eh_dev():
@@ -57,16 +83,22 @@ def verificar_e_aplicar() -> tuple[str, str]:
         nova = rel["tag_name"].lstrip("v")
         if _tupla(nova) <= _tupla(versao_texto()):
             return "em_dia", f"já está na versão mais recente (v{nova})"
-        asset = next((a for a in rel["assets"] if a["name"] == "RenanTalk.zip"), None)
+        nome = PACOTE
+        asset = next((a for a in rel["assets"] if a["name"] == nome), None)
         if not asset:
-            return "erro", "release sem o arquivo RenanTalk.zip"
+            return "erro", f"release sem o arquivo {nome}"
         pacote = _baixar(asset["browser_download_url"])
         req_antes = _ler(os.path.join(APP, "requirements.txt"))
         with tempfile.TemporaryDirectory() as tmp:
             zipfile.ZipFile(io.BytesIO(pacote)).extractall(tmp)
             if not os.path.exists(os.path.join(tmp, "ditado.pyw")):
                 return "erro", "pacote do release sem ditado.pyw"
+            _liberar_executaveis(tmp)
             shutil.copytree(tmp, APP, dirs_exist_ok=True)  # .py não fica travado no Windows: dá para sobrescrever
+        if sys.platform != "win32":
+            bin_cfg = os.path.join(APP, "renantalk-config")
+            if os.path.exists(bin_cfg):
+                os.chmod(bin_cfg, 0o755)  # o zip não guarda a permissão de execução
         if _ler(os.path.join(APP, "requirements.txt")) != req_antes:
             req = os.path.join(APP, "requirements.txt")
             if sys.platform == "win32":

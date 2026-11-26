@@ -4,7 +4,7 @@ import os
 import threading
 from ctypes import wintypes as W
 
-from comum import ARQ_LOG, ICONE, NOME, gerar_icone
+from comum import ARQ_LOG, ICONE, NOME, abrir_configuracoes, gerar_icone
 from luz import WNDCLASSW, WNDPROC, k32, u32
 
 WM_TRAY = 0x8000 + 1
@@ -101,12 +101,7 @@ class Bandeja:
             self.ao_sair()
 
     def abrir_configuracoes(self, aba: str = "voc") -> None:
-        """Processo à parte: só consome memória enquanto a janela está aberta."""
-        import subprocess
-        import sys
-
-        app = os.path.dirname(os.path.abspath(__file__))
-        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba], cwd=app)
+        abrir_configuracoes(aba)  # processo à parte: só consome memória enquanto a janela está aberta
 
     def _proc_janela(self, h, msg, wp, lp):
         if msg == WM_TRAY and lp in (0x202, 0x205):  # LBUTTONUP, RBUTTONUP

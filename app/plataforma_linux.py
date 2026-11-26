@@ -24,7 +24,7 @@ from Xlib import X, XK, display  # noqa: E402
 from Xlib.ext import record, xtest  # noqa: E402
 from Xlib.protocol import rq  # noqa: E402
 
-from comum import ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, gerar_icone  # noqa: E402
+from comum import ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, abrir_configuracoes, gerar_icone  # noqa: E402
 
 TERMINAIS = ("terminal", "xterm", "urxvt", "kitty", "alacritty", "konsole", "tilix", "terminator", "wezterm", "foot")
 _trava_arquivo = None
@@ -325,5 +325,4 @@ class Bandeja:
             pass
 
     def abrir_configuracoes(self, aba: str = "voc") -> None:
-        app = os.path.dirname(os.path.abspath(__file__))
-        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba], cwd=app)
+        abrir_configuracoes(aba)

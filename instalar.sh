@@ -22,10 +22,11 @@ pkill -f "RenanTalk/app/ditado.pyw" 2>/dev/null || true
 
 # Baixa e extrai o último release
 URL=$(curl -fsSL -H "User-Agent: renantalk-instalar" "https://api.github.com/repos/$REPO/releases/latest" \
-  | python3 -c "import json,sys; r=json.load(sys.stdin); print(next(a['browser_download_url'] for a in r['assets'] if a['name']=='RenanTalk.zip'))")
+  | python3 -c "import json,sys; r=json.load(sys.stdin); print(next(a['browser_download_url'] for a in r['assets'] if a['name']=='RenanTalk-linux.zip'))")
 mkdir -p "$APP"
 curl -fsSL "$URL" -o /tmp/RenanTalk.zip
 python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" /tmp/RenanTalk.zip "$APP"
+chmod +x "$APP/renantalk-config" 2>/dev/null || true
 rm -f /tmp/RenanTalk.zip
 
 # Dependências (só no seu usuário)

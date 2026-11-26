@@ -41,6 +41,20 @@ def abrir(alvo: str) -> None:
         subprocess.Popen(["xdg-open", alvo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def abrir_configuracoes(aba: str = "voc") -> None:
+    """Abre a janela de configurações: o executável Rust/Tauri se existir; senão, a versão Python + navegador."""
+    import subprocess
+
+    app = os.path.dirname(os.path.abspath(__file__))
+    exe = os.path.join(app, "renantalk-config.exe" if WINDOWS else "renantalk-config")
+    if os.path.exists(exe):
+        # python.exe (com console oculto pelo Rust) para o "Procurar atualização"; pythonw não devolve saída
+        python = os.path.join(os.path.dirname(sys.executable), "python.exe") if WINDOWS else sys.executable
+        subprocess.Popen([exe, str(os.getpid()), aba, python, app], cwd=app)
+    else:
+        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba], cwd=app)
+
+
 # ---------- ícone (gerado uma vez: quadrado escuro com a linha de luz azul) ----------
 def _png_rgba(a) -> bytes:
     h, w = a.shape[:2]

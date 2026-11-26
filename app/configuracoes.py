@@ -120,7 +120,7 @@ class Api(BaseHTTPRequestHandler):
             return
         rota = self.path.split(TOKEN, 1)[1].split("?")[0]
         if rota in ("", "/"):
-            with open(os.path.join(APP, "ui.html"), "rb") as f:
+            with open(os.path.join(APP, "ui", "index.html"), "rb") as f:
                 self._ok(f.read(), "text/html; charset=utf-8")
         elif rota == "/api/estado":
             self._ok(estado())

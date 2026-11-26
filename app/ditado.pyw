@@ -189,6 +189,7 @@ def ciclo_atualizacao() -> None:
 if __name__ == "__main__":
     if not plat.instancia_unica():
         raise SystemExit  # já está rodando
+    atualizador.limpar_antigos()
     versao = atualizador.versao_texto()
     log(f"iniciado v{versao} ({sys.platform})")
     bandeja = plat.Bandeja(ao_sair=lambda: os._exit(0), ao_atualizar=atualizar, versao=versao)
