@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.zip
+chave.txt
+*.key
+*.log
+.env
