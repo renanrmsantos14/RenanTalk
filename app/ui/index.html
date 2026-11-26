@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>RenanTalk</title>
 <meta name="color-scheme" content="light dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='%23bfdbfe'/%3E%3Cstop offset='.55' stop-color='%233b82f6'/%3E%3Cstop offset='1' stop-color='%233b82f6' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='%230f172a'/%3E%3Crect x='3' y='17.5' width='26' height='4' rx='2' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22fundo%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%231e3a8a%22/%3E%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b1530%22/%3E%20%3C/linearGradient%3E%20%3ClinearGradient%20id%3D%22luz%22%20x1%3D%220%22%20x2%3D%221%22%3E%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233b82f6%22%20stop-opacity%3D%220%22/%3E%20%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23dbeafe%22/%3E%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b82f6%22%20stop-opacity%3D%220%22/%3E%20%3C/linearGradient%3E%20%3C/defs%3E%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2215%22%20fill%3D%22url%28%23fundo%29%22/%3E%20%3Crect%20x%3D%2224%22%20y%3D%229%22%20width%3D%2216%22%20height%3D%2228%22%20rx%3D%228%22%20fill%3D%22%23fff%22/%3E%20%3Cpath%20d%3D%22M16.5%2029.5a15.5%2015.5%200%200%200%2031%200%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22/%3E%20%3Crect%20x%3D%2229.5%22%20y%3D%2244%22%20width%3D%225%22%20height%3D%226%22%20fill%3D%22%23fff%22/%3E%20%3Crect%20x%3D%226%22%20y%3D%2252%22%20width%3D%2252%22%20height%3D%225.5%22%20rx%3D%222.75%22%20fill%3D%22url%28%23luz%29%22/%3E%20%3C/svg%3E">
 <style>
 :root{--bg:#fff;--side:#f6f8fc;--card:#f8fafc;--line:#e3e8f2;--tx:#0f172a;--mut:#64748b;--ac:#3b82f6;--ac2:#2563eb;--acx:#1d4ed8;--chip:#eef4ff;--chipb:#d6e3fb;--chiptx:#1e3a8a;--hov:#edf1f8;--on:#e4ecfd;--ontx:#1d4ed8;--kbd:#fff;--kbdb:#cfd8e6;--ok:#16a34a;--err:#dc2626;--warn:#d97706;--bar:#e8edf6;--glow:.35}
 @media (prefers-color-scheme:dark){:root{--bg:#0b1020;--side:#0f162b;--card:#121a33;--line:#1e2a4a;--tx:#e2e8f0;--mut:#8b9bb8;--acx:#3b82f6;--chip:#172345;--chipb:#223163;--chiptx:#dbe7ff;--hov:#141e3a;--on:#17244a;--ontx:#fff;--kbd:#1c2850;--kbdb:#2a3966;--ok:#22c55e;--err:#f87171;--warn:#fbbf24;--bar:#16203d;--glow:.55}}
@@ -13,8 +13,7 @@ html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--tx);font:14px 'Segoe UI Variable Text','Segoe UI',system-ui;display:grid;grid-template-columns:200px 1fr;overflow:hidden;user-select:none}
 aside{background:var(--side);border-right:1px solid var(--line);padding:20px 12px;display:flex;flex-direction:column;position:relative}
 .brand{display:flex;gap:10px;align-items:center;padding:0 8px 22px}
-.logo{width:34px;height:34px;border-radius:9px;background:#0f172a;border:1px solid #1e2a4a;position:relative;overflow:hidden;flex:none}
-.logo:after{content:'';position:absolute;left:4px;right:4px;top:20px;height:3px;border-radius:3px;background:radial-gradient(closest-side,#bfdbfe,#3b82f6 60%,transparent);box-shadow:0 0 10px 2px rgba(59,130,246,.6)}
+.logo{width:34px;height:34px;flex:none;filter:drop-shadow(0 2px 6px rgba(37,99,235,.35))}
 .brand b{display:block;font-size:15px}.brand small{color:var(--mut);font-size:11.5px}
 nav button{all:unset;display:flex;gap:10px;align-items:center;width:100%;padding:9px 10px;border-radius:8px;color:var(--mut);cursor:pointer;margin-bottom:2px;box-sizing:border-box;transition:background .12s,color .12s}
 nav button:hover{background:var(--hov);color:var(--tx)}
@@ -67,7 +66,7 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
 </head>
 <body>
 <aside>
-  <div class="brand"><div class="logo"></div><div><b>RenanTalk</b><small id="ver">…</small></div></div>
+  <div class="brand"><div class="logo"><svg width="34" height="34" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"> <defs> <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"> <stop offset="0" stop-color="#1e3a8a"/> <stop offset="1" stop-color="#0b1530"/> </linearGradient> <linearGradient id="luz" x1="0" x2="1"> <stop offset="0" stop-color="#3b82f6" stop-opacity="0"/> <stop offset=".5" stop-color="#dbeafe"/> <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/> </linearGradient> </defs> <rect width="64" height="64" rx="15" fill="url(#fundo)"/> <rect x="24" y="9" width="16" height="28" rx="8" fill="#fff"/> <path d="M16.5 29.5a15.5 15.5 0 0 0 31 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/> <rect x="29.5" y="44" width="5" height="6" fill="#fff"/> <rect x="6" y="52" width="52" height="5.5" rx="2.75" fill="url(#luz)"/> </svg></div><div><b>RenanTalk</b><small id="ver">…</small></div></div>
   <nav>
     <button data-p="voc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Vocabulário</button>
     <button data-p="key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>Chave Groq</button>

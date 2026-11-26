@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Ícone do RenanTalk: microfone com a linha de luz azul da marca. Fonte de todos os PNG/ICO (assets/gerar_icones.py). -->
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#0b1530"/>
+    </linearGradient>
+    <linearGradient id="luz" x1="0" x2="1">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#dbeafe"/>
+      <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#fundo)"/>
+  <rect x="24" y="9" width="16" height="28" rx="8" fill="#fff"/>
+  <path d="M16.5 29.5a15.5 15.5 0 0 0 31 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <rect x="29.5" y="44" width="5" height="6" fill="#fff"/>
+  <rect x="6" y="52" width="52" height="5.5" rx="2.75" fill="url(#luz)"/>
+</svg>
