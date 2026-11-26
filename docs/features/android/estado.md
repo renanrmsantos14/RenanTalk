@@ -1,8 +1,8 @@
 # RenanTalk Android — estado
 
 - **Nível:** 2 (feature grande)
-- **Etapa:** 2 de 6 — plano técnico proposto; aguardando o "Go" do Renan
-- **Próximo passo:** Renan escolhe a base (pronto × fork × código próprio) no card; depois, Go.
+- **Etapa:** 4 de 6 — app e CI implementados; falta a prova no celular
+- **Próximo passo:** Renan liga a depuração USB/sem fio; a IA instala o APK via adb e grava a prova.
 
 ## Decisões (26/11/2026)
 - Formato: **teclado (IME) com botão de microfone** — segura, fala, solta; o texto entra no campo focado. Linha azul animada no teclado (mesma identidade da luz do desktop).
@@ -35,6 +35,7 @@
 - Layout: **faixa compacta** (globo, apagar, microfone grande, espaço, enter, linha azul em cima, versão no canto).
 - Assinatura: **a IA faz tudo** (gera keystore, cadastra os secrets via `gh`, entrega o arquivo para backup).
 - Go: ainda não; Renan pediu para ver antes se existe teclado open source para partir dele.
+- Base: **código próprio (Go)** em 26/11/2026, depois de ver a avaliação abaixo.
 
 ## Teclados open source avaliados (26/11/2026, via GitHub API)
 | Projeto | Licença | Tamanho | Encaixe |
@@ -53,12 +54,15 @@
 
 ## Tarefas
 - [x] Plano técnico (módulos, permissões, layout do teclado, vocabulário local)
-- [ ] Go do Renan
-- [ ] Projeto Android (Gradle/Kotlin) em `android/`
-- [ ] Teclado + gravação + Groq + inserir texto
-- [ ] Tela de configurações (chave, vocabulário) e atualização pelo release
-- [ ] CI com assinatura e APK no release
+- [x] Go do Renan (código próprio)
+- [x] Projeto Android (Gradle 8.9, AGP 8.7.3, Kotlin 2.0.21, sem dependências de runtime) em `android/`
+- [x] Teclado + gravação + Groq + inserir texto
+- [x] Tela de configurações (passos, chave, vocabulário, teste) e atualização pelo release (PackageInstaller)
+- [x] CI com assinatura e APK no release (job `android`; release não depende do APK)
+- [x] Keystore em `~/.config/RenanTalk-android/` (desktop) + 4 secrets no GitHub — **Renan precisa guardar cópia no gerenciador de senhas**
 - [ ] Prova no celular do Renan (vídeo/prints) e PR
 
 ## Provas
-(nenhuma ainda)
+- 26/11/2026: `testDebugUnitTest` 10/10 passando (silêncio, toque curto, prompt igual ao desktop, WAV, versões, nível da luz).
+- 26/11/2026: `assembleRelease` assinado (54 KB), `apksigner verify` ok, cert SHA-256 `8c5590e2…e42326`. Lint sem erros (3 avisos aceitos: allowBackup, path longo do globo, UnsafeIntentLaunch mitigado por código aleatório).
+- Falta: prova no celular (vídeo/prints) e CI verde no PR.
