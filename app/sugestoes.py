@@ -50,7 +50,7 @@ def candidatos(textos) -> dict[str, Counter]:
 
 def atualizar(con, vocab: list[str], corte: str) -> None:
     """Conta os candidatos nos ditados desde `corte` (ISO) e grava/atualiza a tabela `sugestao`. Não faz commit do resto."""
-    achados = candidatos(l[0] for l in con.execute("SELECT texto FROM ditado WHERE criado_em >= ?", (corte,)))
+    achados = candidatos(l[0] for l in con.execute("SELECT texto FROM ditado WHERE criado_em >= ? AND modo != 'ingles'", (corte,)))
     conhecidos = {p.casefold() for t in vocab for p in (t, *t.split())}
     existentes = {t.casefold(): (t, n) for t, n in con.execute("SELECT termo, contagem FROM sugestao")}
     for chave, formas in achados.items():

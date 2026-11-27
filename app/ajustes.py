@@ -11,6 +11,7 @@ import time
 import numpy as np
 
 from comum import PASTA, log as _log
+from escrita import INSTRUCOES
 
 ARQ_AJUSTES = os.path.join(PASTA, "ajustes.json")
 ARQ_DISPOSITIVOS = os.path.join(PASTA, "dispositivos.json")
@@ -18,7 +19,11 @@ COMANDOS = ("nova_linha", "ponto_final", "virgula", "interrogacao", "abre_parent
 PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+win", "atalho_colar": "alt+win+v",
            "luz": {"ligada": True, "cor": "azul", "espessura": "media", "posicao": "embaixo"},
            "tema": "sistema", "notificacoes": True, "abaixar_outros": False, "volume_outros": 30,
-           "comandos": {c: True for c in COMANDOS}}
+           "comandos": {c: True for c in COMANDOS},
+           "atalho_traduzir": "shift+win", "modo": "literal",
+           "modos_apps": {"outlook": "formal", "olk": "formal", "whatsapp": "whatsapp", "code": "literal"}}  # olk = Outlook novo
+MODOS = ("literal", *(m for m in INSTRUCOES if m != "ingles"))  # "ingles" só pelo atalho de traduzir; igual ao MODOS do main.rs
+ATALHOS = ("atalho_ditar", "atalho_colar", "atalho_traduzir")  # nenhum pode repetir nem conter outro
 IDIOMAS = ("pt", "auto", "en")
 MODIFICADORES = ("ctrl", "alt", "shift", "win")
 TECLAS = tuple("abcdefghijklmnopqrstuvwxyz0123456789") + tuple(f"f{i}" for i in range(1, 13)) + ("space",)
@@ -65,8 +70,9 @@ def atalhos_conflitam(a: str, b: str) -> bool:
 class Casador:
     """Casa as teclas apertadas com os atalhos. Sem X nem teclado: recebe só nomes ('ctrl', 'win', 'd'...).
 
-    `evento(nome, descer, alvo, gravando, alvo_colar=None)` devolve 'iniciar', 'parar', 'colar', 'outra' ou None.
-    Regra herdada do Ctrl+Win: com o ditado em andamento, qualquer tecla fora do atalho de ditar cancela.
+    `evento(nome, descer, alvo, gravando, alvo_colar=None, alvo_traduzir=None)` devolve 'iniciar', 'traduzir',
+    'parar', 'colar', 'outra' ou None. Traduzir funciona como o de ditar (segure, fale e solte), mas cola em inglês.
+    Regra herdada do Ctrl+Win: com o ditado em andamento, qualquer tecla fora do atalho segurado cancela.
     O atalho de colar só vale com o ditado parado e dispara uma vez por vez apertada (sem repetição da tecla).
     """
 
@@ -74,22 +80,29 @@ class Casador:
         self.apertadas: set[str] = set()
         self._alvos: tuple = ()
         self._colou = False
+        self._segurado: tuple = ()  # atalho que começou o ditado em andamento (ditar ou traduzir)
 
     def evento(self, nome: str, descer: bool, alvo: tuple[str, ...], gravando: bool,
-               alvo_colar: tuple[str, ...] | None = None) -> str | None:
+               alvo_colar: tuple[str, ...] | None = None, alvo_traduzir: tuple[str, ...] | None = None) -> str | None:
         if alvo_colar == alvo:  # iguais: o de ditar manda
             alvo_colar = None
-        if (alvo, alvo_colar) != self._alvos:  # atalho trocado nas configurações: recomeça do zero
-            self._alvos, self.apertadas, self._colou = (alvo, alvo_colar), set(), False
-        colar = alvo_colar or ()
+        if alvo_traduzir in (alvo, alvo_colar):
+            alvo_traduzir = None
+        if (alvo, alvo_colar, alvo_traduzir) != self._alvos:  # atalho trocado nas configurações: recomeça do zero
+            self._alvos, self.apertadas, self._colou = (alvo, alvo_colar, alvo_traduzir), set(), False
+        colar, traduzir = alvo_colar or (), alvo_traduzir or ()
         if descer:
-            if nome not in alvo and nome not in colar and nome not in MODIFICADORES:
+            if nome not in alvo + colar + traduzir and nome not in MODIFICADORES:
                 return "outra" if gravando else None
             self.apertadas.add(nome)
             if gravando:
-                return None if nome in alvo else "outra"
+                return None if nome in self._segurado else "outra"
             if self.apertadas == set(alvo):
+                self._segurado = alvo
                 return "iniciar"
+            if traduzir and self.apertadas == set(traduzir):
+                self._segurado = traduzir
+                return "traduzir"
             if colar and self.apertadas == set(colar) and not self._colou:
                 self._colou = True
                 return "colar"
@@ -97,7 +110,7 @@ class Casador:
         self.apertadas.discard(nome)
         if nome in colar:
             self._colou = False
-        return "parar" if gravando and nome in alvo else None
+        return "parar" if gravando and nome in self._segurado else None
 
     def esperar_soltar(self, limite: float = 2.0) -> None:
         """Espera as teclas do atalho serem soltas (ou o limite): colar com Alt/Win apertados vira outro atalho."""
@@ -153,13 +166,21 @@ def normalizar(bruto) -> dict:
         dados["microfone"] = ""
     if dados["idioma"] not in IDIOMAS:
         dados["idioma"] = PADROES["idioma"]
-    for chave in ("atalho_ditar", "atalho_colar"):
-        t = validar_atalho(dados[chave])
-        if t and (chave == "atalho_ditar" or not atalhos_conflitam("+".join(t), dados["atalho_ditar"])):
-            dados[chave] = "+".join(t)
+    for i, chave in enumerate(ATALHOS):  # cada um é conferido contra os anteriores, já válidos
+        anteriores = [dados[c] for c in ATALHOS[:i] if dados[c]]
+        for candidato in (dados[chave], PADROES[chave]):
+            t = validar_atalho(candidato)
+            if t and not any(atalhos_conflitam("+".join(t), o) for o in anteriores):
+                break
+            _log(f"ajustes: {chave} inválido ou em conflito com outro atalho {candidato!r}")
         else:
-            _log(f"ajustes: {chave} inválido ou em conflito com o de ditar {dados[chave]!r}, usando {PADROES[chave]}")
-            dados[chave] = PADROES[chave]
+            t = ()  # nem o padrão serve (o de ditar ocupou o padrão do colar ou do traduzir): fica desligado
+        dados[chave] = "+".join(t)
+    if dados["modo"] not in MODOS:
+        dados["modo"] = PADROES["modo"]
+    apps = dados["modos_apps"] if isinstance(dados["modos_apps"], dict) else {}
+    dados["modos_apps"] = {k.strip().casefold(): v for k, v in apps.items()
+                           if isinstance(k, str) and k.strip() and v in MODOS}
     dados["luz"] = _normalizar_luz(dados["luz"])
     dados["comandos"] = _normalizar_comandos(dados["comandos"])
     if dados["tema"] not in TEMAS:
