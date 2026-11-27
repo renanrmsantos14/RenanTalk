@@ -94,7 +94,7 @@ Write-Host '--- log (falhas) ---'; Log | Select-String 'ponte|iniciado' | Select
 Conferir ((Get-Content (Join-Path $dados '.ponte-falhas')) -eq '3') 'contador .ponte-falhas = 3'
 Conferir ((Log | Select-String 'assinatura|não confere').Count -gt 0) 'motivo: assinatura não confere'
 Conferir ((Log | Select-String 'aviso por notificação \(3 falhas').Count -gt 0) 'aviso da 3ª falha'
-Conferir ((Log | Select-String 'ditado do Python religado').Count -ge 3) 'gancho do Python religado'
+Conferir ((Log | Select-String 'ditado do Python pausado').Count -eq 0) 'assinatura ruim nem pausa o ditado (pausa só depois de conferir)'
 Conferir ((PythonVivo).Count -eq 1) 'Python segue rodando'
 Conferir ((RustVivo).Count -eq 0) 'app Rust não ficou rodando'
 Conferir (Test-Path (Join-Path $app 'ditado.pyw')) 'pasta app\ intacta'
