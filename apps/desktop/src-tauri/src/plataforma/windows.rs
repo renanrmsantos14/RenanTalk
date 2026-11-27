@@ -3,14 +3,13 @@
 //! - colar por `SendInput` (Ctrl+V) guardando e devolvendo todos os formatos da área de transferência, fora do Win+V;
 //! - volume dos outros apps por sessão de áudio (WASAPI), microfone e bipe pelo `cpal` (`som.rs`);
 //! - luz do ditado numa janela em camadas (`luz_win.rs`);
-//! - app ativo pelo nome do executável da janela em primeiro plano; instância única por mutex.
+//! - app ativo pelo nome do executável da janela em primeiro plano.
 
 use super::luz_win::JanelaWin;
 use super::som::{self, Captura};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 use talk_core::casador::{Acao, Casador};
@@ -18,7 +17,7 @@ use talk_core::ditado::{Ditado, EstadoLuz, Plataforma};
 use talk_core::luz::Luz;
 use talk_core::{ajustes, pasta};
 use windows::core::{Interface, HSTRING, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, GetLastError, GlobalFree, HANDLE, HGLOBAL, HINSTANCE, ERROR_ALREADY_EXISTS, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{CloseHandle, GlobalFree, HANDLE, HGLOBAL, HINSTANCE, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Media::Audio::{
     eMultimedia, eRender, AudioSessionStateExpired, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator,
     ISimpleAudioVolume, MMDeviceEnumerator,
@@ -30,7 +29,7 @@ use windows::Win32::System::DataExchange::{
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE};
 use windows::Win32::System::Threading::{
-    CreateMutexW, GetCurrentThreadId, OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    GetCurrentThreadId, OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, VIRTUAL_KEY,
@@ -42,7 +41,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 /// Mutex da instância única. Não pode ser "RenanTalk": a versão em Python usa esse nome e a ponte (tarefa 10)
 /// precisa das duas rodando juntas por instantes, até o Python sair.
-const NOME_MUTEX: &str = "RenanTalk-Rust";
 /// Marca (dwExtraInfo) das teclas que nós mesmos enviamos: o gancho as ignora.
 const MARCA: usize = 0x5254_4B52;
 /// Tecla sem função (VK 0xE8): tocada ao parar, para o Windows não abrir o menu Iniciar ao soltar o Win.
@@ -297,32 +295,6 @@ fn exe_do_processo(pid: u32) -> Option<String> {
     }
 }
 
-// ---------- instância única ----------
-static MUTEX: AtomicIsize = AtomicIsize::new(0);
-
-/// Cria o mutex `nome`; `None` se já existe (outra instância) ou não foi possível criar.
-fn criar_mutex(nome: &str) -> Option<HANDLE> {
-    unsafe {
-        let h = CreateMutexW(None, false, &HSTRING::from(nome)).ok()?;
-        if GetLastError() == ERROR_ALREADY_EXISTS {
-            let _ = CloseHandle(h);
-            return None;
-        }
-        Some(h)
-    }
-}
-
-/// `true` se esta é a única instância. O mutex fica aberto até o processo acabar.
-pub fn instancia_unica() -> bool {
-    match criar_mutex(NOME_MUTEX) {
-        Some(h) => {
-            MUTEX.store(h.0 as isize, Ordering::SeqCst);
-            true
-        }
-        None => false,
-    }
-}
-
 // ---------- volume por sessão de áudio ----------
 thread_local! {
     // A fila de volume do ditado tem uma thread só: o COM é iniciado nela uma vez.
@@ -518,17 +490,6 @@ mod testes {
         let nome = exe_do_processo(std::process::id()).expect("o próprio processo abre");
         assert!(nome.starts_with("renantalk"), "{nome}");
         assert!(!nome.to_lowercase().ends_with(".exe"));
-    }
-
-    #[test]
-    fn mutex_so_deixa_uma_instancia() {
-        let nome = format!("RenanTalk-Rust-teste-{}", std::process::id()); // o real é de quem estiver rodando
-        let primeira = criar_mutex(&nome).expect("a primeira cria");
-        assert!(criar_mutex(&nome).is_none(), "a segunda deve ser recusada");
-        unsafe { CloseHandle(primeira).unwrap() };
-        let nova = criar_mutex(&nome).expect("fechado o dono, outra instância pode abrir");
-        unsafe { CloseHandle(nova).unwrap() };
-        assert_ne!(NOME_MUTEX, "RenanTalk"); // coexiste com o Python
     }
 
     fn formato_proprio() -> u32 {

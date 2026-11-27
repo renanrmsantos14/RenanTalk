@@ -16,7 +16,7 @@ mod luz_win;
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::{iniciar_gancho, instancia_unica, nova};
+pub use windows::{iniciar_gancho, nova};
 
 #[cfg(not(any(target_os = "linux", windows)))]
 compile_error!("RenanTalk roda só em Linux (X11) e Windows");
