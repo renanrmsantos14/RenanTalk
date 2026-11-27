@@ -28,7 +28,7 @@ import atualizador
 import escrita
 import historico
 import substituicoes
-from comum import WINDOWS, cabecalhos_groq, conferir_modelos, ler_chave, log, prompt_vocabulario
+from comum import WINDOWS, cabecalhos_groq, conferir_modelos, fechar_janela, ler_chave, log, prompt_vocabulario
 
 if WINDOWS:
     import plataforma_windows as plat
@@ -264,9 +264,10 @@ def reiniciar() -> None:
     """Fecha esta instância e abre a versão nova que acabou de ser copiada."""
     import subprocess
 
+    reabrir = ["--janela"] if fechar_janela() else []  # a janela aberta volta já na versão nova
     bandeja.remover()
     plat.liberar_instancia()
-    subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=os.path.dirname(os.path.abspath(__file__)),
+    subprocess.Popen([sys.executable, os.path.abspath(__file__), *reabrir], cwd=os.path.dirname(os.path.abspath(__file__)),
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=sys.platform != "win32")  # não herda o terminal de quem chamou
     sair()
@@ -304,6 +305,8 @@ if __name__ == "__main__":
                            ao_colar=lambda: colar_ultimo(0.35))  # pelo menu: espera o foco voltar
     if not ler_chave():
         bandeja.abrir_configuracoes("key")
+    elif "--janela" in sys.argv:  # reiniciado por uma atualização com a janela aberta: reabre em Sobre
+        bandeja.abrir_configuracoes("sob")
     threading.Thread(target=ciclo_atualizacao, daemon=True).start()
     threading.Thread(target=ajustes.escrever_dispositivos, daemon=True).start()
     threading.Thread(target=historico.ciclo_retencao, daemon=True).start()  # apaga > 30 dias ao iniciar e 1x por dia
