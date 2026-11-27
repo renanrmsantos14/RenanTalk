@@ -425,7 +425,7 @@ class BolhaService : AccessibilityService() {
         val campo = alvo?.takeIf { it.refresh() } ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             ?: return copiar(texto)
         if (campo.isEditable) {
-            val atual = if (campo.isShowingHintText) "" else campo.text?.toString().orEmpty()
+            val atual = Regras.textoDoCampo(campo.text?.toString(), campo.hintText?.toString(), campo.isShowingHintText)
             val (novo, cursor) = Regras.inserir(atual, campo.textSelectionStart, campo.textSelectionEnd, texto)
             val ok = campo.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, novo)

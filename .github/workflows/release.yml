@@ -18,9 +18,11 @@ on:
 permissions:
   contents: write
 
+# Merges seguidos na main: o push novo cancela o run anterior que ainda está compilando,
+# e sai um release só com tudo. A versão e o "recompilar" vêm da última tag, então nada se perde.
 concurrency:
   group: release-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   versao:
