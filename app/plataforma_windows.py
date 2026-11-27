@@ -1,11 +1,11 @@
 """Peças do RenanTalk específicas do Windows: atalho, colar, bipe, instância única, luz e bandeja."""
 import ctypes
 import time
-import winsound
 
 import keyboard
 import pyperclip
 
+import ajustes
 from bandeja import Bandeja  # noqa: F401  (reexportado para o ditado)
 from luz import Luz  # noqa: F401
 
@@ -13,7 +13,7 @@ _mutex = None
 
 
 def bipe(freq: int, ms: int) -> None:
-    winsound.Beep(freq, ms)
+    ajustes.bipe(freq, ms)  # tom gerado, com o volume dos ajustes (winsound.Beep não tem volume)
 
 
 def colar(texto: str) -> None:
@@ -31,22 +31,32 @@ def _mascarar_win() -> None:
     ctypes.windll.user32.keybd_event(0xE8, 0, 2, 0)
 
 
+_NOMES = {"ctrl": "ctrl", "left ctrl": "ctrl", "right ctrl": "ctrl", "alt": "alt", "left alt": "alt",
+          "right alt": "alt", "alt gr": "alt", "shift": "shift", "left shift": "shift", "right shift": "shift",
+          "windows": "win", "left windows": "win", "right windows": "win"}
+
+
 def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
-    """Escuta Ctrl+Win (bloqueia a thread principal)."""
+    """Escuta o atalho de ditar (bloqueia a thread principal). O atalho é relido a cada tecla."""
+    casador = ajustes.Casador()
+
     def evento(ev: keyboard.KeyboardEvent) -> None:
-        nome = (ev.name or "").lower()
-        eh_ctrl = "ctrl" in nome
-        eh_win = nome in ("windows", "left windows", "right windows")
-        if ev.event_type == "down":
-            if esta_gravando() and not (eh_ctrl or eh_win):
-                ao_outra(f"{ev.name!r} scan={ev.scan_code}")  # Ctrl+Win+outra tecla = atalho do Windows
-            elif not esta_gravando() and (eh_ctrl or eh_win) and keyboard.is_pressed("ctrl") and (
-                keyboard.is_pressed("windows") or keyboard.is_pressed("left windows") or eh_win
-            ):
-                ao_iniciar()
-        elif ev.event_type == "up" and esta_gravando() and (eh_ctrl or eh_win):
+        bruto = (ev.name or "").lower()
+        nome = _NOMES.get(bruto, bruto)
+        descer = ev.event_type == "down"
+        alvo = ajustes.validar_atalho(ajustes.ler()["atalho_ditar"])
+        if descer and not esta_gravando():  # solta teclas "presas" (Win+L, etc. não entregam o key-up)
+            for m in list(casador.apertadas):
+                if m in ajustes.MODIFICADORES and not keyboard.is_pressed("windows" if m == "win" else m):
+                    casador.apertadas.discard(m)
+        r = casador.evento(nome, descer, alvo, esta_gravando())
+        if r == "iniciar":
+            ao_iniciar()
+        elif r == "parar":
             ao_parar()
             _mascarar_win()
+        elif r == "outra":
+            ao_outra(f"{ev.name!r} scan={ev.scan_code}")  # Ctrl+Win+outra tecla = atalho do Windows
 
     keyboard.hook(evento)
     keyboard.wait()

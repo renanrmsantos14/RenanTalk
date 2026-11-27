@@ -150,6 +150,99 @@ fn estado() -> Estado {
     }
 }
 
+const MODIFICADORES: [&str; 4] = ["ctrl", "alt", "shift", "win"];
+
+/// Mesma regra do Python (`ajustes.validar_atalho`): 2+ teclas sem repetir, modificadores e no máximo uma tecla.
+fn validar_atalho(texto: &str) -> Option<String> {
+    let partes: Vec<String> = texto
+        .split('+')
+        .map(|p| match p.trim().to_lowercase().as_str() {
+            "super" | "windows" | "meta" => "win".to_string(),
+            o => o.to_string(),
+        })
+        .collect();
+    let mut unicos = partes.clone();
+    unicos.sort();
+    unicos.dedup();
+    if partes.len() < 2 || unicos.len() != partes.len() {
+        return None;
+    }
+    let mods: Vec<&str> = MODIFICADORES.iter().copied().filter(|m| partes.iter().any(|p| p == m)).collect();
+    let teclas: Vec<&String> = partes.iter().filter(|p| !MODIFICADORES.contains(&p.as_str())).collect();
+    let tecla_ok = |t: &str| {
+        (t.len() == 1 && t.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()))
+            || t == "space"
+            || (t.starts_with('f') && t[1..].parse::<u8>().map_or(false, |n| (1..=12).contains(&n)))
+    };
+    if mods.is_empty() || teclas.len() > 1 || teclas.first().map_or(false, |t| !tecla_ok(t)) {
+        return None;
+    }
+    let mut saida: Vec<String> = mods.iter().map(|m| m.to_string()).collect();
+    saida.extend(teclas.into_iter().cloned());
+    Some(saida.join("+"))
+}
+
+fn ler_ajustes_arquivo() -> serde_json::Map<String, Value> {
+    fs::read_to_string(pasta().join("ajustes.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default()
+}
+
+/// Ajustes (padrões onde faltar ou for inválido) e a lista de microfones gravada pelo Python.
+#[tauri::command]
+fn ajustes() -> Value {
+    let mut a = ler_ajustes_arquivo();
+    let volume = a.get("volume").and_then(Value::as_f64).map_or(60, |v| v.clamp(0.0, 100.0) as i64);
+    a.insert("volume".into(), json!(volume));
+    if !a.get("microfone").map_or(false, Value::is_string) {
+        a.insert("microfone".into(), json!(""));
+    }
+    if !a.get("idioma").and_then(Value::as_str).map_or(false, |i| ["pt", "auto", "en"].contains(&i)) {
+        a.insert("idioma".into(), json!("pt"));
+    }
+    let atalho = a.get("atalho_ditar").and_then(Value::as_str).and_then(validar_atalho).unwrap_or_else(|| "ctrl+win".into());
+    a.insert("atalho_ditar".into(), json!(atalho));
+    let dispositivos = fs::read_to_string(pasta().join("dispositivos.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v.get("dispositivos").cloned())
+        .unwrap_or_else(|| json!([]));
+    json!({ "ajustes": a, "dispositivos": dispositivos })
+}
+
+/// Grava só volume, microfone, idioma e atalho_ditar; as outras chaves do arquivo ficam como estão.
+/// Escrita atômica: arquivo temporário e rename.
+#[tauri::command]
+fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
+    let mut a = ler_ajustes_arquivo();
+    if let Some(v) = valores.get("volume").and_then(Value::as_f64) {
+        a.insert("volume".into(), json!(v.clamp(0.0, 100.0).round() as i64));
+    }
+    if let Some(m) = valores.get("microfone").and_then(Value::as_str) {
+        a.insert("microfone".into(), json!(m));
+    }
+    if let Some(i) = valores.get("idioma").and_then(Value::as_str) {
+        if !["pt", "auto", "en"].contains(&i) {
+            return json!({ "ok": false, "erro": "Idioma inválido." });
+        }
+        a.insert("idioma".into(), json!(i));
+    }
+    if let Some(t) = valores.get("atalho_ditar").and_then(Value::as_str) {
+        match validar_atalho(t) {
+            Some(ok) => a.insert("atalho_ditar".into(), json!(ok)),
+            None => return json!({ "ok": false, "erro": "Atalho inválido: use pelo menos 2 teclas diferentes." }),
+        };
+    }
+    let _ = fs::create_dir_all(pasta());
+    let arq = pasta().join("ajustes.json");
+    let tmp = pasta().join("ajustes.json.tmp");
+    let texto = serde_json::to_string_pretty(&Value::Object(a)).unwrap_or_default();
+    let ok = fs::write(&tmp, texto).and_then(|_| fs::rename(&tmp, &arq)).is_ok();
+    json!({ "ok": ok })
+}
+
 #[tauri::command]
 fn salvar_vocab(termos: Vec<String>) -> Value {
     let termos: Vec<String> = termos.into_iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect();
@@ -244,7 +337,7 @@ fn main() {
         app: app_dir,
     });
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![estado, salvar_vocab, salvar_chave, atualizar, abrir, mostrar, fechar])
+        .invoke_handler(tauri::generate_handler![estado, ajustes, salvar_ajustes, salvar_vocab, salvar_chave, atualizar, abrir, mostrar, fechar])
         .setup(|app| {
             // rede de segurança: se a página não pedir para aparecer, mostra assim mesmo
             let j = app.get_webview_window("main").expect("janela");

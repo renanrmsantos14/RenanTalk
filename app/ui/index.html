@@ -16,6 +16,7 @@ aside{background:var(--side);border-right:1px solid var(--line);padding:20px 12p
 .logo{width:34px;height:34px;flex:none;filter:drop-shadow(0 2px 6px rgba(37,99,235,.35))}
 .brand b{display:block;font-size:15px}.brand small{color:var(--mut);font-size:11.5px}
 nav button{all:unset;display:flex;gap:10px;align-items:center;width:100%;padding:9px 10px;border-radius:8px;color:var(--mut);cursor:pointer;margin-bottom:2px;box-sizing:border-box;transition:background .12s,color .12s}
+nav button[hidden]{display:none}
 nav button:hover{background:var(--hov);color:var(--tx)}
 nav button.on{background:var(--on);color:var(--ontx);font-weight:600}
 nav button:focus-visible,.btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
@@ -58,6 +59,14 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
 .stat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
 .stat div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 .stat b{display:block;font-size:20px;margin-top:2px;font-weight:600}
+.sel{background:var(--bg);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 10px;font:inherit;max-width:100%}
+.sel:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+input[type=range]{padding:0;accent-color:var(--ac2);flex:1;min-width:120px;box-shadow:none;border:0;background:none}
+.vol{display:flex;align-items:center;gap:12px;margin-top:10px}.vol b{min-width:44px;text-align:right}
+.mods{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.mod{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:7px 12px;color:var(--mut)}
+.mod:hover{background:var(--hov)}.mod.on{background:var(--on);border-color:var(--chipb);color:var(--ontx);font-weight:600}
+.mod:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 .links{display:flex;gap:18px}
 .links button{all:unset;color:var(--ac2);cursor:pointer}
 @media (prefers-color-scheme:dark){.links button{color:#7fb0ff}}
@@ -69,10 +78,11 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
   <div class="brand"><div class="logo"><svg width="34" height="34" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"> <defs> <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"> <stop offset="0" stop-color="#1e3a8a"/> <stop offset="1" stop-color="#0b1530"/> </linearGradient> <linearGradient id="luz" x1="0" x2="1"> <stop offset="0" stop-color="#3b82f6" stop-opacity="0"/> <stop offset=".5" stop-color="#dbeafe"/> <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/> </linearGradient> </defs> <rect width="64" height="64" rx="15" fill="url(#fundo)"/> <rect x="24" y="9" width="16" height="28" rx="8" fill="#fff"/> <path d="M16.5 29.5a15.5 15.5 0 0 0 31 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/> <rect x="29.5" y="44" width="5" height="6" fill="#fff"/> <rect x="6" y="52" width="52" height="5.5" rx="2.75" fill="url(#luz)"/> </svg></div><div><b>RenanTalk</b><small id="ver">…</small></div></div>
   <nav>
     <button data-p="voc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Vocabulário</button>
+    <button data-p="som" id="nsom" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4zM17 8.5a5 5 0 0 1 0 7"/></svg>Ditado e som</button>
     <button data-p="key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>Chave Groq</button>
     <button data-p="sob"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Sobre</button>
   </nav>
-  <div class="hint">Segure <kbd>Ctrl</kbd> + <kbd>Win</kbd>, fale e solte.</div>
+  <div class="hint" id="dica">Segure <kbd>Ctrl</kbd> + <kbd>Win</kbd>, fale e solte.</div>
   <div class="glow"></div>
 </aside>
 <main>
@@ -82,6 +92,18 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
     <div class="add"><input id="novo" placeholder="Adicionar termo e apertar Enter" maxlength="80"><button class="btn" id="add">Adicionar</button></div>
     <div class="chips" id="chips"></div>
     <div class="foot"><span id="cont"></span><div class="bar" id="bar"><i></i></div><span class="saved" id="salvo">✓ Salvo</span></div>
+  </section>
+  <section class="pane" id="som">
+    <h1>Ditado e som</h1>
+    <p class="sub">Vale no próximo ditado, sem reiniciar. Salva sozinho.</p>
+    <div class="card"><div class="row"><div><div>Volume dos bipes</div><div class="k">0% deixa tudo mudo.</div></div><span class="saved" id="salvo2">✓ Salvo</span></div>
+      <div class="vol"><input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume dos bipes"><b id="volv">60%</b><button class="btn sec" id="ouvir">Ouvir</button></div></div>
+    <div class="card"><div class="row"><div><div>Microfone</div><div class="k">A lista é atualizada quando a janela abre.</div></div><select class="sel" id="mic" aria-label="Microfone"></select></div></div>
+    <div class="card"><div class="row"><div><div>Idioma do ditado</div><div class="k">Automático deixa o Whisper detectar.</div></div>
+      <select class="sel" id="idi" aria-label="Idioma"><option value="pt">Português</option><option value="auto">Automático</option><option value="en">Inglês</option></select></div></div>
+    <div class="card"><div class="row"><div><div>Atalho de ditar</div><div class="k">Segure, fale e solte. Mínimo de 2 teclas.</div></div><kbd id="atalhov">Ctrl + Win</kbd></div>
+      <div class="mods" id="mods"><button class="mod" data-m="ctrl">Ctrl</button><button class="mod" data-m="alt">Alt</button><button class="mod" data-m="shift">Shift</button><button class="mod" data-m="win">Win</button><span class="k">+</span><select class="sel" id="tecla" aria-label="Tecla extra"></select></div>
+      <div class="msg" id="amsg2"></div></div>
   </section>
   <section class="pane" id="key">
     <h1>Chave Groq</h1>
@@ -106,7 +128,7 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
 <script>
 // Na janela Tauri (Rust) chama os comandos direto; no modo antigo (Python + navegador) usa HTTP.
 const TAURI = window.__TAURI__?.core;
-const COMANDOS = {estado: 'estado', vocab: 'salvar_vocab', chave: 'salvar_chave', atualizar: 'atualizar', abrir: 'abrir'};
+const COMANDOS = {estado: 'estado', vocab: 'salvar_vocab', chave: 'salvar_chave', atualizar: 'atualizar', abrir: 'abrir', ajustes: 'ajustes', salvarAjustes: 'salvar_ajustes'};
 const api = (r, corpo) => TAURI
   ? TAURI.invoke(COMANDOS[r], corpo || {})
   : fetch('api/' + r, corpo === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(x => x.json());
@@ -173,6 +195,61 @@ $('atual').onclick = async () => {
 };
 document.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => api('abrir', {alvo: b.dataset.abrir}));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') TAURI ? TAURI.invoke('fechar') : window.close(); });
+
+// ---------- Ditado e som (só na janela Tauri: o modo antigo não tem esses comandos) ----------
+const NOMES_MOD = {ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', win: 'Win'};
+let aj = {}, modsOn = new Set(), tSalvar2, ctxAudio;
+const rotuloAtalho = a => a.split('+').map(p => NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase())).join(' + ');
+function atalhoAtual() { const t = $('tecla').value; return ['ctrl', 'alt', 'shift', 'win'].filter(m => modsOn.has(m)).concat(t ? [t] : []); }
+function bipePrevia(v) {  // mesmo timbre do bipe do app: seno 880 Hz, 60 ms, envelope de 8 ms
+  if (v <= 0) return;
+  ctxAudio = ctxAudio || new AudioContext();
+  const t = ctxAudio.currentTime, o = ctxAudio.createOscillator(), g = ctxAudio.createGain();
+  o.frequency.value = 880; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v / 100, t + .008);
+  g.gain.setValueAtTime(v / 100, t + .052); g.gain.linearRampToValueAtTime(0, t + .06);
+  o.connect(g).connect(ctxAudio.destination); o.start(t); o.stop(t + .062);
+}
+function salvarSom(valores) {
+  clearTimeout(tSalvar2);
+  tSalvar2 = setTimeout(async () => {
+    const r = await api('salvarAjustes', {valores});
+    if (r.ok) { $('salvo2').classList.add('on'); setTimeout(() => $('salvo2').classList.remove('on'), 1400); }
+    else { const m = $('amsg2'); m.className = 'msg err'; m.textContent = r.erro || 'Não consegui salvar os ajustes.'; }
+  }, 250);
+}
+function mostrarAtalho(a) {
+  $('atalhov').textContent = rotuloAtalho(a);
+  $('dica').innerHTML = 'Segure ' + a.split('+').map(p => '<kbd>' + (NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase())) + '</kbd>').join(' + ') + ', fale e solte.';
+}
+function trocarAtalho() {
+  const t = atalhoAtual(), m = $('amsg2');
+  if (t.length < 2 || new Set(t).size !== t.length) { m.className = 'msg err'; m.textContent = 'O atalho precisa de pelo menos 2 teclas diferentes.'; return; }
+  m.textContent = ''; mostrarAtalho(t.join('+')); salvarSom({atalho_ditar: t.join('+')});
+}
+async function iniciarSom() {
+  $('nsom').hidden = false;
+  const r = await api('ajustes'); aj = r.ajustes;
+  $('vol').value = aj.volume; $('volv').textContent = aj.volume + '%';
+  const mic = $('mic'); mic.innerHTML = '';
+  mic.append(new Option('Padrão do sistema', ''));
+  r.dispositivos.forEach(d => mic.append(new Option(d.nome + (d.padrao ? ' (padrão)' : ''), d.nome)));
+  if (aj.microfone && ![...mic.options].some(o => o.value === aj.microfone)) mic.append(new Option(aj.microfone + ' (não encontrado)', aj.microfone));
+  mic.value = aj.microfone; $('idi').value = aj.idioma;
+  const tecla = $('tecla'); tecla.append(new Option('sem tecla extra', ''));
+  [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].forEach(c => tecla.append(new Option(c, c.toLowerCase())));
+  for (let i = 1; i <= 12; i++) tecla.append(new Option('F' + i, 'f' + i));
+  tecla.append(new Option('Espaço', 'space'));
+  const partes = aj.atalho_ditar.split('+'); modsOn = new Set(partes.filter(p => NOMES_MOD[p]));
+  tecla.value = partes.find(p => !NOMES_MOD[p]) || '';
+  document.querySelectorAll('.mod').forEach(b => { b.classList.toggle('on', modsOn.has(b.dataset.m)); b.onclick = () => { b.classList.toggle('on'); b.classList.contains('on') ? modsOn.add(b.dataset.m) : modsOn.delete(b.dataset.m); trocarAtalho(); }; });
+  tecla.onchange = trocarAtalho; mostrarAtalho(aj.atalho_ditar);
+  $('vol').oninput = () => { $('volv').textContent = $('vol').value + '%'; };
+  $('vol').onchange = () => { bipePrevia(+$('vol').value); salvarSom({volume: +$('vol').value}); };
+  $('ouvir').onclick = () => bipePrevia(+$('vol').value);
+  mic.onchange = () => salvarSom({microfone: mic.value});
+  $('idi').onchange = () => salvarSom({idioma: $('idi').value});
+}
+if (TAURI) iniciarSom().catch(() => { $('nsom').hidden = true; });
 
 api('estado').then(e => {
   termos = e.vocab; limite = e.limite; desenhar();

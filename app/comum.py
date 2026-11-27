@@ -46,6 +46,12 @@ def abrir_configuracoes(aba: str = "voc") -> None:
     import subprocess
 
     app = os.path.dirname(os.path.abspath(__file__))
+    try:
+        import ajustes
+
+        ajustes.escrever_dispositivos()  # a janela (Rust) lê a lista de microfones deste arquivo
+    except Exception:  # noqa: BLE001 - sem lista a janela só mostra o padrão
+        pass
     exe = os.path.join(app, "renantalk-config.exe" if WINDOWS else "renantalk-config")
     if os.path.exists(exe):
         # python.exe (com console oculto pelo Rust) para o "Procurar atualização"; pythonw não devolve saída

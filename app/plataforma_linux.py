@@ -15,7 +15,6 @@ import time
 import cairo
 import gi
 import numpy as np
-import sounddevice as sd
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
@@ -24,6 +23,7 @@ from Xlib import X, XK, display  # noqa: E402
 from Xlib.ext import record, xtest  # noqa: E402
 from Xlib.protocol import rq  # noqa: E402
 
+import ajustes  # noqa: E402
 from comum import (ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, abrir_configuracoes,  # noqa: E402
                    definir_inicio_automatico, inicio_automatico)
 
@@ -33,13 +33,7 @@ _trava_arquivo = None
 
 # ---------- utilidades ----------
 def bipe(freq: int, ms: int) -> None:
-    taxa = 44100
-    t = np.arange(int(taxa * ms / 1000)) / taxa
-    env = np.minimum(1, np.minimum(t, t[::-1]) / 0.008)  # sem estalo no começo e no fim
-    try:
-        sd.play((0.18 * np.sin(2 * np.pi * freq * t) * env).astype(np.float32), taxa)
-    except Exception:  # noqa: BLE001 - sem saída de áudio não é motivo para travar o ditado
-        pass
+    ajustes.bipe(freq, ms)
 
 
 def instancia_unica() -> bool:
@@ -108,13 +102,28 @@ def colar(texto: str) -> None:
 
 
 # ---------- atalho ----------
+def _codigos(local, alvo) -> dict[int, str]:
+    """keycode -> nome ('ctrl', 'alt', 'shift', 'win' e a tecla do atalho, se houver)."""
+    mapa: dict[int, str] = {}
+    grupos = {"ctrl": (XK.XK_Control_L, XK.XK_Control_R), "alt": (XK.XK_Alt_L, XK.XK_Alt_R),
+              "shift": (XK.XK_Shift_L, XK.XK_Shift_R), "win": (XK.XK_Super_L, XK.XK_Super_R)}
+    for nome, keysyms in grupos.items():
+        for k in keysyms:
+            mapa[local.keysym_to_keycode(k)] = nome
+    for nome in alvo:
+        if nome not in grupos:
+            ks = XK.string_to_keysym(nome) or XK.string_to_keysym(nome.capitalize())
+            if ks:
+                mapa[local.keysym_to_keycode(ks)] = nome
+    return mapa
+
+
 def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
-    """Escuta Ctrl+Super numa thread (RECORD do X11) e roda o laço do GTK na thread principal."""
+    """Escuta o atalho de ditar (RECORD do X11) numa thread e roda o laço do GTK na thread principal."""
     def escutar() -> None:
         local, rec = display.Display(), display.Display()
-        ctrl = {local.keysym_to_keycode(XK.XK_Control_L), local.keysym_to_keycode(XK.XK_Control_R)}
-        sup = {local.keysym_to_keycode(XK.XK_Super_L), local.keysym_to_keycode(XK.XK_Super_R)}
-        apertadas: set[str] = set()
+        casador = ajustes.Casador()
+        estado = {"alvo": None, "codigos": {}}
         ctx = rec.record_create_context(0, [record.AllClients], [{
             "core_requests": (0, 0), "core_replies": (0, 0, 0, 0), "ext_requests": (0, 0, 0, 0),
             "ext_replies": (0, 0, 0, 0), "delivered_events": (0, 0),
@@ -124,22 +133,22 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
         def ao_registro(reply) -> None:
             if reply.category != record.FromServer or reply.client_swapped or not reply.data:
                 return
+            alvo = ajustes.validar_atalho(ajustes.ler()["atalho_ditar"])  # relido: vale sem reiniciar
+            if alvo != estado["alvo"]:
+                estado["alvo"], estado["codigos"] = alvo, _codigos(local, alvo)
             dados = reply.data
             while dados:
                 ev, dados = rq.EventField(None).parse_binary_value(dados, rec.display, None, None)
-                tipo = "ctrl" if ev.detail in ctrl else "super" if ev.detail in sup else "outra"
-                if ev.type == X.KeyPress:
-                    if tipo == "outra":
-                        if esta_gravando():
-                            ao_outra(f"keycode={ev.detail}")
-                        continue
-                    apertadas.add(tipo)
-                    if not esta_gravando() and apertadas == {"ctrl", "super"}:
-                        ao_iniciar()
-                elif ev.type == X.KeyRelease and tipo != "outra":
-                    apertadas.discard(tipo)
-                    if esta_gravando():
-                        ao_parar()
+                if ev.type not in (X.KeyPress, X.KeyRelease):
+                    continue
+                nome = estado["codigos"].get(ev.detail, "outra")
+                r = casador.evento(nome, ev.type == X.KeyPress, alvo, esta_gravando())
+                if r == "iniciar":
+                    ao_iniciar()
+                elif r == "parar":
+                    ao_parar()
+                elif r == "outra":
+                    ao_outra(f"keycode={ev.detail}")
 
         rec.record_enable_context(ctx, ao_registro)  # bloqueia
 

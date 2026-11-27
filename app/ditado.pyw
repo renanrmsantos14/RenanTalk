@@ -21,6 +21,7 @@ import wave
 import numpy as np
 import sounddevice as sd
 
+import ajustes
 import atualizador
 from comum import ARQ_LOG, WINDOWS, ler_chave, prompt_vocabulario
 
@@ -57,7 +58,26 @@ def ao_audio(dados, _frames, _tempo, _status) -> None:
         LUZ.audio(min(1.0, float(np.sqrt(np.mean(a * a))) / 2500))
 
 
-fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio)  # microfone padrão do sistema
+fluxo = None
+fluxo_mic = None  # microfone com que o fluxo foi aberto ("" = padrão do sistema)
+
+
+def garantir_fluxo() -> None:
+    """Abre o fluxo no microfone dos ajustes; trocar o microfone recria o fluxo no próximo ditado."""
+    global fluxo, fluxo_mic
+    mic = ajustes.ler()["microfone"]
+    if fluxo is not None and mic == fluxo_mic:
+        return
+    if fluxo is not None:
+        fluxo.close()
+        fluxo = None
+    dispositivo = ajustes.indice_do_microfone(mic, list(sd.query_devices())) if mic else None
+    try:
+        fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio, device=dispositivo)
+    except Exception as e:  # noqa: BLE001 - dispositivo ocupado ou inválido: cai no padrão
+        log(f"microfone {mic!r} não abriu ({e!r}), usando o padrão do sistema")
+        fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio)
+    fluxo_mic = mic
 
 
 def comecar() -> None:
@@ -68,6 +88,7 @@ def comecar() -> None:
         quadros.clear()
         outra_tecla = False
         inicio = time.time()
+        garantir_fluxo()
         fluxo.start()
         gravando = True
     LUZ.definir("rec")
@@ -116,7 +137,9 @@ def wav(audio: bytes) -> bytes:
 def transcrever(audio: bytes) -> str:
     limite = uuid.uuid4().hex
     # Vocabulário vai como contexto (não como ordem) para o Whisper grafar certo; relido a cada ditado.
-    campos = {"model": MODELO, "language": "pt", "temperature": "0", "response_format": "json"}
+    campos = {"model": MODELO, "temperature": "0", "response_format": "json"}
+    if (idioma := ajustes.ler()["idioma"]) != "auto":  # automático: sem `language`, o Whisper detecta
+        campos["language"] = idioma
     if vocab := prompt_vocabulario():
         campos["prompt"] = vocab
     corpo = io.BytesIO()
@@ -198,4 +221,5 @@ if __name__ == "__main__":
     if not ler_chave():
         bandeja.abrir_configuracoes("key")
     threading.Thread(target=ciclo_atualizacao, daemon=True).start()
+    threading.Thread(target=ajustes.escrever_dispositivos, daemon=True).start()
     plat.rodar(comecar, parar, marcar_outra_tecla, lambda: gravando)
