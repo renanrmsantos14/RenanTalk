@@ -1,11 +1,13 @@
 """Peças do RenanTalk específicas do Windows: atalho, colar, bipe, instância única, luz e bandeja."""
 import ctypes
+import os
 import time
 
 import keyboard
 import pyperclip
 
 import ajustes
+from comum import log
 from bandeja import Bandeja  # noqa: F401  (reexportado para o ditado)
 from luz import Luz  # noqa: F401
 
@@ -91,6 +93,42 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
 
     keyboard.hook(evento)
     keyboard.wait()
+
+
+def abaixar_outros(fator: float) -> list:
+    """Põe cada app que toca som em `fator` do volume atual. Devolve o que mudou, para restaurar_outros.
+
+    Chamada sempre da mesma thread (a fila de volume do ditado.pyw): as sessões são objetos COM dela."""
+    feitos = []
+    try:
+        import comtypes
+        from pycaw.pycaw import AudioUtilities
+
+        comtypes.CoInitialize()  # a thread da fila de volume não tem COM iniciado
+        sessoes = AudioUtilities.GetAllSessions()
+    except Exception as e:  # noqa: BLE001 - COM levanta tipos variados; o ditado não pode parar por isso
+        log(f"abaixar volume: {e!r}")
+        return feitos
+    for s in sessoes:  # uma sessão que sumiu não impede abaixar as outras
+        try:
+            if s.ProcessId in (0, os.getpid()):  # 0 = sons do Windows; o nosso = os bipes, no volume dos ajustes
+                continue
+            v = s.SimpleAudioVolume
+            antes = v.GetMasterVolume()
+            v.SetMasterVolume(antes * fator, None)
+            feitos.append((v, antes))
+        except Exception as e:  # noqa: BLE001
+            log(f"abaixar volume: {e!r}")
+    return feitos
+
+
+def restaurar_outros(feitos: list) -> None:
+    """Volta sempre o volume de antes (como no Linux)."""
+    for v, antes in feitos:
+        try:
+            v.SetMasterVolume(antes, None)
+        except Exception as e:  # noqa: BLE001 - o app fechou durante o ditado
+            log(f"restaurar volume: {e!r}")
 
 
 def instancia_unica() -> bool:

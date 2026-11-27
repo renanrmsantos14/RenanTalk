@@ -6,6 +6,7 @@
 - Bandeja: XApp.StatusIcon (Cinnamon); na falta, AyatanaAppIndicator3 ou Gtk.StatusIcon.
 """
 import fcntl
+import json
 import os
 import subprocess
 import sys
@@ -25,7 +26,7 @@ from Xlib.protocol import rq  # noqa: E402
 
 import ajustes  # noqa: E402
 from comum import (ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, abrir_configuracoes,  # noqa: E402
-                   definir_inicio_automatico, inicio_automatico)
+                   definir_inicio_automatico, inicio_automatico, log)
 
 TERMINAIS = ("terminal", "xterm", "urxvt", "kitty", "alacritty", "konsole", "tilix", "terminator", "wezterm", "foot")
 _trava_arquivo = None
@@ -34,6 +35,51 @@ _trava_arquivo = None
 # ---------- utilidades ----------
 def bipe(freq: int, ms: int) -> None:
     ajustes.bipe(freq, ms)
+
+
+def _sink_inputs() -> list[dict]:
+    r = subprocess.run(["pactl", "-f", "json", "list", "sink-inputs"], capture_output=True, timeout=2,
+                       env={**os.environ, "LC_ALL": "C"}, check=True)
+    return json.loads(r.stdout)
+
+
+def _definir_volume(indice: int, canais: list[int]) -> None:
+    subprocess.run(["pactl", "set-sink-input-volume", str(indice), *map(str, canais)], timeout=2, check=True)
+
+
+def abaixar_outros(fator: float) -> list:
+    """Põe cada app que toca som em `fator` do volume atual. Devolve o que mudou, para restaurar_outros.
+
+    O bipe de início ainda pode estar tocando: pula o fluxo do nosso processo quando o servidor informa o
+    `application.process.id`. O bipe de fim sai num fluxo novo, que não está nesta lista."""
+    feitos = []
+    try:
+        entradas = _sink_inputs()
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
+        log(f"abaixar volume: {e!r}")
+        return feitos
+    for e in entradas:  # um fluxo que sumiu ou sem volume não impede abaixar os outros
+        try:
+            if str(e.get("properties", {}).get("application.process.id")) == str(os.getpid()):
+                continue  # os bipes do RenanTalk ficam no volume dos ajustes
+            antes = [c["value"] for c in e["volume"].values()]
+            if not antes:
+                continue
+            _definir_volume(e["index"], [round(v * fator) for v in antes])
+            feitos.append((e["index"], antes))
+        except (OSError, KeyError, TypeError, AttributeError, subprocess.SubprocessError) as err:
+            log(f"abaixar volume: {err!r}")
+    return feitos
+
+
+def restaurar_outros(feitos: list) -> None:
+    """Volta sempre o volume de antes. Não dá para respeitar o que mudou no meio: o Spotify reage à mudança
+    de fora e mexe no próprio volume, e ficaria no valor errado."""
+    for indice, antes in feitos:
+        try:
+            _definir_volume(indice, antes)
+        except (OSError, subprocess.SubprocessError) as e:  # o app fechou durante o ditado
+            log(f"restaurar volume: {e!r}")
 
 
 def instancia_unica() -> bool:

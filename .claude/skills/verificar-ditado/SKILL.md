@@ -23,10 +23,11 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 2. Colar último: abrir o editor, `xdotool mousemove 300 380 click 1; xdotool key alt+super+v` → o editor recebe "Ligar para o motorista do aeroporto" com acentos intactos e o log mostra "colar último: colado".
 3. Trocar `atalho_ditar` no `ajustes.json` com o app aberto → o listener passa a usar o novo atalho sem reiniciar (cache por mtime).
 4. `ajustes.json` corrompido (`{`, `"volume": NaN`, atalho `["alt","win"]`) → o app segue com os padrões e registra no log.
+5. Abaixar os outros sons (Linux): `abaixar_outros: true, volume_outros: 30` no `ajustes.json`; um fluxo de teste em laço (`while true; do paplay --client-name=TesteRenanTalk silencio.wav; done &`, wav de silêncio gerado com `sox -n -r 16000 silencio.wav trim 0 2` ou numpy+wave); `xdotool keydown ctrl super`, 2 s, `pactl -f json list sink-inputs` → os outros fluxos a 30% (65536 → 19661) e o `PipeWire ALSA [python3.x]` do próprio app intacto; `xdotool keyup super ctrl`, 2 s → todos de volta ao valor de antes e estáveis 3 s depois. Com o ajuste desligado nada muda. Anote o volume do Spotify antes e confira depois (ele reage à mudança externa).
 
 ## Não dá para provar aqui
 - Ditado real (microfone + Groq): Xvfb não tem áudio. Provar numa máquina com microfone e chave.
-- Windows (`keyboard` + Casador, `winsound`, bandeja Win32): delegar ao notebook `Betinhos-Renan`.
+- Windows (`keyboard` + Casador, `winsound`, bandeja Win32, abaixar outros sons via pycaw): delegar ao notebook `Betinhos-Renan`.
 
 ## Evidências
 - `.verificacao/<data>-<branch>/` (prints e o trecho do `ditado.log`).

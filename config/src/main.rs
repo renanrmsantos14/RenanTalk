@@ -229,8 +229,10 @@ fn luz_normalizada(bruto: Option<&Value>) -> serde_json::Map<String, Value> {
 #[tauri::command]
 fn ajustes() -> Value {
     let mut a = ler_ajustes_arquivo();
-    let volume = a.get("volume").and_then(Value::as_f64).map_or(60, |v| v.clamp(0.0, 100.0) as i64);
-    a.insert("volume".into(), json!(volume));
+    for (chave, padrao) in [("volume", 60), ("volume_outros", 30)] {
+        let v = a.get(chave).and_then(Value::as_f64).map_or(padrao, |v| v.clamp(0.0, 100.0) as i64);
+        a.insert(chave.into(), json!(v));
+    }
     if !a.get("microfone").map_or(false, Value::is_string) {
         a.insert("microfone".into(), json!(""));
     }
@@ -246,8 +248,10 @@ fn ajustes() -> Value {
     if !a.get("tema").and_then(Value::as_str).map_or(false, |t| TEMAS.contains(&t)) {
         a.insert("tema".into(), json!("sistema"));
     }
-    if !a.get("notificacoes").map_or(false, Value::is_boolean) {
-        a.insert("notificacoes".into(), json!(true));
+    for (chave, padrao) in [("notificacoes", true), ("abaixar_outros", false)] {
+        if !a.get(chave).map_or(false, Value::is_boolean) {
+            a.insert(chave.into(), json!(padrao));
+        }
     }
     let dispositivos = fs::read_to_string(pasta().join("dispositivos.json"))
         .ok()
@@ -257,13 +261,15 @@ fn ajustes() -> Value {
     json!({ "ajustes": a, "dispositivos": dispositivos })
 }
 
-/// Grava só volume, microfone, idioma, atalhos, luz, tema e notificações; as outras chaves do arquivo ficam como estão.
+/// Grava só as chaves editáveis na janela; as outras chaves do arquivo ficam como estão.
 /// Escrita atômica: arquivo temporário e rename.
 #[tauri::command]
 fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
     let mut a = ler_ajustes_arquivo();
-    if let Some(v) = valores.get("volume").and_then(Value::as_f64) {
-        a.insert("volume".into(), json!(v.clamp(0.0, 100.0).round() as i64));
+    for chave in ["volume", "volume_outros"] {
+        if let Some(v) = valores.get(chave).and_then(Value::as_f64) {
+            a.insert(chave.into(), json!(v.clamp(0.0, 100.0).round() as i64));
+        }
     }
     if let Some(m) = valores.get("microfone").and_then(Value::as_str) {
         a.insert("microfone".into(), json!(m));
@@ -298,8 +304,10 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
         }
         a.insert("tema".into(), json!(t));
     }
-    if let Some(n) = valores.get("notificacoes").and_then(Value::as_bool) {
-        a.insert("notificacoes".into(), json!(n));
+    for chave in ["notificacoes", "abaixar_outros"] {
+        if let Some(n) = valores.get(chave).and_then(Value::as_bool) {
+            a.insert(chave.into(), json!(n));
+        }
     }
     // (chave, a outra chave, padrão da outra, o que a outra faz): um atalho não pode repetir nem conter o outro.
     // Atalho recusado não impede gravar o resto (volume, microfone...): grava e devolve o erro.

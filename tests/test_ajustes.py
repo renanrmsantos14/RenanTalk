@@ -101,6 +101,17 @@ class Ajustes(unittest.TestCase):
         self.assertEqual(ajustes.normalizar({"atalho_colar": "ctrl+win+v"})["atalho_colar"], "alt+win+v")
 
 
+    def test_abaixar_outros_padrao_validos_e_invalidos(self):
+        a = ajustes.ler()
+        self.assertEqual((a["abaixar_outros"], a["volume_outros"]), (False, 30))
+        gravar(json.dumps({"abaixar_outros": True, "volume_outros": 150}))
+        a = ajustes.ler()
+        self.assertEqual((a["abaixar_outros"], a["volume_outros"]), (True, 100))
+        gravar('{"abaixar_outros": "sim", "volume_outros": NaN}')
+        a = ajustes.ler()
+        self.assertEqual((a["abaixar_outros"], a["volume_outros"]), (False, 30))
+
+
 class Som(unittest.TestCase):
     def test_lista_so_microfones_que_abrem_a_16k(self):
         sd = mock.MagicMock()
@@ -252,6 +263,45 @@ class Ditado(unittest.TestCase):
         colar, bipe = self.colar_ultimo([{"texto": "oi, tudo bem?"}])
         colar.assert_called_once_with("oi, tudo bem? ")
         bipe.assert_not_called()
+
+    def test_abaixar_volume_so_com_o_ajuste_ligado(self):
+        d = self.d
+        for ligado, chamadas in ((False, 0), (True, 1)):
+            with mock.patch.object(d.ajustes, "ler", return_value={"abaixar_outros": ligado, "volume_outros": 25}), \
+                    mock.patch.object(d.plat, "abaixar_outros", return_value=[]) as abaixar:
+                d.abaixar_volume()
+            self.assertEqual(abaixar.call_count, chamadas)
+        abaixar.assert_called_once_with(0.25)
+
+    @unittest.skipIf(sys.platform == "win32", "usa o pactl do Linux")
+    def test_abaixar_e_restaurar_outros_no_linux(self):
+        plat = self.d.plat
+        volumes = {36: [65536, 65536], 40: [16384]}
+
+        def pactl(cmd, **_):
+            if cmd[1] == "set-sink-input-volume":
+                if int(cmd[2]) not in volumes:
+                    raise plat.subprocess.CalledProcessError(1, cmd)
+                volumes[int(cmd[2])] = [int(v) for v in cmd[3:]]
+                return mock.Mock()
+            lista = [{"index": i, "properties": {}, "volume": {f"c{n}": {"value": x} for n, x in enumerate(v)}}
+                     for i, v in volumes.items()]
+            return mock.Mock(stdout=json.dumps(lista).encode())
+
+        with mock.patch.object(plat.subprocess, "run", side_effect=pactl):
+            feitos = plat.abaixar_outros(0.3)
+            self.assertEqual(volumes, {36: [19661, 19661], 40: [4915]})
+            volumes[40] = [25600]  # o Spotify reage e muda o próprio volume no meio do ditado
+            volumes[50] = volumes.pop(36)  # e outro app fechou e abriu
+            plat.restaurar_outros(feitos)
+        self.assertEqual(volumes, {50: [19661, 19661], 40: [16384]})
+
+    @unittest.skipIf(sys.platform == "win32", "usa o pactl do Linux")
+    def test_abaixar_sem_pactl_nao_impede_o_ditado(self):
+        plat = self.d.plat
+        with mock.patch.object(plat.subprocess, "run", side_effect=FileNotFoundError("pactl")):
+            self.assertEqual(plat.abaixar_outros(0.3), [])
+            plat.restaurar_outros([(36, [1])])
 
     def test_colar_ultimo_sem_historico_faz_bipe_grave_e_nao_cola(self):
         colar, bipe = self.colar_ultimo([])
