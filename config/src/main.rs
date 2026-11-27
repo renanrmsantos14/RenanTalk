@@ -226,6 +226,13 @@ const CORES_LUZ: [&str; 4] = ["azul", "verde", "roxo", "ambar"];
 const ESPESSURAS: [&str; 3] = ["fina", "media", "grossa"];
 const POSICOES: [&str; 2] = ["embaixo", "topo"];
 const TEMAS: [&str; 3] = ["sistema", "claro", "escuro"];
+const MODOS: [&str; 4] = ["literal", "revisado", "formal", "whatsapp"];
+/// (chave, padrão, para que serve): nenhum atalho pode repetir nem conter outro (mesma regra do Python).
+const ATALHOS: [(&str, &str, &str); 3] = [
+    ("atalho_ditar", "ctrl+win", "ditar"),
+    ("atalho_colar", "alt+win+v", "colar o último ditado"),
+    ("atalho_traduzir", "shift+win", "traduzir"),
+];
 const COMANDOS: [&str; 6] = ["nova_linha", "ponto_final", "virgula", "interrogacao", "abre_parenteses", "fecha_parenteses"];
 
 /// Liga/desliga dos comandos falados: o que faltar ou não for booleano fica ligado; chaves extras ficam.
@@ -253,6 +260,23 @@ fn luz_normalizada(bruto: Option<&Value>) -> serde_json::Map<String, Value> {
     luz
 }
 
+/// Modos por aplicativo: nome em minúsculas, sem espaço nas pontas e só com modo válido.
+/// Ausente: os padrões; presente mas sem ser objeto: vazio (igual ao Python).
+fn modos_apps_normalizados(bruto: Option<&Value>) -> serde_json::Map<String, Value> {
+    let Some(bruto) = bruto else {
+        return [("outlook", "formal"), ("olk", "formal"), ("whatsapp", "whatsapp"), ("code", "literal")]
+            .into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect();
+    };
+    let Some(m) = bruto.as_object() else { return serde_json::Map::new() };
+    m.iter()
+        .filter_map(|(k, v)| {
+            let k = k.trim().to_lowercase();
+            let v = v.as_str().filter(|v| MODOS.contains(v))?;
+            (!k.is_empty()).then(|| (k, json!(v)))
+        })
+        .collect()
+}
+
 /// Ajustes (padrões onde faltar ou for inválido) e a lista de microfones gravada pelo Python.
 #[tauri::command]
 fn ajustes() -> Value {
@@ -267,10 +291,22 @@ fn ajustes() -> Value {
     if !a.get("idioma").and_then(Value::as_str).map_or(false, |i| ["pt", "auto", "en"].contains(&i)) {
         a.insert("idioma".into(), json!("pt"));
     }
-    let atalho = a.get("atalho_ditar").and_then(Value::as_str).and_then(validar_atalho).unwrap_or_else(|| "ctrl+win".into());
-    let colar = a.get("atalho_colar").and_then(Value::as_str).and_then(validar_atalho).filter(|c| !atalhos_conflitam(c, &atalho));
-    a.insert("atalho_ditar".into(), json!(atalho));
-    a.insert("atalho_colar".into(), json!(colar.unwrap_or_else(|| "alt+win+v".into())));
+    // cada atalho é conferido contra os anteriores; inválido ou em conflito volta ao padrão, e "" se até o padrão conflitar
+    let mut validos: Vec<String> = vec![];
+    for (chave, padrao, _) in ATALHOS {
+        let livre = |t: &String| !validos.iter().any(|o| atalhos_conflitam(t, o));
+        let t = a.get(chave).and_then(Value::as_str).and_then(validar_atalho).filter(livre)
+            .or_else(|| Some(padrao.to_string()).filter(livre)).unwrap_or_default();
+        if !t.is_empty() {
+            validos.push(t.clone());
+        }
+        a.insert(chave.into(), json!(t));
+    }
+    if !a.get("modo").and_then(Value::as_str).map_or(false, |m| MODOS.contains(&m)) {
+        a.insert("modo".into(), json!("literal"));
+    }
+    let apps = modos_apps_normalizados(a.get("modos_apps"));
+    a.insert("modos_apps".into(), Value::Object(apps));
     let luz = luz_normalizada(a.get("luz"));
     a.insert("luz".into(), Value::Object(luz));
     let comandos = comandos_normalizados(a.get("comandos"));
@@ -350,23 +386,36 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
             a.insert(chave.into(), json!(n));
         }
     }
-    // (chave, a outra chave, padrão da outra, o que a outra faz): um atalho não pode repetir nem conter o outro.
-    // Atalho recusado não impede gravar o resto (volume, microfone...): grava e devolve o erro.
+    if let Some(m) = valores.get("modo").and_then(Value::as_str) {
+        if !MODOS.contains(&m) {
+            return json!({ "ok": false, "erro": "Modo de escrita inválido." });
+        }
+        a.insert("modo".into(), json!(m));
+    }
+    if let Some(m) = valores.get("modos_apps") {
+        if !m.is_object() {
+            return json!({ "ok": false, "erro": "Modos por aplicativo inválidos." });
+        }
+        a.insert("modos_apps".into(), Value::Object(modos_apps_normalizados(Some(m))));
+    }
+    // Um atalho não pode repetir nem conter outro. Atalho recusado não impede gravar o resto (volume, microfone...):
+    // grava e devolve o erro.
     let mut erro: Option<String> = None;
-    for (chave, outra, padrao_outra, para_que) in [
-        ("atalho_ditar", "atalho_colar", "alt+win+v", "colar o último ditado"),
-        ("atalho_colar", "atalho_ditar", "ctrl+win", "ditar"),
-    ] {
+    for (chave, _, _) in ATALHOS {
         let Some(t) = valores.get(chave).and_then(Value::as_str) else { continue };
         let Some(ok) = validar_atalho(t) else {
             erro.get_or_insert_with(|| "Atalho inválido: use Ctrl, Alt ou Win com mais uma tecla, e não Ctrl+C, Ctrl+V e parecidos.".into());
             continue;
         };
-        let da_outra = valores.get(outra).and_then(Value::as_str).and_then(validar_atalho)
-            .or_else(|| a.get(outra).and_then(Value::as_str).and_then(validar_atalho))
-            .unwrap_or_else(|| padrao_outra.into());
-        if atalhos_conflitam(&ok, &da_outra) {
-            erro.get_or_insert_with(|| format!("Esse atalho se confunde com o de {para_que} ({da_outra}). Escolha outro."));
+        let conflito = ATALHOS.iter().filter(|(outra, _, _)| *outra != chave).find_map(|(outra, padrao, para_que)| {
+            let da_outra = valores.get(*outra).and_then(Value::as_str).and_then(validar_atalho)
+                .or_else(|| a.get(*outra).and_then(Value::as_str).and_then(validar_atalho))
+                .unwrap_or_else(|| padrao.to_string());
+            atalhos_conflitam(&ok, &da_outra)
+                .then(|| format!("Esse atalho se confunde com o de {para_que} ({da_outra}). Escolha outro."))
+        });
+        if let Some(e) = conflito {
+            erro.get_or_insert(e);
             continue;
         }
         a.insert(chave.into(), json!(ok));
@@ -805,6 +854,20 @@ mod testes {
         assert_eq!(r.len(), 2);
         assert_eq!((r[0].quando.as_str(), r[0].escreva.as_str()), ("bom dia", "Bom dia, tudo bem?"));
         assert_eq!(r[1].escreva, "a\\nb");
+    }
+
+    #[test]
+    fn modos_por_app_normalizados() {
+        let m = modos_apps_normalizados(Some(&json!({" Slack ": "whatsapp", "x": "poesia", "": "formal"})));
+        assert_eq!(Value::Object(m), json!({"slack": "whatsapp"}));
+        assert_eq!(modos_apps_normalizados(None).get("outlook"), Some(&json!("formal")));
+        assert!(modos_apps_normalizados(Some(&json!([]))).is_empty());  // igual ao Python
+    }
+
+    #[test]
+    fn padrao_do_traduzir_nao_conflita_com_os_outros() {
+        let (d, c, t) = (ATALHOS[0].1, ATALHOS[1].1, ATALHOS[2].1);
+        assert!(!atalhos_conflitam(t, d) && !atalhos_conflitam(t, c) && validar_atalho(t).as_deref() == Some(t));
     }
 
     #[test]

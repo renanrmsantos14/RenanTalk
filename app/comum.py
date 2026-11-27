@@ -120,6 +120,12 @@ def ler_chave() -> str:
         return ""
 
 
+def cabecalhos_groq(tipo: str) -> dict:
+    """Cabeçalhos das chamadas à Groq. A chave é relida a cada uso: a troca nas configurações vale na hora."""
+    return {"Authorization": f"Bearer {ler_chave()}", "Content-Type": tipo,
+            "User-Agent": "groq-ditado/1.0"}  # o padrão Python-urllib leva 403
+
+
 def salvar_chave(chave: str) -> None:
     with open(ARQ_CHAVE, "w", encoding="utf-8") as f:
         f.write(chave)

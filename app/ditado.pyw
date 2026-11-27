@@ -25,9 +25,10 @@ import sounddevice as sd
 
 import ajustes
 import atualizador
+import escrita
 import historico
 import substituicoes
-from comum import WINDOWS, ler_chave, log, prompt_vocabulario
+from comum import WINDOWS, cabecalhos_groq, ler_chave, log, prompt_vocabulario
 
 if WINDOWS:
     import plataforma_windows as plat
@@ -47,6 +48,7 @@ gravando = False
 quadros: list[bytes] = []
 inicio = 0.0
 outra_tecla = False
+traduzir = False  # o ditado em andamento veio do atalho de traduzir
 trava = threading.Lock()
 # Uma thread só para abaixar e restaurar o volume dos outros apps: mantém a ordem, não segura o hook do teclado
 # e, no Windows, as sessões de áudio (COM) são usadas na mesma thread em que foram lidas.
@@ -120,13 +122,13 @@ def iniciar_fluxo() -> None:
         fluxo.start()
 
 
-def comecar() -> None:
-    global gravando, inicio, outra_tecla
+def comecar(em_ingles: bool = False) -> None:
+    global gravando, inicio, outra_tecla, traduzir
     with trava:
         if gravando:
             return
         quadros.clear()
-        outra_tecla = False
+        outra_tecla, traduzir = False, em_ingles
         inicio = time.time()
         try:
             iniciar_fluxo()
@@ -154,6 +156,7 @@ def parar() -> None:
         if not gravando:
             return
         gravando = False
+        em_ingles = traduzir  # lido na trava: um comecar() logo depois não troca o modo deste ditado
         fluxo.stop()
         fila_volume.submit(restaurar_volume)
     duracao = time.time() - inicio
@@ -168,7 +171,7 @@ def parar() -> None:
         return
     LUZ.definir("proc")
     plat.bipe(660, 60)
-    threading.Thread(target=transcrever_e_colar, args=(audio, duracao), daemon=True).start()
+    threading.Thread(target=transcrever_e_colar, args=(audio, duracao, em_ingles), daemon=True).start()
 
 
 def wav(audio: bytes) -> bytes:
@@ -201,32 +204,32 @@ def transcrever(audio: bytes) -> str:
     req = urllib.request.Request(
         URL,
         data=corpo.getvalue(),
-        headers={
-            "Authorization": f"Bearer {ler_chave()}",  # relida a cada uso: troca nas configurações vale na hora
-            "Content-Type": f"multipart/form-data; boundary={limite}",
-            "User-Agent": "groq-ditado/1.0",  # o padrão Python-urllib leva 403
-        },
+        headers=cabecalhos_groq(f"multipart/form-data; boundary={limite}"),
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)["text"].strip()
 
 
-def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
+def transcrever_e_colar(audio: bytes, duracao: float = 0.0, em_ingles: bool = False) -> None:
     try:
         texto = transcrever(audio)
         log(f"transcrito {len(texto)} caracteres")
         if texto:
             a = ajustes.ler()
+            app = plat.app_ativo()  # com o foco na janela de destino: escolhe o modo; nunca levanta
             try:
                 final = substituicoes.aplicar(texto, a["comandos"])
             except Exception as e:  # noqa: BLE001 - regra ou comando com defeito não pode perder o ditado: cola como veio
                 log(f"substituições falharam ({type(e).__name__})")
                 final = texto
-            app = plat.app_ativo()  # antes de colar, com o foco na janela de destino; nunca levanta
+            pedido = "ingles" if em_ingles else escrita.modo_para(app, a)
+            final, modo = escrita.aplicar(final, pedido)  # nunca levanta
             plat.colar(final + " ")
+            if modo != pedido and pedido in escrita.INSTRUCOES:  # a IA falhou: colou o literal, avisa com bipe grave
+                plat.bipe(300, 150)
         LUZ.definir("done")  # antes de gravar: banco travado ou recálculo das sugestões não atrasam o texto nem a luz
         if texto:
-            historico.gravar(final, app=app, idioma=a["idioma"], duracao_s=duracao, original=texto)  # nunca levanta
+            historico.gravar(final, app=app, modo=modo, idioma=a["idioma"], duracao_s=duracao, original=texto)  # nunca levanta
     except Exception as e:  # noqa: BLE001 - qualquer falha vira log, luz vermelha e bipe grave
         log(f"erro: {e!r}")
         LUZ.definir("erro")

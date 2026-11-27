@@ -1,15 +1,16 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 6 de 7 Construir (PR 2 aberto; PR 3 a fazer)
-- Próximo passo: QA/merge do PR 2 (#9) por Renan; depois PR 3 (IA no texto)
+- Etapa: 6 de 7 Construir (PR 3 pronto: prova Windows final aprovada em 27/11 sobre af9ac55)
+- Próximo passo: QA e merge do PR 2 (#9) e depois do PR 3 (#11) por Renan
 - Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR 1: https://github.com/renanrmsantos14/RenanTalk/pull/6 (rascunho)
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 26/11/2026 23:53
+- Atualizado: 27/11/2026 08:34
 - PR do abaixar volume: #7 (merged). App que fecha durante o ditado: #8 (pronto, Windows provado).
 - PR 2: branch desktop-inteligencia, base desktop-completo
+- PR 3: branch desktop-ia, base desktop-inteligencia
 
 ## Contexto levantado (código)
 - Python (bandeja, ditado, luz) + janela de configurações em Tauri/Rust (`config/src/main.rs`, `app/ui/index.html`), com fallback Python+Edge (`app/configuracoes.py`).
@@ -43,7 +44,7 @@
 | 5 | PR 2 · Tela Início (layout B) + estatísticas · Sonnet | 2 | 11 | print com dados reais do banco | 4 | passou (local): janela Tauri real (Xvfb) com histórico semeado mostra palavras hoje/semana, tempo poupado, gráfico de 7 dias e último ditado (print pr2-inicio). Windows 11: passou (prova delegada, 27/11) |
 | 6 | PR 2 · Sugestões de termos (correção + frequência), aceitar/ignorar · Sonnet | 2, 5 | 12, 13 | teste com histórico de exemplo + print | 4 | passou (local): nome repetido 5+ vezes vira sugestão; Aceitar gravou no vocabulario.txt e `aceita`; Ignorar gravou `ignorada`; troca na correção do Histórico oferece "Adicionar ao vocabulário" (prints). Corrigido: nome composto virava dois termos; caixa da troca saía do painel. Windows 11: passou. Falta: motivo `correcao` na tabela (a troca só aparece ao salvar a correção) |
 | 7 | PR 2 · Substituições (comandos + atalhos próprios) · Sonnet | 2 | 14 | teste unitário da função + ditado real | 3 | passou (local): 63 testes; fluxo `transcrever_e_colar` com transcrição simulada colou regra própria, vírgula desligada e "ponto final, nova linha" com maiúscula; histórico guarda colado e original; aba Substituições gravou comando e regra pelo clique. Windows 11: passou. Falta: ditado real com microfone |
-| 8 | PR 3 · IA no texto: modos, modo por aplicativo, traduzir, fallback literal · Sonnet | 1, 2 | 15, 16, 17, 18 | ditado real em cada modo + teste de timeout | — | pendente |
+| 8 | PR 3 · IA no texto: modos, modo por aplicativo, traduzir, fallback literal · Sonnet | 1, 2 | 15, 16, 17, 18 | ditado real em cada modo + teste de timeout | 3 | passou (local): 13 testes da escrita (modo por app pelo trecho mais longo, literal sem rede, falha e >4 s colam o literal, log sem conteúdo); fluxo `transcrever_e_colar` simulado (Outlook → formal, traduzir → inglês, IA fora do ar → literal e bipe grave); aba Escrita com IA e atalho de traduzir pelo clique (Xvfb, prints). Windows 11 (27/11): janela e Shift + Win passaram (layout do teclado intacto); IA real falhou com o llama desligado (404) → modelo trocado para `openai/gpt-oss-120b`, que na cópia do Windows reescreveu formal e traduziu (0,4–0,8 s) e não obedeceu injeção. Falha da IA agora dá bipe grave. Falta: rodada final no Windows com o commit do modelo novo |
 | 9 | Cada PR · README, `verificar-ditado`/`verificar-janela`, versão na janela | cada PR | — | `verificacao-manter` | — | pendente |
 
 ## Ações críticas (só nível 3)
@@ -83,5 +84,15 @@
 - PR 2: aba padrão `inicio` exige Python e exe de configurações da mesma versão (atualização parcial abriria a janela sem painel).
 - PR 8: no Windows, dois processos do mesmo app com volumes diferentes voltam ambos ao volume de um deles.
 
+- PR 3: modo Formal com `gpt-oss-120b` pode cortar a saudação ou acrescentar palavras (1 amostra no Windows); ajustar a instrução se repetir.
+- Whisper com áudio quase mudo colou "Obrigado." (visto no Windows; não verificado se é anterior).
+- PR 3: salvar um atalho pode acusar conflito com o de traduzir mesmo com ele desligado (o Rust compara com o padrão).
+- PR 3: Assumi: modo padrão Literal (sem custo nem mudança), traduzir em Shift + Win (Alt + Shift troca o idioma do teclado no Windows), modelo `openai/gpt-oss-120b` (o `llama-3.3-70b-versatile` foi desligado pela Groq em 16/08/2026; a prova no Windows pegou), temperatura 0,2, modo por app pelo trecho do nome do programa.
+- Abas Ditado e som e Escrita com IA não rolavam (cards cortados): corrigido no PR 3.
+
 ## Retro
 -
+
+### Prova Windows final do PR 3 (27/11/2026, af9ac55)
+- gpt-oss-120b ativo; 4 modos reais 0,41–0,94 s; injeção não obedecida; Shift+Win colou inglês 5/6; notepad formal ok; chave inválida → literal + log + bipe; 76 testes OK.
+- Pendências novas: 1 execução do Shift+Win não colou (histórico certo, causa desconhecida); `pycaw`/`comtypes` não importa no Python 3.14 do notebook, então "abaixar os outros sons" provavelmente não funciona lá.

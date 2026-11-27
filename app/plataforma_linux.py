@@ -170,7 +170,7 @@ def _codigos(local, alvo) -> dict[int, str]:
 
 
 def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
-    """Escuta os atalhos de ditar e de colar o último (RECORD do X11) numa thread e roda o laço do GTK na principal."""
+    """Escuta os atalhos de ditar, traduzir e colar o último (RECORD do X11) numa thread e roda o laço do GTK na principal."""
     def escutar() -> None:
         local, rec = display.Display(), display.Display()
         casador = ajustes.Casador()
@@ -185,20 +185,21 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
             if reply.category != record.FromServer or reply.client_swapped or not reply.data:
                 return
             a = ajustes.ler()  # relido: vale sem reiniciar
-            alvo, alvo_colar = ajustes.validar_atalho(a["atalho_ditar"]), ajustes.validar_atalho(a["atalho_colar"])
-            if (alvo, alvo_colar) != estado["alvo"]:
-                estado["alvo"], estado["codigos"] = (alvo, alvo_colar), _codigos(local, alvo + alvo_colar)
+            alvos = tuple(ajustes.validar_atalho(a[c]) for c in ajustes.ATALHOS)  # ditar, colar, traduzir
+            if alvos != estado["alvo"]:
+                estado["alvo"], estado["codigos"] = alvos, _codigos(local, sum((t or () for t in alvos), ()))
             dados = reply.data
             while dados:
                 ev, dados = rq.EventField(None).parse_binary_value(dados, rec.display, None, None)
                 if ev.type not in (X.KeyPress, X.KeyRelease):
                     continue
                 nome = estado["codigos"].get(ev.detail, "outra")
-                r = casador.evento(nome, ev.type == X.KeyPress, alvo, esta_gravando(), alvo_colar)
+                ditar, colar, traduzir = alvos
+                r = casador.evento(nome, ev.type == X.KeyPress, ditar, esta_gravando(), colar, traduzir)
                 if r == "colar" and ao_colar:
                     ajustes.colar_ao_soltar(casador, ao_colar)
-                elif r == "iniciar":
-                    ao_iniciar()
+                elif r in ("iniciar", "traduzir"):
+                    ao_iniciar(r == "traduzir")
                 elif r == "parar":
                     ao_parar()
                 elif r == "outra":

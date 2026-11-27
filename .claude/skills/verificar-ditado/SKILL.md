@@ -5,7 +5,7 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 # Verificar ditado (app da bandeja)
 
 ## Cobre
-- Código: `app/ditado.pyw`, `app/ajustes.py`, `app/historico.py`, `app/comum.py`, `app/luz.py`, `app/bandeja.py` (Windows), `app/plataforma_linux.py`, `app/plataforma_windows.py`, `app/substituicoes.py`, `app/sugestoes.py`.
+- Código: `app/ditado.pyw`, `app/ajustes.py`, `app/historico.py`, `app/comum.py`, `app/luz.py`, `app/bandeja.py` (Windows), `app/plataforma_linux.py`, `app/plataforma_windows.py`, `app/substituicoes.py`, `app/sugestoes.py`, `app/escrita.py`.
 
 ## Preparar ambiente
 - Testes: `python3 -m unittest discover -s tests` → `OK` (39+ testes; isolam `XDG_CONFIG_HOME`/`APPDATA`).
@@ -31,7 +31,12 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 - Sugestões: gravar o mesmo nome 5 vezes (`historico.gravar("Buscar no Santos Dumont …")`) → tabela `sugestao` com `('Santos Dumont', 'frequencia', 5, 'nova')`; 4 vezes não sugere; nome composto vira um termo só; o que já está no vocabulário não entra.
 - Defeito numa regra não perde o ditado: o texto cru é colado e o log diz "substituições falharam".
 
+## IA no texto (sem chave nem rede)
+- `tests/test_escrita.py` cobre modo por app, fallback e o atalho de traduzir. Fluxo: no mesmo esquema acima, `mock.patch("urllib.request.urlopen", return_value=<BytesIO com {"choices":[{"message":{"content":"..."}}]}>)` e `d.plat.app_ativo` → `"OUTLOOK.EXE"` → colado o texto da IA e `historico.gravar(..., modo="formal")`; `d.transcrever_e_colar(b"", 1.0, True)` → modo `ingles` em qualquer app; `urlopen` com `side_effect=OSError` → colado o texto cru, modo `literal` e o log diz "IA (…) falhou" sem o conteúdo.
+- Atalho de traduzir (padrão `shift+win`): `xdotool keydown shift super`, falar, `keyup` → mesmo ciclo do ditar com `em_ingles=True`.
+
 ## Não dá para provar aqui
+- IA real (modelo `openai/gpt-oss-120b` em `/openai/v1/models` (o llama-3.3-70b foi desligado em 16/08/2026; teste só com mock não pega modelo removido), cada modo, chave inválida → literal): não há chave no Linux; provar no Windows.
 - Ditado real (microfone + Groq): Xvfb não tem áudio. Provar numa máquina com microfone e chave.
 - Windows (`keyboard` + Casador, `winsound`, bandeja Win32, abaixar outros sons via pycaw): delegar ao notebook `Betinhos-Renan`.
 
