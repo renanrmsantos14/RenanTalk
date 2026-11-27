@@ -5,7 +5,7 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 # Verificar ditado (app da bandeja)
 
 ## Cobre
-- Código: `app/ditado.pyw`, `app/ajustes.py`, `app/historico.py`, `app/comum.py`, `app/luz.py`, `app/bandeja.py` (Windows), `app/plataforma_linux.py`, `app/plataforma_windows.py`, `app/substituicoes.py`, `app/sugestoes.py`, `app/escrita.py`.
+- Código: `app/ditado.pyw`, `app/ajustes.py`, `app/historico.py`, `app/comum.py`, `app/luz.py`, `app/bandeira.py`, `app/bandeja.py` (Windows), `app/plataforma_linux.py`, `app/plataforma_windows.py`, `app/substituicoes.py`, `app/sugestoes.py`, `app/escrita.py`.
 
 ## Preparar ambiente
 - Testes: `python3 -m unittest discover -s tests` → `OK` (39+ testes; isolam `XDG_CONFIG_HOME`/`APPDATA`).
@@ -22,9 +22,10 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 1. Testes unitários → `OK`.
 2. Colar último: abrir o editor, `xdotool mousemove 300 380 click 1; xdotool key alt+super+v` → o editor recebe "Ligar para o motorista do aeroporto" com acentos intactos e o log mostra "colar último: colado".
 3. Área de transferência depois de colar (`plat.colar`, com `Gtk.main` numa thread): vazia antes → vazia depois (`wait_for_text()` = None, o ditado não fica); com "meu texto" antes → "meu texto" depois. No Windows: texto e imagem (Print Screen) copiados antes voltam iguais, e o ditado não aparece no Win+V.
-3. Trocar `atalho_ditar` no `ajustes.json` com o app aberto → o listener passa a usar o novo atalho sem reiniciar (cache por mtime).
-4. `ajustes.json` corrompido (`{`, `"volume": NaN`, atalho `["alt","win"]`) → o app segue com os padrões e registra no log.
-5. Abaixar os outros sons (Linux): `abaixar_outros: true, volume_outros: 30` no `ajustes.json`; um fluxo de teste em laço (`while true; do paplay --client-name=TesteRenanTalk silencio.wav; done &`, wav de silêncio gerado com `sox -n -r 16000 silencio.wav trim 0 2` ou numpy+wave); `xdotool keydown ctrl super`, 2 s, `pactl -f json list sink-inputs` → os outros fluxos a 30% (65536 → 19661) e o `PipeWire ALSA [python3.x]` do próprio app intacto; `xdotool keyup super ctrl`, 2 s → todos de volta ao valor de antes e estáveis 3 s depois. Com o ajuste desligado nada muda. App que fecha no meio: com um wav de 1 s no laço (o fluxo troca durante o ditado), segurar 3,5 s → ao soltar, o fluxo novo do `TesteRenanTalk` vem a 65536, não a 30% (o PipeWire guarda o volume por app). Anote o volume do Spotify antes e confira depois (ele reage à mudança externa).
+4. Trocar `atalho_ditar` no `ajustes.json` com o app aberto → o listener passa a usar o novo atalho sem reiniciar (cache por mtime).
+5. `ajustes.json` corrompido (`{`, `"volume": NaN`, atalho `["alt","win"]`) → o app segue com os padrões e registra no log.
+6. Abaixar os outros sons (Linux): `abaixar_outros: true, volume_outros: 30` no `ajustes.json`; um fluxo de teste em laço (`while true; do paplay --client-name=TesteRenanTalk silencio.wav; done &`, wav de silêncio gerado com `sox -n -r 16000 silencio.wav trim 0 2` ou numpy+wave); `xdotool keydown ctrl super`, 2 s, `pactl -f json list sink-inputs` → os outros fluxos a 30% (65536 → 19661) e o `PipeWire ALSA [python3.x]` do próprio app intacto; `xdotool keyup super ctrl`, 2 s → todos de volta ao valor de antes e estáveis 3 s depois. Com o ajuste desligado nada muda. App que fecha no meio: com um wav de 1 s no laço (o fluxo troca durante o ditado), segurar 3,5 s → ao soltar, o fluxo novo do `TesteRenanTalk` vem a 65536, não a 30% (o PipeWire guarda o volume por app). Anote o volume do Spotify antes e confira depois (ele reage à mudança externa).
+7. Luz no ditado em inglês (Linux): com `Gtk.main` numa thread, `L = plat.Luz(); L.definir("rec", True); L.audio(0.6)` e `import -window root -crop 1024x60+0+708` → bandeira dos EUA pequena (23x12 px, 7 listras para não virar rosa) no centro, logo acima do núcleo; `definir("rec")` sem o segundo argumento → só a linha. Com `posicao: topo` a bandeira fica em pé, abaixo da linha. No Windows (`luz.py`), o mesmo pelo `LUZ.definir("rec", True)` e print da tela.
 
 ## Substituições e sugestões (sem microfone)
 - Fluxo inteiro com a transcrição simulada: carregar `app/ditado.pyw` com `importlib.machinery.SourceFileLoader`, trocar `d.transcrever` por uma função que devolve `"Mande para meu email vírgula ok ponto final nova linha obrigado"`, `d.plat.colar` por uma lista e `d.plat.app_ativo` por `lambda: "teste"`; chamar `d.transcrever_e_colar(b"x", 2.0)`.

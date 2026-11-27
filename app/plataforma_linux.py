@@ -25,6 +25,7 @@ from Xlib.ext import record, xtest  # noqa: E402
 from Xlib.protocol import rq  # noqa: E402
 
 import ajustes  # noqa: E402
+import bandeira  # noqa: E402
 from comum import (ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, abrir_configuracoes,  # noqa: E402
                    definir_inicio_automatico, inicio_automatico, log)
 
@@ -252,6 +253,16 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
 
 # ---------- luz ----------
 ALTURA = 36
+
+
+def _superficie(rgba) -> "cairo.ImageSurface":
+    """RGBA float pré-multiplicado -> superfície cairo ARGB32 (bytes BGRA)."""
+    h, w = rgba.shape[:2]
+    sup = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    buf = np.ndarray((h, sup.get_stride() // 4, 4), np.uint8, sup.get_data())
+    buf[:, :w] = (rgba[..., [2, 1, 0, 3]] * 255).astype(np.uint8)
+    sup.mark_dirty()
+    return sup
 ERRO = ((254 / 255, 202 / 255, 202 / 255), (248 / 255, 113 / 255, 113 / 255), (220 / 255, 38 / 255, 38 / 255))
 
 
@@ -262,7 +273,8 @@ class Luz:
 
     def __init__(self) -> None:
         self.estado, self.t0, self.alvo, self.nivel, self.timer = "idle", time.time(), 0.0, 0.0, None
-        self.ligada, self.k, self.topo, self.altura = True, 1.0, False, ALTURA
+        self.ligada, self.k, self.topo, self.altura, self.ingles = True, 1.0, False, ALTURA, False
+        self.bandeira = _superficie(bandeira.eua())
         self.cores = {n: tuple(c / 255 for c in rgb) for n, rgb in ajustes.CORES_LUZ["azul"].items()}
         self.jan = Gtk.Window(type=Gtk.WindowType.POPUP)  # override-redirect: sem foco e sem barra de tarefas
         self.jan.set_app_paintable(True)
@@ -273,8 +285,8 @@ class Luz:
         self.jan.connect("draw", self._desenhar)
         self.jan.connect("realize", lambda w: w.get_window().input_shape_combine_region(cairo.Region(), 0, 0))
 
-    def definir(self, estado: str) -> None:
-        GLib.idle_add(self._definir, estado)
+    def definir(self, estado: str, ingles: bool = False) -> None:
+        GLib.idle_add(self._definir, estado, ingles)
 
     def audio(self, v: float) -> None:
         self.alvo = v
@@ -287,9 +299,10 @@ class Luz:
         self.altura = round(ALTURA * self.k)
         self.cores = {n: tuple(c / 255 for c in rgb) for n, rgb in ajustes.CORES_LUZ[cfg["cor"]].items()}
 
-    def _definir(self, estado: str) -> bool:
+    def _definir(self, estado: str, ingles: bool = False) -> bool:
         if estado == "rec":
             self._configurar()
+            self.ingles = ingles
         if not self.ligada:  # luz desligada: não mostra a janela (o bipe e o resto do ditado seguem normais)
             if self.estado != "idle":  # e apaga a luz do ditado anterior que ainda estivesse na tela
                 self.estado = "idle"
@@ -383,6 +396,12 @@ class Luz:
                 cr.set_source(g)
                 cr.rectangle(x - 60, h - 6 * k, 120, 6 * k)
                 cr.fill()
+        if self.ingles and e != "erro":  # bandeira em pé também com a luz no topo
+            cr.identity_matrix()
+            bw, bh = self.bandeira.get_width(), self.bandeira.get_height()
+            off = bandeira.distancia_da_borda(k)
+            cr.set_source_surface(self.bandeira, (w - bw) // 2, off if self.topo else h - off - bh)
+            cr.paint_with_alpha(ganho * p)
         return False
 
 
