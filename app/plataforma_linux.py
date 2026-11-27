@@ -47,6 +47,14 @@ def _definir_volume(indice: int, canais: list[int]) -> None:
     subprocess.run(["pactl", "set-sink-input-volume", str(indice), *map(str, canais)], timeout=2, check=True)
 
 
+# O PipeWire guarda o volume por app: um app que fechou ainda baixo voltaria baixo. Fica aqui até reaparecer.
+_pendentes: dict[str, list[int]] = {}
+
+
+def _app(e: dict) -> str | None:
+    return (e.get("properties") or {}).get("application.name")
+
+
 def abaixar_outros(fator: float) -> list:
     """Põe cada app que toca som em `fator` do volume atual. Devolve o que mudou, para restaurar_outros.
 
@@ -65,8 +73,12 @@ def abaixar_outros(fator: float) -> list:
             antes = [c["value"] for c in e["volume"].values()]
             if not antes:
                 continue
+            pendente = _pendentes.get(_app(e))
+            if pendente and len(pendente) == len(antes):
+                antes = pendente
             _definir_volume(e["index"], [round(v * fator) for v in antes])
-            feitos.append((e["index"], antes))
+            _pendentes.pop(_app(e), None)  # só some depois de abaixar: se o fluxo sumiu no meio, continua pendente
+            feitos.append((e["index"], _app(e), antes))
         except (OSError, KeyError, TypeError, AttributeError, subprocess.SubprocessError) as err:
             log(f"abaixar volume: {err!r}")
     return feitos
@@ -74,12 +86,35 @@ def abaixar_outros(fator: float) -> list:
 
 def restaurar_outros(feitos: list) -> None:
     """Volta sempre o volume de antes. Não dá para respeitar o que mudou no meio: o Spotify reage à mudança
-    de fora e mexe no próprio volume, e ficaria no valor errado."""
-    for indice, antes in feitos:
+    de fora e mexe no próprio volume, e ficaria no valor errado.
+
+    Fluxo que sumiu (o app fechou ou trocou de fluxo): acerta o fluxo novo do mesmo app ou fica pendente."""
+    sumiram = {}
+    restaurados = set()
+    for indice, app, antes in feitos:
         try:
             _definir_volume(indice, antes)
-        except (OSError, subprocess.SubprocessError) as e:  # o app fechou durante o ditado
+            restaurados.add(indice)
+        except (OSError, subprocess.SubprocessError) as e:
             log(f"restaurar volume: {e!r}")
+            if app:
+                sumiram[app] = antes
+    if not sumiram:
+        return
+    try:
+        entradas = _sink_inputs()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        entradas = []
+    for e in entradas:
+        # fluxo já restaurado acima não leva o volume de outro fluxo do mesmo app (vários "Chromium", abas do Firefox)
+        if _app(e) in sumiram and e.get("index") not in restaurados:
+            antes = sumiram[_app(e)]
+            try:
+                _definir_volume(e["index"], antes)
+                del sumiram[_app(e)]
+            except (OSError, KeyError, subprocess.SubprocessError) as err:
+                log(f"restaurar volume: {err!r}")
+    _pendentes.update(sumiram)
 
 
 def instancia_unica() -> bool:

@@ -301,7 +301,60 @@ class Ditado(unittest.TestCase):
         plat = self.d.plat
         with mock.patch.object(plat.subprocess, "run", side_effect=FileNotFoundError("pactl")):
             self.assertEqual(plat.abaixar_outros(0.3), [])
-            plat.restaurar_outros([(36, [1])])
+            plat.restaurar_outros([(36, None, [1])])
+        self.assertEqual(plat._pendentes, {})
+
+    @unittest.skipIf(sys.platform == "win32", "usa o pactl do Linux")
+    def test_app_que_fecha_no_meio_volta_ao_volume_de_antes(self):
+        """O PipeWire guarda o volume por app: sem isso, o app reaberto voltaria a 30%."""
+        plat = self.d.plat
+        fluxos = {36: ("Spotify", [65536]), 40: ("Firefox", [32768])}
+
+        def pactl(cmd, **_):
+            if cmd[1] == "set-sink-input-volume":
+                if int(cmd[2]) not in fluxos:
+                    raise plat.subprocess.CalledProcessError(1, cmd)
+                fluxos[int(cmd[2])] = (fluxos[int(cmd[2])][0], [int(v) for v in cmd[3:]])
+                return mock.Mock()
+            lista = [{"index": i, "properties": {"application.name": a}, "volume": {"mono": {"value": v[0]}}}
+                     for i, (a, v) in fluxos.items()]
+            return mock.Mock(stdout=json.dumps(lista).encode())
+
+        self.addCleanup(plat._pendentes.clear)
+        with mock.patch.object(plat.subprocess, "run", side_effect=pactl):
+            feitos = plat.abaixar_outros(0.5)
+            fluxos[50] = ("Spotify", fluxos.pop(36)[1])  # o Spotify trocou de fluxo, ainda baixo
+            del fluxos[40]  # o Firefox fechou
+            plat.restaurar_outros(feitos)
+            self.assertEqual(fluxos, {50: ("Spotify", [65536])})
+            self.assertEqual(plat._pendentes, {"Firefox": [32768]})
+            fluxos[60] = ("Firefox", [16384])  # reabriu com o volume baixo que o PipeWire guardou
+            plat.restaurar_outros(plat.abaixar_outros(0.5))
+        self.assertEqual(fluxos[60], ("Firefox", [32768]))
+        self.assertEqual(plat._pendentes, {})
+
+    @unittest.skipIf(sys.platform == "win32", "usa o pactl do Linux")
+    def test_fluxo_fechado_nao_muda_outro_fluxo_do_mesmo_app(self):
+        plat = self.d.plat
+        fluxos = {36: [65536], 37: [32768]}  # dois fluxos "Chromium" com volumes diferentes
+
+        def pactl(cmd, **_):
+            if cmd[1] == "set-sink-input-volume":
+                if int(cmd[2]) not in fluxos:
+                    raise plat.subprocess.CalledProcessError(1, cmd)
+                fluxos[int(cmd[2])] = [int(v) for v in cmd[3:]]
+                return mock.Mock()
+            lista = [{"index": i, "properties": {"application.name": "Chromium"}, "volume": {"mono": {"value": v[0]}}}
+                     for i, v in fluxos.items()]
+            return mock.Mock(stdout=json.dumps(lista).encode())
+
+        self.addCleanup(plat._pendentes.clear)
+        with mock.patch.object(plat.subprocess, "run", side_effect=pactl):
+            feitos = plat.abaixar_outros(0.5)
+            del fluxos[36]  # um fechou, o outro continua
+            plat.restaurar_outros(feitos)
+        self.assertEqual(fluxos, {37: [32768]})
+        self.assertEqual(plat._pendentes, {"Chromium": [65536]})
 
     def test_colar_ultimo_sem_historico_faz_bipe_grave_e_nao_cola(self):
         colar, bipe = self.colar_ultimo([])
