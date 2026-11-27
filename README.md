@@ -13,6 +13,7 @@ A transcrição usa o **Whisper large-v3 na Groq**, com ótima precisão em port
 | Pronto | O texto é colado com Ctrl + V e a área de transferência volta ao que era antes. |
 | Erro | Bipe grave e a luz apaga em vermelho. O motivo fica no log. |
 
+- Segurando **Shift + Win** em vez de Ctrl + Win, você fala em português e o texto é colado em inglês (tradução pela IA de texto da Groq).
 - Apertar outra tecla junto (ex.: Ctrl + Win + →) cancela o ditado e deixa o atalho do Windows funcionar.
 - Gravações muito curtas ou em silêncio são ignoradas (o Whisper costuma inventar texto quando recebe silêncio).
 
@@ -32,6 +33,8 @@ Clique no ícone do RenanTalk (na área de notificação ou na setinha `^`):
 
 - **Configurações…**: abre a janela do RenanTalk (segue o tema claro/escuro do Windows):
   - **Vocabulário**: nomes, siglas e termos que o ditado deve escrever certo (ex.: nomes de clientes, `Dataverse`, `RD Station`). Adicione com Enter, remova no ✕; salva sozinho e vale no próximo ditado. Cabem cerca de 850 caracteres; o que passar fica riscado e de fora.
+  - **Início e Substituições**: resumo dos ditados e sugestões de termos novos (aceite ou ignore); comandos falados ("nova linha", "ponto final", "vírgula"…) e regras próprias `quando eu disser => escreva` em `substituicoes.txt`.
+  - **Escrita com IA**: modo padrão (Literal, Revisado, Formal/e-mail ou WhatsApp) e modo por aplicativo (ex.: Outlook → Formal, WhatsApp → WhatsApp, VS Code → Literal). Fora do Literal, a IA de texto da Groq reescreve o ditado antes de colar; se ela falhar ou passar de 4 s, cola o texto como você falou.
   - **Chave Groq**: cola a chave nova; ela é validada na Groq antes de ser salva.
   - **Sobre**: versão, memória em uso, ditados do dia, atualização e log.
 - **Procurar atualização**: verifica agora em vez de esperar o ciclo automático.
@@ -52,6 +55,7 @@ O app instalado procura releases 1 minuto depois de iniciar e depois a cada 6 ho
 | Programa | `%LOCALAPPDATA%\RenanTalk\app` |
 | Chave da Groq | `%APPDATA%\RenanTalk\chave.txt` (nunca vai para o repositório) |
 | Vocabulário | `%APPDATA%\RenanTalk\vocabulario.txt` (um termo por linha; `#` comenta) |
+| Histórico de ditados | `%APPDATA%\RenanTalk\historico.db` (SQLite; textos dos últimos 30 dias, só neste computador) |
 | Log | `%APPDATA%\RenanTalk\ditado.log` |
 | Início automático | `shell:startup\RenanTalk.lnk` |
 
@@ -74,7 +78,7 @@ Para rodar do código-fonte: `py -3 -m pip install --user -r requirements.txt` e
 
 ## Privacidade
 
-O áudio de cada ditado é enviado à API da Groq para transcrição. Nada é gravado em disco. O log registra só duração e tamanho do texto, nunca o conteúdo.
+O áudio de cada ditado é enviado à API da Groq para transcrição. O áudio nunca é gravado em disco. O texto de cada ditado fica guardado só neste computador, em `historico.db`, por 30 dias (depois é apagado sozinho); você pode ver, corrigir, excluir um item ou apagar tudo na aba Histórico. Nos modos com IA (Revisado, Formal, WhatsApp) e no atalho de traduzir, o texto transcrito também é enviado à Groq para ser reescrito; no modo Literal (padrão) o texto não sai do computador. O log registra só duração e tamanho do texto, nunca o conteúdo.
 
 ## Problemas comuns
 

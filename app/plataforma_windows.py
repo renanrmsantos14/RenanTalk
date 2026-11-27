@@ -1,11 +1,13 @@
 """Peças do RenanTalk específicas do Windows: atalho, colar, bipe, instância única, luz e bandeja."""
 import ctypes
+import os
 import time
-import winsound
 
 import keyboard
 import pyperclip
 
+import ajustes
+from comum import log
 from bandeja import Bandeja  # noqa: F401  (reexportado para o ditado)
 from luz import Luz  # noqa: F401
 
@@ -13,7 +15,7 @@ _mutex = None
 
 
 def bipe(freq: int, ms: int) -> None:
-    winsound.Beep(freq, ms)
+    ajustes.bipe(freq, ms)  # tom gerado, com o volume dos ajustes (winsound.Beep não tem volume)
 
 
 def colar(texto: str) -> None:
@@ -25,31 +27,128 @@ def colar(texto: str) -> None:
     pyperclip.copy(anterior)  # devolve o que estava na área de transferência
 
 
+def app_ativo() -> str:
+    """Nome do executável da janela em primeiro plano (ex.: 'code'); vazio se não der para saber."""
+    try:
+        from ctypes import wintypes
+
+        u, k = ctypes.windll.user32, ctypes.windll.kernel32
+        k.OpenProcess.restype = wintypes.HANDLE
+        pid = wintypes.DWORD()
+        u.GetWindowThreadProcessId(u.GetForegroundWindow(), ctypes.byref(pid))
+        h = k.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(1024)
+            n = wintypes.DWORD(len(buf))
+            if not k.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)):
+                return ""
+            nome = buf.value.replace("/", "\\").rsplit("\\", 1)[-1]
+            return nome[:-4] if nome.lower().endswith(".exe") else nome
+        finally:
+            k.CloseHandle(h)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _mascarar_win() -> None:
     # Toque numa tecla sem função (VK 0xE8) para o Windows não abrir o menu Iniciar ao soltar o Win.
     ctypes.windll.user32.keybd_event(0xE8, 0, 0, 0)
     ctypes.windll.user32.keybd_event(0xE8, 0, 2, 0)
 
 
-def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
-    """Escuta Ctrl+Win (bloqueia a thread principal)."""
+_NOMES = {"ctrl": "ctrl", "left ctrl": "ctrl", "right ctrl": "ctrl", "alt": "alt", "left alt": "alt",
+          "right alt": "alt", "alt gr": "alt", "shift": "shift", "left shift": "shift", "right shift": "shift",
+          "windows": "win", "left windows": "win", "right windows": "win"}
+
+
+def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
+    """Escuta os atalhos de ditar, traduzir e colar o último (bloqueia a thread principal). Relidos a cada tecla."""
+    casador = ajustes.Casador()
+
     def evento(ev: keyboard.KeyboardEvent) -> None:
-        nome = (ev.name or "").lower()
-        eh_ctrl = "ctrl" in nome
-        eh_win = nome in ("windows", "left windows", "right windows")
-        if ev.event_type == "down":
-            if esta_gravando() and not (eh_ctrl or eh_win):
-                ao_outra(f"{ev.name!r} scan={ev.scan_code}")  # Ctrl+Win+outra tecla = atalho do Windows
-            elif not esta_gravando() and (eh_ctrl or eh_win) and keyboard.is_pressed("ctrl") and (
-                keyboard.is_pressed("windows") or keyboard.is_pressed("left windows") or eh_win
-            ):
-                ao_iniciar()
-        elif ev.event_type == "up" and esta_gravando() and (eh_ctrl or eh_win):
+        bruto = (ev.name or "").lower()
+        # Shift+1 chega como "!": a fileira de números (scan 2–11) vira o dígito; o teclado numérico não entra
+        if 2 <= (ev.scan_code or 0) <= 11 and not ev.is_keypad:
+            bruto = "1234567890"[ev.scan_code - 2]
+        nome = _NOMES.get(bruto, bruto)
+        descer = ev.event_type == "down"
+        a = ajustes.ler()
+        ditar, colar, traduzir = (ajustes.validar_atalho(a[c]) for c in ajustes.ATALHOS)
+        if descer and not esta_gravando():  # solta teclas "presas" (Win+L, etc. não entregam o key-up)
+            for m in list(casador.apertadas):
+                if m in ajustes.MODIFICADORES and not keyboard.is_pressed("windows" if m == "win" else m):
+                    casador.apertadas.discard(m)
+        r = casador.evento(nome, descer, ditar, esta_gravando(), colar, traduzir)
+        if r == "colar" and ao_colar:
+            ajustes.colar_ao_soltar(casador, ao_colar)
+        elif r in ("iniciar", "traduzir"):
+            ao_iniciar(r == "traduzir")
+        elif r == "parar":
             ao_parar()
             _mascarar_win()
+        elif r == "outra":
+            ao_outra(f"{ev.name!r} scan={ev.scan_code}")  # Ctrl+Win+outra tecla = atalho do Windows
 
     keyboard.hook(evento)
     keyboard.wait()
+
+
+# O Windows guarda o volume por app: um app que fechou ainda baixo voltaria baixo. Fica aqui até reaparecer.
+_pendentes: dict[str, float] = {}
+_EXPIRADA = 2  # AudioSessionState: o app fechou
+
+
+def _sessoes() -> list:
+    import comtypes
+    from pycaw.pycaw import AudioUtilities
+
+    comtypes.CoInitialize()  # a thread da fila de volume não tem COM iniciado
+    # 0 = sons do Windows; o nosso = os bipes, no volume dos ajustes
+    return [s for s in AudioUtilities.GetAllSessions() if s.ProcessId not in (0, os.getpid())]
+
+
+def abaixar_outros(fator: float) -> list:
+    """Põe cada app com som em `fator` do volume atual. Devolve o que mudou, para restaurar_outros.
+
+    Chamada sempre da mesma thread (a fila de volume do ditado.pyw): as sessões são objetos COM dela."""
+    feitos = []
+    try:
+        sessoes = _sessoes()
+    except Exception as e:  # noqa: BLE001 - COM levanta tipos variados; o ditado não pode parar por isso
+        log(f"abaixar volume: {e!r}")
+        return feitos
+    for s in sessoes:  # uma sessão com erro não impede abaixar as outras
+        try:
+            v = s.SimpleAudioVolume
+            antes = _pendentes.get(s.Identifier, v.GetMasterVolume())
+            v.SetMasterVolume(antes * fator, None)
+            _pendentes.pop(s.Identifier, None)
+            feitos.append((s.Identifier, antes))
+        except Exception as e:  # noqa: BLE001
+            log(f"abaixar volume: {e!r}")
+    return feitos
+
+
+def restaurar_outros(feitos: list) -> None:
+    """Volta sempre o volume de antes (como no Linux), pelas sessões de agora: o app que fechou e abriu de novo
+    tem sessão nova. O que não está aberto fica pendente para o próximo ditado."""
+    falta = dict(feitos)
+    try:
+        sessoes = _sessoes()
+    except Exception as e:  # noqa: BLE001
+        log(f"restaurar volume: {e!r}")
+        sessoes = []
+    voltaram = set()
+    for s in sessoes:
+        try:
+            if s.Identifier in falta and s.State != _EXPIRADA:
+                s.SimpleAudioVolume.SetMasterVolume(falta[s.Identifier], None)
+                voltaram.add(s.Identifier)
+        except Exception as e:  # noqa: BLE001
+            log(f"restaurar volume: {e!r}")
+    _pendentes.update({k: v for k, v in falta.items() if k not in voltaram})
 
 
 def instancia_unica() -> bool:

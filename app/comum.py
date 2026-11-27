@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -31,6 +32,15 @@ if ANTIGA and not os.path.exists(ARQ_CHAVE) and os.path.exists(os.path.join(ANTI
     shutil.copy2(os.path.join(ANTIGA, "chave.txt"), ARQ_CHAVE)
 
 
+def log(msg: str) -> None:
+    """Uma linha no ditado.log (nunca o texto ditado). Falha de disco é ignorada."""
+    try:
+        with open(ARQ_LOG, "a", encoding="utf-8") as f:
+            f.write(time.strftime("%d/%m/%Y %H:%M:%S ") + msg + "\n")
+    except OSError:
+        pass
+
+
 def abrir(alvo: str) -> None:
     """Abre arquivo ou URL no programa padrão do sistema."""
     if WINDOWS:
@@ -41,18 +51,22 @@ def abrir(alvo: str) -> None:
         subprocess.Popen(["xdg-open", alvo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def abrir_configuracoes(aba: str = "voc") -> None:
+def abrir_configuracoes(aba: str = "inicio") -> None:
     """Abre a janela de configurações: o executável Rust/Tauri se existir; senão, a versão Python + navegador."""
     import subprocess
 
     app = os.path.dirname(os.path.abspath(__file__))
+    import ajustes
+
+    ajustes.escrever_dispositivos()  # a janela (Rust) lê a lista de microfones deste arquivo
     exe = os.path.join(app, "renantalk-config.exe" if WINDOWS else "renantalk-config")
     if os.path.exists(exe):
         # python.exe (com console oculto pelo Rust) para o "Procurar atualização"; pythonw não devolve saída
         python = os.path.join(os.path.dirname(sys.executable), "python.exe") if WINDOWS else sys.executable
         subprocess.Popen([exe, str(os.getpid()), aba, python, app], cwd=app)
     else:
-        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba], cwd=app)
+        aba_antiga = "voc" if aba == "inicio" else aba  # a janela antiga não tem Início
+        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba_antiga], cwd=app)
 
 
 def gerar_icone() -> None:
@@ -104,6 +118,12 @@ def ler_chave() -> str:
             return f.read().strip()
     except FileNotFoundError:
         return ""
+
+
+def cabecalhos_groq(tipo: str) -> dict:
+    """Cabeçalhos das chamadas à Groq. A chave é relida a cada uso: a troca nas configurações vale na hora."""
+    return {"Authorization": f"Bearer {ler_chave()}", "Content-Type": tipo,
+            "User-Agent": "groq-ditado/1.0"}  # o padrão Python-urllib leva 403
 
 
 def salvar_chave(chave: str) -> None:

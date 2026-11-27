@@ -6,6 +6,7 @@
 - Bandeja: XApp.StatusIcon (Cinnamon); na falta, AyatanaAppIndicator3 ou Gtk.StatusIcon.
 """
 import fcntl
+import json
 import os
 import subprocess
 import sys
@@ -15,7 +16,6 @@ import time
 import cairo
 import gi
 import numpy as np
-import sounddevice as sd
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
@@ -24,8 +24,9 @@ from Xlib import X, XK, display  # noqa: E402
 from Xlib.ext import record, xtest  # noqa: E402
 from Xlib.protocol import rq  # noqa: E402
 
+import ajustes  # noqa: E402
 from comum import (ARQ_LOG, ICONE_PNG, NOME, PASTA, abrir, abrir_configuracoes,  # noqa: E402
-                   definir_inicio_automatico, inicio_automatico)
+                   definir_inicio_automatico, inicio_automatico, log)
 
 TERMINAIS = ("terminal", "xterm", "urxvt", "kitty", "alacritty", "konsole", "tilix", "terminator", "wezterm", "foot")
 _trava_arquivo = None
@@ -33,13 +34,87 @@ _trava_arquivo = None
 
 # ---------- utilidades ----------
 def bipe(freq: int, ms: int) -> None:
-    taxa = 44100
-    t = np.arange(int(taxa * ms / 1000)) / taxa
-    env = np.minimum(1, np.minimum(t, t[::-1]) / 0.008)  # sem estalo no começo e no fim
+    ajustes.bipe(freq, ms)
+
+
+def _sink_inputs() -> list[dict]:
+    r = subprocess.run(["pactl", "-f", "json", "list", "sink-inputs"], capture_output=True, timeout=2,
+                       env={**os.environ, "LC_ALL": "C"}, check=True)
+    return json.loads(r.stdout)
+
+
+def _definir_volume(indice: int, canais: list[int]) -> None:
+    subprocess.run(["pactl", "set-sink-input-volume", str(indice), *map(str, canais)], timeout=2, check=True)
+
+
+# O PipeWire guarda o volume por app: um app que fechou ainda baixo voltaria baixo. Fica aqui até reaparecer.
+_pendentes: dict[str, list[int]] = {}
+
+
+def _app(e: dict) -> str | None:
+    return (e.get("properties") or {}).get("application.name")
+
+
+def abaixar_outros(fator: float) -> list:
+    """Põe cada app que toca som em `fator` do volume atual. Devolve o que mudou, para restaurar_outros.
+
+    O bipe de início ainda pode estar tocando: pula o fluxo do nosso processo quando o servidor informa o
+    `application.process.id`. O bipe de fim sai num fluxo novo, que não está nesta lista."""
+    feitos = []
     try:
-        sd.play((0.18 * np.sin(2 * np.pi * freq * t) * env).astype(np.float32), taxa)
-    except Exception:  # noqa: BLE001 - sem saída de áudio não é motivo para travar o ditado
-        pass
+        entradas = _sink_inputs()
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
+        log(f"abaixar volume: {e!r}")
+        return feitos
+    for e in entradas:  # um fluxo que sumiu ou sem volume não impede abaixar os outros
+        try:
+            if str(e.get("properties", {}).get("application.process.id")) == str(os.getpid()):
+                continue  # os bipes do RenanTalk ficam no volume dos ajustes
+            antes = [c["value"] for c in e["volume"].values()]
+            if not antes:
+                continue
+            pendente = _pendentes.get(_app(e))
+            if pendente and len(pendente) == len(antes):
+                antes = pendente
+            _definir_volume(e["index"], [round(v * fator) for v in antes])
+            _pendentes.pop(_app(e), None)  # só some depois de abaixar: se o fluxo sumiu no meio, continua pendente
+            feitos.append((e["index"], _app(e), antes))
+        except (OSError, KeyError, TypeError, AttributeError, subprocess.SubprocessError) as err:
+            log(f"abaixar volume: {err!r}")
+    return feitos
+
+
+def restaurar_outros(feitos: list) -> None:
+    """Volta sempre o volume de antes. Não dá para respeitar o que mudou no meio: o Spotify reage à mudança
+    de fora e mexe no próprio volume, e ficaria no valor errado.
+
+    Fluxo que sumiu (o app fechou ou trocou de fluxo): acerta o fluxo novo do mesmo app ou fica pendente."""
+    sumiram = {}
+    restaurados = set()
+    for indice, app, antes in feitos:
+        try:
+            _definir_volume(indice, antes)
+            restaurados.add(indice)
+        except (OSError, subprocess.SubprocessError) as e:
+            log(f"restaurar volume: {e!r}")
+            if app:
+                sumiram[app] = antes
+    if not sumiram:
+        return
+    try:
+        entradas = _sink_inputs()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        entradas = []
+    for e in entradas:
+        # fluxo já restaurado acima não leva o volume de outro fluxo do mesmo app (vários "Chromium", abas do Firefox)
+        if _app(e) in sumiram and e.get("index") not in restaurados:
+            antes = sumiram[_app(e)]
+            try:
+                _definir_volume(e["index"], antes)
+                del sumiram[_app(e)]
+            except (OSError, KeyError, subprocess.SubprocessError) as err:
+                log(f"restaurar volume: {err!r}")
+    _pendentes.update(sumiram)
 
 
 def instancia_unica() -> bool:
@@ -70,6 +145,11 @@ def _classe_janela_ativa() -> str:
         return " ".join(classe).lower()
     except Exception:  # noqa: BLE001
         return ""
+
+
+def app_ativo() -> str:
+    """Nome do aplicativo em primeiro plano (classe WM, ex.: 'code'); vazio se não der para saber."""
+    return (_classe_janela_ativa().split() or [""])[-1]
 
 
 def _teclar(*keysyms: int) -> None:
@@ -108,13 +188,28 @@ def colar(texto: str) -> None:
 
 
 # ---------- atalho ----------
-def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
-    """Escuta Ctrl+Super numa thread (RECORD do X11) e roda o laço do GTK na thread principal."""
+def _codigos(local, alvo) -> dict[int, str]:
+    """keycode -> nome ('ctrl', 'alt', 'shift', 'win' e a tecla do atalho, se houver)."""
+    mapa: dict[int, str] = {}
+    grupos = {"ctrl": (XK.XK_Control_L, XK.XK_Control_R), "alt": (XK.XK_Alt_L, XK.XK_Alt_R),
+              "shift": (XK.XK_Shift_L, XK.XK_Shift_R), "win": (XK.XK_Super_L, XK.XK_Super_R)}
+    for nome, keysyms in grupos.items():
+        for k in keysyms:
+            mapa[local.keysym_to_keycode(k)] = nome
+    for nome in alvo:
+        if nome not in grupos:
+            ks = XK.string_to_keysym(nome) or XK.string_to_keysym(nome.capitalize())
+            if ks:
+                mapa[local.keysym_to_keycode(ks)] = nome
+    return mapa
+
+
+def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
+    """Escuta os atalhos de ditar, traduzir e colar o último (RECORD do X11) numa thread e roda o laço do GTK na principal."""
     def escutar() -> None:
         local, rec = display.Display(), display.Display()
-        ctrl = {local.keysym_to_keycode(XK.XK_Control_L), local.keysym_to_keycode(XK.XK_Control_R)}
-        sup = {local.keysym_to_keycode(XK.XK_Super_L), local.keysym_to_keycode(XK.XK_Super_R)}
-        apertadas: set[str] = set()
+        casador = ajustes.Casador()
+        estado = {"alvo": None, "codigos": {}}
         ctx = rec.record_create_context(0, [record.AllClients], [{
             "core_requests": (0, 0), "core_replies": (0, 0, 0, 0), "ext_requests": (0, 0, 0, 0),
             "ext_replies": (0, 0, 0, 0), "delivered_events": (0, 0),
@@ -124,22 +219,26 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
         def ao_registro(reply) -> None:
             if reply.category != record.FromServer or reply.client_swapped or not reply.data:
                 return
+            a = ajustes.ler()  # relido: vale sem reiniciar
+            alvos = tuple(ajustes.validar_atalho(a[c]) for c in ajustes.ATALHOS)  # ditar, colar, traduzir
+            if alvos != estado["alvo"]:
+                estado["alvo"], estado["codigos"] = alvos, _codigos(local, sum((t or () for t in alvos), ()))
             dados = reply.data
             while dados:
                 ev, dados = rq.EventField(None).parse_binary_value(dados, rec.display, None, None)
-                tipo = "ctrl" if ev.detail in ctrl else "super" if ev.detail in sup else "outra"
-                if ev.type == X.KeyPress:
-                    if tipo == "outra":
-                        if esta_gravando():
-                            ao_outra(f"keycode={ev.detail}")
-                        continue
-                    apertadas.add(tipo)
-                    if not esta_gravando() and apertadas == {"ctrl", "super"}:
-                        ao_iniciar()
-                elif ev.type == X.KeyRelease and tipo != "outra":
-                    apertadas.discard(tipo)
-                    if esta_gravando():
-                        ao_parar()
+                if ev.type not in (X.KeyPress, X.KeyRelease):
+                    continue
+                nome = estado["codigos"].get(ev.detail, "outra")
+                ditar, colar, traduzir = alvos
+                r = casador.evento(nome, ev.type == X.KeyPress, ditar, esta_gravando(), colar, traduzir)
+                if r == "colar" and ao_colar:
+                    ajustes.colar_ao_soltar(casador, ao_colar)
+                elif r in ("iniciar", "traduzir"):
+                    ao_iniciar(r == "traduzir")
+                elif r == "parar":
+                    ao_parar()
+                elif r == "outra":
+                    ao_outra(f"keycode={ev.detail}")
 
         rec.record_enable_context(ctx, ao_registro)  # bloqueia
 
@@ -149,16 +248,18 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
 
 # ---------- luz ----------
 ALTURA = 36
-CENTRO, PONTA = (120 / 255, 170 / 255, 1.0), (37 / 255, 99 / 255, 235 / 255)
-BRILHO, NEVOA = (45 / 255, 110 / 255, 1.0), (30 / 255, 64 / 255, 200 / 255)
 ERRO = ((254 / 255, 202 / 255, 202 / 255), (248 / 255, 113 / 255, 113 / 255), (220 / 255, 38 / 255, 38 / 255))
 
 
 class Luz:
-    """Mesma linha de luz do Windows: nasce no centro, forte no meio, apaga nas pontas."""
+    """Mesma linha de luz do Windows: nasce no centro, forte no meio, apaga nas pontas.
+
+    Cor, espessura, posição (embaixo/topo) e liga/desliga vêm de ajustes.json, lidos a cada ditado."""
 
     def __init__(self) -> None:
         self.estado, self.t0, self.alvo, self.nivel, self.timer = "idle", time.time(), 0.0, 0.0, None
+        self.ligada, self.k, self.topo, self.altura = True, 1.0, False, ALTURA
+        self.cores = {n: tuple(c / 255 for c in rgb) for n, rgb in ajustes.CORES_LUZ["azul"].items()}
         self.jan = Gtk.Window(type=Gtk.WindowType.POPUP)  # override-redirect: sem foco e sem barra de tarefas
         self.jan.set_app_paintable(True)
         visual = self.jan.get_screen().get_rgba_visual()
@@ -174,7 +275,21 @@ class Luz:
     def audio(self, v: float) -> None:
         self.alvo = v
 
+    def _configurar(self) -> None:
+        """Lê os ajustes da luz; vale a partir deste ditado."""
+        cfg = ajustes.ler()["luz"]
+        self.ligada, self.topo = cfg["ligada"], cfg["posicao"] == "topo"
+        self.k = ajustes.ESPESSURAS[cfg["espessura"]]
+        self.altura = round(ALTURA * self.k)
+        self.cores = {n: tuple(c / 255 for c in rgb) for n, rgb in ajustes.CORES_LUZ[cfg["cor"]].items()}
+
     def _definir(self, estado: str) -> bool:
+        if estado == "rec":
+            self._configurar()
+        if not self.ligada:  # luz desligada: não mostra a janela (o bipe e o resto do ditado seguem normais)
+            if self.estado != "idle":  # e apaga a luz do ditado anterior que ainda estivesse na tela
+                self.estado = "idle"
+            return False
         if estado == "rec":
             self.nivel = 0.0
             self._posicionar()
@@ -192,9 +307,12 @@ class Luz:
             _, x, y = tela.get_default_seat().get_pointer().get_position()[0:3]
             mon = tela.get_monitor_at_point(x, y)
         g, area = mon.get_geometry(), mon.get_workarea()
-        base = area.y + area.height if area.y + area.height < g.y + g.height else g.y + g.height  # acima do painel
-        self.jan.move(g.x, base - ALTURA)
-        self.jan.resize(g.width, ALTURA)
+        if self.topo:  # abaixo do painel, se ele estiver no alto
+            self.jan.move(g.x, max(area.y, g.y))
+        else:
+            base = area.y + area.height if area.y + area.height < g.y + g.height else g.y + g.height  # acima do painel
+            self.jan.move(g.x, base - self.altura)
+        self.jan.resize(g.width, self.altura)
 
     def _tique(self) -> bool:
         self.nivel += (self.alvo - self.nivel) * (0.5 if self.alvo > self.nivel else 0.12)
@@ -213,6 +331,10 @@ class Luz:
         cr.paint()
         cr.set_operator(cairo.OPERATOR_OVER)
         w, h = self.jan.get_size()
+        k, cor = self.k, self.cores
+        if self.topo:  # desenha como se fosse embaixo, de ponta-cabeça
+            cr.translate(0, h)
+            cr.scale(1, -1)
         t, e = time.time() - self.t0, self.estado
         ganho, n, p = 1.0, self.nivel, 1.0
         if e == "rec":
@@ -221,7 +343,7 @@ class Luz:
             n = 0.25
         elif e in ("done", "erro"):
             ganho, n = max(0.0, 1 - t / 0.5), (0.3 if e == "done" else 0.8)
-        c_nuc, c_bri, c_nev = ERRO if e == "erro" else (None, BRILHO, NEVOA)
+        c_nuc, c_bri, c_nev = ERRO if e == "erro" else (None, cor["brilho"], cor["nevoa"])
         meia = w / 2 * p
 
         def horizontal(cor_centro, cor_ponta, alfa: float):
@@ -244,26 +366,26 @@ class Luz:
         cr.set_source(horizontal(c_nev, c_nev, 0.25 * n))
         cr.mask(vertical(h))
         cr.set_source(horizontal(c_bri, c_bri, 0.45 + 0.45 * n))
-        cr.mask(vertical(4 + n * 16))
-        cr.set_source(horizontal(c_nuc or CENTRO, c_nuc or PONTA, 1.0))
-        cr.rectangle(w / 2 - meia, h - 2, meia * 2, 2)
+        cr.mask(vertical((4 + n * 16) * k))
+        cr.set_source(horizontal(c_nuc or cor["centro"], c_nuc or cor["ponta"], 1.0))
+        cr.rectangle(w / 2 - meia, h - 2 * k, meia * 2, 2 * k)
         cr.fill()
         if e == "proc":  # pulso saindo do centro para as pontas
             onda = (t % 1.0) * w / 2
             for x in (w / 2 - onda, w / 2 + onda):
                 g = cairo.RadialGradient(x, h, 0, x, h, 60)
-                g.add_color_stop_rgba(0, *CENTRO, 0.9 * (1 - abs(x - w / 2) / (w / 2)))
-                g.add_color_stop_rgba(1, *CENTRO, 0)
+                g.add_color_stop_rgba(0, *cor["centro"], 0.9 * (1 - abs(x - w / 2) / (w / 2)))
+                g.add_color_stop_rgba(1, *cor["centro"], 0)
                 cr.set_source(g)
-                cr.rectangle(x - 60, h - 6, 120, 6)
+                cr.rectangle(x - 60, h - 6 * k, 120, 6 * k)
                 cr.fill()
         return False
 
 
 # ---------- bandeja ----------
 class Bandeja:
-    def __init__(self, ao_sair, ao_atualizar, versao: str) -> None:
-        self.ao_sair, self.ao_atualizar, self.versao = ao_sair, ao_atualizar, versao
+    def __init__(self, ao_sair, ao_atualizar, versao: str, ao_colar=None) -> None:
+        self.ao_sair, self.ao_atualizar, self.versao, self.ao_colar = ao_sair, ao_atualizar, versao, ao_colar
         menu = Gtk.Menu()
 
         def item(rotulo: str, acao=None, negrito: bool = False, icone: str | None = None) -> None:
@@ -284,7 +406,8 @@ class Bandeja:
         item(f"{NOME}   ·   v{versao.split(' ')[0]}", icone="audio-input-microphone")
         item("Segure Ctrl + Super para ditar")
         menu.append(Gtk.SeparatorMenuItem())
-        item("Configurações…", lambda: self.abrir_configuracoes(), negrito=True, icone="preferences-system")
+        item("Configurações…", lambda: threading.Thread(target=self.abrir_configuracoes, daemon=True).start(), negrito=True, icone="preferences-system")
+        item("Colar último ditado", lambda: self.ao_colar and self.ao_colar(), icone="edit-paste")
         item("Procurar atualização",
              lambda: threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start(), icone="view-refresh")
         item("Ver log", lambda: abrir(ARQ_LOG), icone="text-x-generic")
@@ -326,6 +449,8 @@ class Bandeja:
         self.ao_sair()
 
     def notificar(self, texto: str) -> None:
+        if not ajustes.ler()["notificacoes"]:  # desligadas: erro continua no bipe grave e no log
+            return
         subprocess.Popen(["notify-send", "-i", ICONE_PNG, "-a", NOME, NOME, texto],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -335,5 +460,5 @@ class Bandeja:
         except Exception:  # noqa: BLE001
             pass
 
-    def abrir_configuracoes(self, aba: str = "voc") -> None:
+    def abrir_configuracoes(self, aba: str = "inicio") -> None:
         abrir_configuracoes(aba)

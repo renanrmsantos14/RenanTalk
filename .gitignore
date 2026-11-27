@@ -5,3 +5,4 @@ chave.txt
 *.key
 *.log
 .env
+.verificacao/

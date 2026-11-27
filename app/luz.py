@@ -11,6 +11,8 @@ from ctypes import wintypes as W
 
 import numpy as np
 
+import ajustes
+
 u32 = ctypes.windll.user32
 g32 = ctypes.windll.gdi32
 k32 = ctypes.windll.kernel32
@@ -23,11 +25,7 @@ ALTURA = 36  # px da faixa desenhada (núcleo + brilho)
 NUCLEO_PX = 2
 FPS = 40
 
-# Cores RGB
-CENTRO = np.array([120, 170, 255], np.float32)
-PONTA = np.array([37, 99, 235], np.float32)
-BRILHO = np.array([45, 110, 255], np.float32)
-NEVOA = np.array([30, 64, 200], np.float32)
+# Cores RGB (a cor da luz vem de ajustes.CORES_LUZ; o erro é sempre vermelho)
 ERRO = (np.array([254, 202, 202], np.float32), np.array([248, 113, 113], np.float32), np.array([220, 38, 38], np.float32))
 
 LRESULT = ctypes.c_ssize_t
@@ -85,6 +83,8 @@ k32.GetModuleHandleW.restype = W.HMODULE
 class Luz:
     def __init__(self) -> None:
         self.estado = "idle"
+        self.ligada = True
+        self.cfg = ajustes.ler()["luz"]  # trocada em definir("rec") e aplicada só no laço (sem corrida com o desenho)
         self.t0 = time.time()
         self.alvo = 0.0
         self.nivel = 0.0
@@ -92,13 +92,20 @@ class Luz:
         self.evento = threading.Event()
         self.w = 0
         self.hbmp = None
-        d = np.arange(ALTURA, dtype=np.float32)[::-1]  # distância até a borda; linha 0 = topo
-        self.d = d[:, None]
-        self.nucleo = np.clip(NUCLEO_PX - self.d, 0, 1)  # 2 px cheios, borda suave
+        self.altura = ALTURA
+        self._aplicar_ajustes()
         threading.Thread(target=self._loop, daemon=True).start()
 
     # API usada pelo ditado
     def definir(self, estado: str) -> None:
+        if estado == "rec":
+            self.cfg = ajustes.ler()["luz"]  # vale a partir deste ditado
+            self.ligada = self.cfg["ligada"]
+        if not self.ligada:  # luz desligada: não mostra a janela (o bipe e o resto do ditado seguem normais)
+            if self.estado != "idle":  # e apaga a luz do ditado anterior que ainda estivesse na tela
+                self.estado = "idle"
+                self.evento.set()
+            return
         if estado == "rec":
             self.reposicionar = True
             self.nivel = 0.0
@@ -110,6 +117,19 @@ class Luz:
         self.alvo = v
 
     # interno
+    def _aplicar_ajustes(self) -> None:
+        """Cor, espessura e posição do ditado atual (só roda no laço da luz)."""
+        cfg = self.cfg
+        self.topo = cfg["posicao"] == "topo"
+        self.k = ajustes.ESPESSURAS[cfg["espessura"]]
+        self.paleta = {n: np.array(rgb, np.float32) for n, rgb in ajustes.CORES_LUZ[cfg["cor"]].items()}
+        altura = round(ALTURA * self.k)
+        d = np.arange(altura, dtype=np.float32)  # distância até a borda; linha 0 = topo
+        self.altura = altura
+        self.d = (d if self.topo else d[::-1])[:, None]
+        self.nucleo = np.clip(NUCLEO_PX * self.k - self.d, 0, 1)  # núcleo cheio, borda suave
+        self.w = 0  # força recriar o bitmap e as curvas na próxima posição
+
     def _loop(self) -> None:
         self._proc = WNDPROC(lambda h, m, w, l: u32.DefWindowProcW(h, m, w, l))
         inst = k32.GetModuleHandleW(None)
@@ -129,6 +149,7 @@ class Luz:
                 continue
             if self.reposicionar:
                 self.reposicionar = False
+                self._aplicar_ajustes()
                 self._posicionar()
             while u32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):
                 u32.TranslateMessage(ctypes.byref(msg))
@@ -144,11 +165,14 @@ class Luz:
         mi.cbSize = ctypes.sizeof(mi)
         u32.GetMonitorInfoW(u32.MonitorFromWindow(u32.GetForegroundWindow(), 2), ctypes.byref(mi))
         r, t = mi.rcMonitor, mi.rcWork
-        base = t.bottom if t.bottom < r.bottom else r.bottom  # barra de tarefas embaixo: linha encosta no topo dela
-        self.x, self.y = r.left, base - ALTURA
+        if self.topo:  # barra de tarefas no alto: a linha encosta na base dela
+            self.x, self.y = r.left, max(t.top, r.top)
+        else:
+            base = t.bottom if t.bottom < r.bottom else r.bottom  # barra embaixo: linha encosta no topo dela
+            self.x, self.y = r.left, base - self.altura
         w = r.right - r.left
         if w != self.w:
-            bi = BMIH(biSize=ctypes.sizeof(BMIH), biWidth=w, biHeight=-ALTURA, biPlanes=1, biBitCount=32)
+            bi = BMIH(biSize=ctypes.sizeof(BMIH), biWidth=w, biHeight=-self.altura, biPlanes=1, biBitCount=32)
             bits = ctypes.c_void_p()
             hbmp = g32.CreateDIBSection(self.mem, ctypes.byref(bi), 0, ctypes.byref(bits), None, 0)
             g32.SelectObject(self.mem, hbmp)
@@ -158,7 +182,8 @@ class Luz:
             fx = np.abs(np.arange(w, dtype=np.float32) - (w - 1) / 2) / ((w - 1) / 2)
             self.fx = fx  # 0 no centro, 1 nas bordas
             self.queda = (1 - fx) ** 1.8  # forte no centro, apaga nas bordas
-            self.cor_nucleo = PONTA[:, None] + (CENTRO - PONTA)[:, None] * (1 - fx)  # 3 x w
+            ponta, centro = self.paleta["ponta"], self.paleta["centro"]
+            self.cor_nucleo = ponta[:, None] + (centro - ponta)[:, None] * (1 - fx)  # 3 x w
         self._topo()
 
     def _topo(self) -> None:
@@ -185,18 +210,18 @@ class Luz:
                 self.estado = "idle"
                 return
             H, n = self.queda, (0.3 if e == "done" else 0.8)
-        nucleo_c, brilho_c, nevoa_c = (ERRO if e == "erro" else (None, BRILHO, NEVOA))
-        brilho = np.exp(-self.d / (1.5 + n * 6)) * (0.45 + 0.45 * n)
-        nevoa = np.exp(-self.d / 14) * 0.25 * n
+        nucleo_c, brilho_c, nevoa_c = (ERRO if e == "erro" else (None, self.paleta["brilho"], self.paleta["nevoa"]))
+        brilho = np.exp(-self.d / ((1.5 + n * 6) * self.k)) * (0.45 + 0.45 * n)
+        nevoa = np.exp(-self.d / (14 * self.k)) * 0.25 * n
         Ac, Ab, An = self.nucleo * H, brilho * H, nevoa * H
         A = np.clip(Ac + Ab + An, 0, 1) * ganho
         cn = self.cor_nucleo if nucleo_c is None else nucleo_c[:, None] * np.ones_like(fx)
-        img = np.empty((ALTURA, self.w, 4), np.uint8)
+        img = np.empty((self.altura, self.w, 4), np.uint8)
         for i, canal in enumerate((2, 1, 0)):  # BGRA, cor pré-multiplicada
             c = (Ac * cn[canal] + Ab * brilho_c[canal] + An * nevoa_c[canal]) * ganho
             img[..., i] = np.minimum(c, A * 255)
         img[..., 3] = A * 255
         ctypes.memmove(self.bits, img.ctypes.data, img.nbytes)
         u32.UpdateLayeredWindow(self.hwnd, self.tela, ctypes.byref(W.POINT(self.x, self.y)),
-                                ctypes.byref(W.SIZE(self.w, ALTURA)), self.mem, ctypes.byref(W.POINT(0, 0)), 0,
+                                ctypes.byref(W.SIZE(self.w, self.altura)), self.mem, ctypes.byref(W.POINT(0, 0)), 0,
                                 ctypes.byref(BLEND(0, 0, 255, 1)), 2)

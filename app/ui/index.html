@@ -6,8 +6,10 @@
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22fundo%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%231e3a8a%22/%3E%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b1530%22/%3E%20%3C/linearGradient%3E%20%3ClinearGradient%20id%3D%22luz%22%20x1%3D%220%22%20x2%3D%221%22%3E%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233b82f6%22%20stop-opacity%3D%220%22/%3E%20%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23dbeafe%22/%3E%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b82f6%22%20stop-opacity%3D%220%22/%3E%20%3C/linearGradient%3E%20%3C/defs%3E%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2215%22%20fill%3D%22url%28%23fundo%29%22/%3E%20%3Crect%20x%3D%2224%22%20y%3D%229%22%20width%3D%2216%22%20height%3D%2228%22%20rx%3D%228%22%20fill%3D%22%23fff%22/%3E%20%3Cpath%20d%3D%22M16.5%2029.5a15.5%2015.5%200%200%200%2031%200%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22/%3E%20%3Crect%20x%3D%2229.5%22%20y%3D%2244%22%20width%3D%225%22%20height%3D%226%22%20fill%3D%22%23fff%22/%3E%20%3Crect%20x%3D%226%22%20y%3D%2252%22%20width%3D%2252%22%20height%3D%225.5%22%20rx%3D%222.75%22%20fill%3D%22url%28%23luz%29%22/%3E%20%3C/svg%3E">
 <style>
-:root{--bg:#fff;--side:#f6f8fc;--card:#f8fafc;--line:#e3e8f2;--tx:#0f172a;--mut:#64748b;--ac:#3b82f6;--ac2:#2563eb;--acx:#1d4ed8;--chip:#eef4ff;--chipb:#d6e3fb;--chiptx:#1e3a8a;--hov:#edf1f8;--on:#e4ecfd;--ontx:#1d4ed8;--kbd:#fff;--kbdb:#cfd8e6;--ok:#16a34a;--err:#dc2626;--warn:#d97706;--bar:#e8edf6;--glow:.35}
-@media (prefers-color-scheme:dark){:root{--bg:#0b1020;--side:#0f162b;--card:#121a33;--line:#1e2a4a;--tx:#e2e8f0;--mut:#8b9bb8;--acx:#3b82f6;--chip:#172345;--chipb:#223163;--chiptx:#dbe7ff;--hov:#141e3a;--on:#17244a;--ontx:#fff;--kbd:#1c2850;--kbdb:#2a3966;--ok:#22c55e;--err:#f87171;--warn:#fbbf24;--bar:#16203d;--glow:.55}}
+:root{--lnk:#2563eb;--bg:#fff;--side:#f6f8fc;--card:#f8fafc;--line:#e3e8f2;--tx:#0f172a;--mut:#64748b;--ac:#3b82f6;--ac2:#2563eb;--acx:#1d4ed8;--chip:#eef4ff;--chipb:#d6e3fb;--chiptx:#1e3a8a;--hov:#edf1f8;--on:#e4ecfd;--ontx:#1d4ed8;--kbd:#fff;--kbdb:#cfd8e6;--ok:#16a34a;--err:#dc2626;--warn:#d97706;--bar:#e8edf6;--glow:.35}
+:root[data-theme=claro]{color-scheme:light}
+:root[data-theme=escuro]{color-scheme:dark;--bg:#0b1020;--side:#0f162b;--card:#121a33;--line:#1e2a4a;--tx:#e2e8f0;--mut:#8b9bb8;--acx:#3b82f6;--chip:#172345;--chipb:#223163;--chiptx:#dbe7ff;--hov:#141e3a;--on:#17244a;--ontx:#fff;--kbd:#1c2850;--kbdb:#2a3966;--lnk:#7fb0ff;--ok:#22c55e;--err:#f87171;--warn:#fbbf24;--bar:#16203d;--glow:.55}
+@media (prefers-color-scheme:dark){:root:not([data-theme=claro]):not([data-theme=escuro]){--bg:#0b1020;--side:#0f162b;--card:#121a33;--line:#1e2a4a;--tx:#e2e8f0;--mut:#8b9bb8;--acx:#3b82f6;--chip:#172345;--chipb:#223163;--chiptx:#dbe7ff;--hov:#141e3a;--on:#17244a;--ontx:#fff;--kbd:#1c2850;--kbdb:#2a3966;--lnk:#7fb0ff;--ok:#22c55e;--err:#f87171;--warn:#fbbf24;--bar:#16203d;--glow:.55}}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--tx);font:14px 'Segoe UI Variable Text','Segoe UI',system-ui;display:grid;grid-template-columns:200px 1fr;overflow:hidden;user-select:none}
@@ -16,6 +18,7 @@ aside{background:var(--side);border-right:1px solid var(--line);padding:20px 12p
 .logo{width:34px;height:34px;flex:none;filter:drop-shadow(0 2px 6px rgba(37,99,235,.35))}
 .brand b{display:block;font-size:15px}.brand small{color:var(--mut);font-size:11.5px}
 nav button{all:unset;display:flex;gap:10px;align-items:center;width:100%;padding:9px 10px;border-radius:8px;color:var(--mut);cursor:pointer;margin-bottom:2px;box-sizing:border-box;transition:background .12s,color .12s}
+nav button[hidden]{display:none}
 nav button:hover{background:var(--hov);color:var(--tx)}
 nav button.on{background:var(--on);color:var(--ontx);font-weight:600}
 nav button:focus-visible,.btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
@@ -58,30 +61,159 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
 .stat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
 .stat div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 .stat b{display:block;font-size:20px;margin-top:2px;font-weight:600}
+.sel{background:var(--bg);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 10px;font:inherit;max-width:100%}
+.sel:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+input[type=range]{padding:0;accent-color:var(--ac2);flex:1;min-width:120px;box-shadow:none;border:0;background:none}input[type=range]:disabled{opacity:.4}
+.vol{display:flex;align-items:center;gap:12px;margin-top:10px}.vol b{min-width:44px;text-align:right}
+.mods{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.mod{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:7px 12px;color:var(--mut)}
+.mod:hover{background:var(--hov)}.mod.on{background:var(--on);border-color:var(--chipb);color:var(--ontx);font-weight:600}
+.mod:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 .links{display:flex;gap:18px}
-.links button{all:unset;color:var(--ac2);cursor:pointer}
-@media (prefers-color-scheme:dark){.links button{color:#7fb0ff}}
+.links button{all:unset;color:var(--lnk);cursor:pointer}
 .links button:hover{text-decoration:underline}
+.hist{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:16px;flex:1;min-height:0}
+#hbusca{flex:none}
+.hl{display:flex;flex-direction:column;min-height:0;gap:10px}
+.lista{flex:1;overflow:auto;min-height:0;margin:0 -4px;padding:0 4px}
+.dia{color:var(--mut);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:12px 4px 4px}
+.dia:first-child{margin-top:0}
+.it{all:unset;display:block;box-sizing:border-box;width:100%;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.it:hover{background:var(--hov)}.it.on{background:var(--on);border-color:var(--chipb)}
+.it:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.it{color:var(--tx);font-weight:400}
+.it small{display:block;color:var(--mut);font-size:11.5px}
+.it span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.hd{display:flex;flex-direction:column;min-height:0;overflow-y:auto;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{background:var(--chip);border:1px solid var(--chipb);color:var(--chiptx);border-radius:99px;padding:2px 9px;font-size:11.5px}
+textarea{flex:1;min-height:120px;resize:none;background:var(--bg);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:10px 12px;font:inherit;line-height:1.5;outline:none;user-select:text}
+textarea:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+.acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn.perigo{color:var(--err)}
+.btn.conf,.btn.conf:hover{background:var(--err);color:#fff;border-color:var(--err)}
+.sw i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+.previa{position:relative;height:48px;border-radius:10px;margin-top:14px;overflow:hidden;background:#0b1020;border:1px solid var(--line)}
+.previa i{position:absolute;left:0;right:0;display:block;transition:all .2s}
+.pane#apar,.pane#inicio,.pane#sub,.pane#som,.pane#esc{overflow:auto;min-height:0;padding-right:6px}.grp{display:flex;align-items:center;gap:14px;margin-top:10px}.grp>.k{width:72px;flex:none}.grp .mods{margin-top:0}
+.chk{display:flex;align-items:center;gap:10px;cursor:pointer}.chk input{flex:none;width:18px;height:18px;padding:0;accent-color:var(--ac2)}
+.grafico{display:flex;gap:8px;height:130px;margin-top:12px}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.col b{font-size:11.5px;font-weight:600}.col small{color:var(--mut);font-size:11.5px}.col.hoje small{color:var(--ontx);font-weight:600}
+.bw{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.bw i{display:block;width:100%;max-width:40px;min-height:2px;border-radius:6px 6px 2px 2px;background:var(--chipb);transition:height .25s}.col.hoje .bw i{background:linear-gradient(180deg,#60a5fa,#2563eb)}
+.ultimo{margin:8px 0 12px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:7.5em;overflow:auto;user-select:text}
+.item{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}.item:first-of-type{border-top:0}
+.item>div{flex:1;min-width:0;overflow-wrap:anywhere}
+.btn.peq{padding:6px 12px}
+.regras{margin:8px 0 12px}.regra{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}.regra span{overflow-wrap:anywhere;user-select:text}
+.regra button{all:unset;cursor:pointer;color:var(--mut);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px}.regra button:hover{background:var(--chipb);color:var(--tx)}
+.troca{border:1px solid var(--chipb);background:var(--chip);border-radius:10px;padding:10px 12px;color:var(--chiptx)}
+.troca .acoes{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}.troca button{max-width:100%;white-space:normal}
+.hhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 </style>
 </head>
 <body>
 <aside>
   <div class="brand"><div class="logo"><svg width="34" height="34" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"> <defs> <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"> <stop offset="0" stop-color="#1e3a8a"/> <stop offset="1" stop-color="#0b1530"/> </linearGradient> <linearGradient id="luz" x1="0" x2="1"> <stop offset="0" stop-color="#3b82f6" stop-opacity="0"/> <stop offset=".5" stop-color="#dbeafe"/> <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/> </linearGradient> </defs> <rect width="64" height="64" rx="15" fill="url(#fundo)"/> <rect x="24" y="9" width="16" height="28" rx="8" fill="#fff"/> <path d="M16.5 29.5a15.5 15.5 0 0 0 31 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/> <rect x="29.5" y="44" width="5" height="6" fill="#fff"/> <rect x="6" y="52" width="52" height="5.5" rx="2.75" fill="url(#luz)"/> </svg></div><div><b>RenanTalk</b><small id="ver">…</small></div></div>
   <nav>
+    <button data-p="inicio" id="ninicio" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11l8-7 8 7M6 10v9h12v-9"/></svg>Início</button>
+    <button data-p="hist" id="nhist" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Histórico</button>
     <button data-p="voc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Vocabulário</button>
+    <button data-p="sub" id="nsub" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>Substituições</button>
+    <button data-p="esc" id="nesc" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4"/></svg>Escrita com IA</button>
+    <button data-p="som" id="nsom" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4zM17 8.5a5 5 0 0 1 0 7"/></svg>Ditado e som</button>
+    <button data-p="apar" id="napar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>Aparência</button>
     <button data-p="key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>Chave Groq</button>
     <button data-p="sob"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Sobre</button>
   </nav>
-  <div class="hint">Segure <kbd>Ctrl</kbd> + <kbd>Win</kbd>, fale e solte.</div>
+  <div class="hint" id="dica">Segure <kbd>Ctrl</kbd> + <kbd>Win</kbd>, fale e solte.</div>
   <div class="glow"></div>
 </aside>
 <main>
+  <section class="pane" id="inicio">
+    <h1>Início</h1>
+    <p class="sub" id="isub">Seus ditados dos últimos 7 dias. Tudo fica só neste computador.</p>
+    <div class="card vazio" id="ivazio" hidden>Nenhum ditado ainda.<br>Segure o atalho, fale e solte: o resumo, o último texto e as sugestões de termos aparecem aqui.</div>
+    <div id="icorpo">
+      <div class="stat">
+        <div><span class="k">Palavras hoje</span><b id="ihoje">—</b></div>
+        <div><span class="k">Palavras na semana</span><b id="isem">—</b></div>
+        <div><span class="k">Tempo poupado na semana</span><b id="ipoup">—</b><span class="k">estimativa: digitando a 40 palavras por minuto</span></div>
+      </div>
+      <div class="card"><div class="k">Palavras por dia</div><div class="grafico" id="igraf" role="img" aria-label="Palavras ditadas por dia, nos últimos 7 dias"></div></div>
+      <div class="card"><div class="row"><div class="k" id="iultk">Último ditado</div><div class="acoes"><button class="btn sec peq" id="icopiar">Copiar</button></div></div>
+        <div class="ultimo" id="iult"></div><div class="k" id="icolar"></div><div class="msg" id="imsg" style="margin:6px 0 0"></div></div>
+    </div>
+    <div class="card" id="isug" hidden><div>Termos que você repete</div><div class="k">Nomes e siglas ditados várias vezes. Aceitar leva o termo para o Vocabulário; ignorar não sugere de novo.</div><div id="isuglista" style="margin-top:8px"></div></div>
+  </section>
+  <section class="pane" id="sub">
+    <h1>Substituições</h1>
+    <p class="sub">Troca o que você fala por outro texto, antes de colar. Vale no próximo ditado. Salva sozinho.</p>
+    <div class="card"><div class="row"><div>Comandos falados</div><span class="saved" id="salvo4">✓ Salvo</span></div><div id="cmds" style="margin-top:6px"></div></div>
+    <div class="card"><div>Suas regras</div><div class="k">Ex.: “meu email” vira o endereço completo. Use \n para quebrar a linha. Não diferencia maiúsculas e vale antes dos comandos.</div>
+      <div class="regras" id="regras"></div>
+      <div class="add"><input id="rq" placeholder="Quando eu disser" maxlength="200" aria-label="Quando eu disser"><input id="re" placeholder="Escreva" maxlength="500" aria-label="Escreva"><button class="btn" id="radd">Adicionar</button></div>
+      <div class="msg" id="rmsg"></div></div>
+  </section>
+  <section class="pane" id="esc">
+    <h1>Escrita com IA</h1>
+    <p class="sub">Reescreve o ditado com a IA da Groq (mesma chave) antes de colar. Se a IA falhar ou passar de 4 s, cola o texto como você falou. Salva sozinho.</p>
+    <div class="card"><div class="row"><div><div>Modo padrão <span class="saved" id="salvo5">✓ Salvo</span></div><div class="k">Literal não envia o texto à IA.</div></div>
+      <select class="sel" id="modo" aria-label="Modo padrão"></select></div></div>
+    <div class="card"><div>Modo por aplicativo</div><div class="k">Vale quando o nome do programa em uso contém o nome abaixo (ex.: “outlook”, “whatsapp”, “code”).</div>
+      <div class="regras" id="apps"></div>
+      <div class="add"><input id="aapp" placeholder="Aplicativo" maxlength="60" aria-label="Aplicativo"><select class="sel" id="amodo" aria-label="Modo do aplicativo"></select><button class="btn" id="aadd">Adicionar</button></div>
+      <div class="msg" id="amsg"></div></div>
+    <div class="card"><div>Traduzir para inglês</div><div class="k">Segure o atalho de traduzir (em Ditado e som), fale em português e solte: cola em inglês.</div></div>
+  </section>
+  <section class="pane" id="hist">
+    <div class="hhead"><div><h1>Histórico</h1><p class="sub">Seus ditados ficam só neste computador, por 30 dias. O áudio não é guardado.</p></div>
+      <button class="btn sec perigo" id="hlimpar">Apagar tudo</button></div>
+    <div class="hist">
+      <div class="hl"><input id="hbusca" placeholder="Buscar nos ditados" aria-label="Buscar nos ditados"><div class="lista" id="hlista"></div></div>
+      <div class="hd" id="hdet"></div>
+    </div>
+  </section>
   <section class="pane" id="voc">
     <h1>Vocabulário</h1>
     <p class="sub">Nomes, siglas e termos para o ditado escrever certo. Salva sozinho.</p>
     <div class="add"><input id="novo" placeholder="Adicionar termo e apertar Enter" maxlength="80"><button class="btn" id="add">Adicionar</button></div>
     <div class="chips" id="chips"></div>
     <div class="foot"><span id="cont"></span><div class="bar" id="bar"><i></i></div><span class="saved" id="salvo">✓ Salvo</span></div>
+  </section>
+  <section class="pane" id="som">
+    <h1>Ditado e som</h1>
+    <p class="sub">Vale no próximo ditado, sem reiniciar. Salva sozinho.</p>
+    <div class="card"><div class="row"><div><div>Volume dos bipes</div><div class="k">0% deixa tudo mudo.</div></div><span class="saved" id="salvo2">✓ Salvo</span></div>
+      <div class="vol"><input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume dos bipes"><b id="volv">60%</b><button class="btn sec" id="ouvir">Ouvir</button></div></div>
+    <div class="card"><label class="chk"><input type="checkbox" id="abaixar"><span><div>Abaixar os outros sons enquanto fala</div><div class="k">Música, vídeos e chamadas baixam quando você segura o atalho e voltam quando solta.</div></span></label>
+      <div class="vol"><span class="k">Ficam em</span><input type="range" id="volo" min="0" max="100" step="5" aria-label="Volume dos outros apps durante o ditado"><b id="volov">30%</b><span class="k">do volume de cada um</span></div></div>
+    <div class="card"><div class="row"><div><div>Microfone</div><div class="k">A lista é atualizada quando a janela abre.</div></div><select class="sel" id="mic" aria-label="Microfone"></select></div></div>
+    <div class="card"><div class="row"><div><div>Idioma do ditado</div><div class="k">Automático deixa o Whisper detectar.</div></div>
+      <select class="sel" id="idi" aria-label="Idioma"><option value="pt">Português</option><option value="auto">Automático</option><option value="en">Inglês</option></select></div></div>
+    <div class="card atalho" data-chave="atalho_ditar"><div class="row"><div><div>Atalho de ditar</div><div class="k">Segure, fale e solte. Mínimo de 2 teclas.</div></div><kbd class="atalhov">Ctrl + Win</kbd></div>
+      <div class="mods"><button class="mod" data-m="ctrl">Ctrl</button><button class="mod" data-m="alt">Alt</button><button class="mod" data-m="shift">Shift</button><button class="mod" data-m="win">Win</button><span class="k">+</span><select class="sel tecla" aria-label="Tecla extra do atalho de ditar"></select></div>
+      <div class="msg amsg"></div></div>
+    <div class="card atalho" data-chave="atalho_colar"><div class="row"><div><div>Atalho de colar o último ditado</div><div class="k">Cola de novo o texto do ditado mais recente. Também está no menu da bandeja.</div></div><kbd class="atalhov">Alt + Win + V</kbd></div>
+      <div class="mods"><button class="mod" data-m="ctrl">Ctrl</button><button class="mod" data-m="alt">Alt</button><button class="mod" data-m="shift">Shift</button><button class="mod" data-m="win">Win</button><span class="k">+</span><select class="sel tecla" aria-label="Tecla extra do atalho de colar"></select></div>
+      <div class="msg amsg"></div></div>
+    <div class="card atalho" data-chave="atalho_traduzir"><div class="row"><div><div>Atalho de traduzir</div><div class="k">Segure, fale em português e solte: cola em inglês (usa a IA da Groq).</div></div><kbd class="atalhov">Shift + Win</kbd></div>
+      <div class="mods"><button class="mod" data-m="ctrl">Ctrl</button><button class="mod" data-m="alt">Alt</button><button class="mod" data-m="shift">Shift</button><button class="mod" data-m="win">Win</button><span class="k">+</span><select class="sel tecla" aria-label="Tecla extra do atalho de traduzir"></select></div>
+      <div class="msg amsg"></div></div>
+  </section>
+  <section class="pane" id="apar">
+    <h1>Aparência</h1>
+    <p class="sub">A luz vale no próximo ditado; o tema muda na hora. Salva sozinho.</p>
+    <div class="card"><div class="row"><div><div>Tema da janela <span class="saved" id="salvo3">✓ Salvo</span></div><div class="k">Sistema segue o computador.</div></div>
+      <div class="mods" id="g-tema" style="margin:0"><button class="mod" data-v="sistema">Sistema</button><button class="mod" data-v="claro">Claro</button><button class="mod" data-v="escuro">Escuro</button></div></div></div>
+    <div class="card"><label class="chk"><input type="checkbox" id="notif"><span><div>Notificações da bandeja</div><div class="k">Avisos de atualização. Erros continuam no bipe grave e no log.</div></span></label></div>
+    <div class="card"><label class="chk"><input type="checkbox" id="luz-on"><span><div>Luz do ditado</div><div class="k">A linha de luz na borda da tela enquanto você fala. Desligada, só o bipe avisa.</div></span></label>
+      <div class="grp"><span class="k">Cor</span><div class="mods sw" id="g-cor"><button class="mod" data-v="azul"><i style="background:#2563eb"></i>Azul</button><button class="mod" data-v="verde"><i style="background:#16a34a"></i>Verde</button><button class="mod" data-v="roxo"><i style="background:#7c3aed"></i>Roxo</button><button class="mod" data-v="ambar"><i style="background:#d97706"></i>Âmbar</button></div></div>
+      <div class="grp"><span class="k">Espessura</span><div class="mods" id="g-esp"><button class="mod" data-v="fina">Fina</button><button class="mod" data-v="media">Média</button><button class="mod" data-v="grossa">Grossa</button></div></div>
+      <div class="grp"><span class="k">Posição</span><div class="mods" id="g-pos"><button class="mod" data-v="embaixo">Embaixo</button><button class="mod" data-v="topo">Topo</button></div></div>
+      <div class="previa" id="previa" aria-label="Prévia da luz"><i id="previa-luz"></i></div></div>
+    <div class="msg" id="amsg3"></div>
   </section>
   <section class="pane" id="key">
     <h1>Chave Groq</h1>
@@ -106,7 +238,7 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
 <script>
 // Na janela Tauri (Rust) chama os comandos direto; no modo antigo (Python + navegador) usa HTTP.
 const TAURI = window.__TAURI__?.core;
-const COMANDOS = {estado: 'estado', vocab: 'salvar_vocab', chave: 'salvar_chave', atualizar: 'atualizar', abrir: 'abrir'};
+const COMANDOS = {estado: 'estado', vocab: 'salvar_vocab', chave: 'salvar_chave', atualizar: 'atualizar', abrir: 'abrir', ajustes: 'ajustes', salvarAjustes: 'salvar_ajustes', hListar: 'historico_listar', hEditar: 'historico_editar', hExcluir: 'historico_excluir', hApagar: 'historico_apagar_tudo', inicio: 'inicio', sugResolver: 'sugestao_resolver', subLer: 'substituicoes_ler', subSalvar: 'substituicoes_salvar'};
 const api = (r, corpo) => TAURI
   ? TAURI.invoke(COMANDOS[r], corpo || {})
   : fetch('api/' + r, corpo === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(x => x.json());
@@ -144,11 +276,11 @@ function salvar() {
     $('salvo').classList.add('on'); setTimeout(() => $('salvo').classList.remove('on'), 1400);
   }, 300);
 }
-function adicionar() {
-  const v = $('novo').value.trim();
-  if (v && !termos.some(t => t.toLowerCase() === v.toLowerCase())) { termos.push(v); desenhar(); salvar(); }
-  $('novo').value = ''; $('novo').focus();
+function addTermo(v) {
+  if (!v || termos.some(t => t.toLowerCase() === v.toLowerCase())) return false;
+  termos.push(v); desenhar(); salvar(); return true;
 }
+function adicionar() { addTermo($('novo').value.trim()); $('novo').value = ''; $('novo').focus(); }
 $('add').onclick = adicionar;
 $('novo').addEventListener('keydown', e => { if (e.key === 'Enter') adicionar(); });
 
@@ -174,6 +306,373 @@ $('atual').onclick = async () => {
 document.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => api('abrir', {alvo: b.dataset.abrir}));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') TAURI ? TAURI.invoke('fechar') : window.close(); });
 
+// ---------- Ditado e som (só na janela Tauri: o modo antigo não tem esses comandos) ----------
+const NOMES_MOD = {ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', win: 'Win'};
+let aj = {}, tSalvar2, ctxAudio, pendente = {};
+const rotuloTecla = p => NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase());
+const rotuloAtalho = a => a.split('+').map(rotuloTecla).join(' + ');
+function bipePrevia(v) {  // mesmo timbre do bipe do app: seno 880 Hz, 60 ms, envelope de 8 ms
+  if (v <= 0) return;
+  ctxAudio = ctxAudio || new AudioContext();
+  const t = ctxAudio.currentTime, o = ctxAudio.createOscillator(), g = ctxAudio.createGain();
+  o.frequency.value = 880; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v / 100, t + .008);
+  g.gain.setValueAtTime(v / 100, t + .052); g.gain.linearRampToValueAtTime(0, t + .06);
+  o.connect(g).connect(ctxAudio.destination); o.start(t); o.stop(t + .062);
+}
+function salvarSom(valores, msgEl) {
+  pendente = {...pendente, ...valores};  // várias mudanças seguidas viram uma gravação só
+  clearTimeout(tSalvar2);
+  tSalvar2 = setTimeout(async () => {
+    const enviar = pendente; pendente = {};
+    const r = await api('salvarAjustes', {valores: enviar});
+    if (r.ok) { $('salvo2').classList.add('on'); setTimeout(() => $('salvo2').classList.remove('on'), 1400); if (msgEl) msgEl.textContent = ''; }
+    else {
+      // o que foi recusado não vale: volta os cartões de atalho para o que está gravado
+      const m = msgEl || document.querySelector('.atalho .amsg'), erro = r.erro || 'Não consegui salvar os ajustes.';
+      await recarregarAtalhos(); m.className = 'msg amsg err'; m.textContent = erro;
+    }
+  }, 250);
+}
+function mostrarAtalho(a) {
+  $('dica').innerHTML = 'Segure ' + a.split('+').map(p => '<kbd>' + rotuloTecla(p) + '</kbd>').join(' + ') + ', fale e solte.';
+}
+// Um cartão de atalho (Ctrl/Alt/Shift/Win + tecla opcional): serve para ditar e para colar o último.
+async function recarregarAtalhos() {
+  const r = await api('ajustes'); if (!r.ajustes) return; aj = r.ajustes;
+  document.querySelectorAll('.atalho').forEach(c => iniciarAtalho(c, aj[c.dataset.chave]));
+  mostrarAtalho(aj.atalho_ditar);
+}
+function iniciarAtalho(card, valor) {
+  const chave = card.dataset.chave, tecla = card.querySelector('.tecla'), msg = card.querySelector('.amsg');
+  tecla.innerHTML = '';
+  const mods = new Set(valor.split('+').filter(p => NOMES_MOD[p]));
+  tecla.append(new Option('sem tecla extra', ''));
+  [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].forEach(c => tecla.append(new Option(c, c.toLowerCase())));
+  for (let i = 1; i <= 12; i++) tecla.append(new Option('F' + i, 'f' + i));
+  tecla.append(new Option('Espaço', 'space'));
+  tecla.value = valor.split('+').find(p => !NOMES_MOD[p]) || '';
+  const atual = () => ['ctrl', 'alt', 'shift', 'win'].filter(m => mods.has(m)).concat(tecla.value ? [tecla.value] : []);
+  const trocar = () => {
+    const t = atual(); msg.className = 'msg amsg';
+    if (t.length < 2) { msg.className = 'msg amsg err'; msg.textContent = 'O atalho precisa de pelo menos 2 teclas diferentes.'; return; }
+    msg.textContent = ''; card.querySelector('.atalhov').textContent = rotuloAtalho(t.join('+'));
+    if (chave === 'atalho_ditar') mostrarAtalho(t.join('+'));
+    salvarSom({[chave]: t.join('+')}, msg);
+  };
+  card.querySelector('.atalhov').textContent = rotuloAtalho(valor);
+  card.querySelectorAll('.mod').forEach(b => {
+    b.classList.toggle('on', mods.has(b.dataset.m));
+    b.onclick = () => { b.classList.toggle('on'); b.classList.contains('on') ? mods.add(b.dataset.m) : mods.delete(b.dataset.m); trocar(); };
+  });
+  tecla.onchange = trocar;
+}
+async function iniciarSom() {
+  $('nsom').hidden = false;
+  const r = await api('ajustes'); aj = r.ajustes;
+  $('vol').value = aj.volume; $('volv').textContent = aj.volume + '%';
+  const mic = $('mic'); mic.innerHTML = '';
+  mic.append(new Option('Padrão do sistema', ''));
+  r.dispositivos.forEach(d => mic.append(new Option(d.nome + (d.padrao ? ' (padrão)' : ''), d.nome)));
+  if (aj.microfone && ![...mic.options].some(o => o.value === aj.microfone)) mic.append(new Option(aj.microfone + ' (não encontrado)', aj.microfone));
+  mic.value = aj.microfone; $('idi').value = aj.idioma;
+  document.querySelectorAll('.atalho').forEach(c => iniciarAtalho(c, aj[c.dataset.chave]));
+  mostrarAtalho(aj.atalho_ditar);
+  $('vol').oninput = () => { $('volv').textContent = $('vol').value + '%'; };
+  $('vol').onchange = () => { bipePrevia(+$('vol').value); salvarSom({volume: +$('vol').value}); };
+  $('ouvir').onclick = () => bipePrevia(+$('vol').value);
+  $('abaixar').checked = aj.abaixar_outros; $('volo').disabled = !aj.abaixar_outros;
+  $('volo').value = aj.volume_outros; $('volov').textContent = aj.volume_outros + '%';
+  $('abaixar').onchange = () => { $('volo').disabled = !$('abaixar').checked; salvarSom({abaixar_outros: $('abaixar').checked}); };
+  $('volo').oninput = () => { $('volov').textContent = $('volo').value + '%'; };
+  $('volo').onchange = () => salvarSom({volume_outros: +$('volo').value});
+  mic.onchange = () => salvarSom({microfone: mic.value});
+  $('idi').onchange = () => salvarSom({idioma: $('idi').value});
+}
+if (TAURI) iniciarSom().catch(() => { $('nsom').hidden = true; });
+
+// ---------- Aparência (só na janela Tauri) ----------
+const CORES = {azul: ['120,170,255', '37,99,235', '#2563eb'], verde: ['134,239,172', '22,163,74', '#16a34a'], roxo: ['196,167,255', '124,58,237', '#7c3aed'], ambar: ['253,224,130', '217,119,6', '#d97706']};
+const PX = {fina: 2, media: 4, grossa: 8};
+let luz = {ligada: true, cor: 'azul', espessura: 'media', posicao: 'embaixo'}, tSalvar3;
+function aplicarTema(t) { document.documentElement.dataset.theme = t; }
+function salvarApar(valores) {
+  clearTimeout(tSalvar3); pendenteA = {...pendenteA, ...valores};
+  tSalvar3 = setTimeout(async () => {
+    const enviar = pendenteA; pendenteA = {}; const m = $('amsg3');
+    const r = await api('salvarAjustes', {valores: enviar});
+    if (r.ok) { m.textContent = ''; $('salvo3').classList.add('on'); setTimeout(() => $('salvo3').classList.remove('on'), 1400); }
+    else { m.className = 'msg err'; m.textContent = r.erro || 'Não consegui salvar.'; }
+  }, 200);
+}
+let pendenteA = {};
+function desenharPrevia() {
+  const [c, p, hex] = CORES[luz.cor], px = PX[luz.espessura], i = $('previa-luz'), topo = luz.posicao === 'topo';
+  i.style.height = px + 'px'; i.style.top = topo ? '0' : 'auto'; i.style.bottom = topo ? 'auto' : '0';
+  i.style.background = `linear-gradient(90deg,rgba(${p},0),rgba(${c},1) 50%,rgba(${p},0))`;
+  i.style.boxShadow = `0 ${topo ? '' : '-'}${px * 2}px ${px * 5}px ${px}px ${hex}88`;
+  $('previa').style.opacity = luz.ligada ? 1 : .35;
+  document.querySelectorAll('#g-cor .mod').forEach(b => b.classList.toggle('on', b.dataset.v === luz.cor));
+  document.querySelectorAll('#g-esp .mod').forEach(b => b.classList.toggle('on', b.dataset.v === luz.espessura));
+  document.querySelectorAll('#g-pos .mod').forEach(b => b.classList.toggle('on', b.dataset.v === luz.posicao));
+  $('luz-on').checked = luz.ligada;
+}
+async function iniciarApar() {
+  $('napar').hidden = false;
+  const a = (await api('ajustes')).ajustes;
+  luz = a.luz; aplicarTema(a.tema); $('notif').checked = a.notificacoes;
+  const marcar = t => document.querySelectorAll('#g-tema .mod').forEach(b => b.classList.toggle('on', b.dataset.v === t));
+  marcar(a.tema); desenharPrevia();
+  document.querySelectorAll('#g-tema .mod').forEach(b => b.onclick = () => { aplicarTema(b.dataset.v); marcar(b.dataset.v); salvarApar({tema: b.dataset.v}); });
+  [['g-cor', 'cor'], ['g-esp', 'espessura'], ['g-pos', 'posicao']].forEach(([g, k]) => document.querySelectorAll('#' + g + ' .mod').forEach(b =>
+    b.onclick = () => { luz = {...luz, [k]: b.dataset.v}; desenharPrevia(); salvarApar({luz}); }));
+  $('luz-on').onchange = () => { luz = {...luz, ligada: $('luz-on').checked}; desenharPrevia(); salvarApar({luz}); };
+  $('notif').onchange = () => salvarApar({notificacoes: $('notif').checked});
+}
+const aparPronta = TAURI ? iniciarApar().catch(() => { $('napar').hidden = true; }) : null;  // o tema vale antes de a janela aparecer
+
+// ---------- Histórico (só na janela Tauri) ----------
+let hTroca = null;  // troca detectada ao salvar uma correção: {id, de, para, feito}
+const semPont = w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+// Diff simples por palavras: tira o começo e o fim iguais (sem pontuação, com maiúsculas) e o miolo é a troca.
+function trocaDe(antes, depois) {
+  const a = antes.split(/\s+/).filter(Boolean), b = depois.split(/\s+/).filter(Boolean), eq = (x, y) => semPont(x) === semPont(y);
+  let i = 0; while (i < a.length && i < b.length && eq(a[i], b[i])) i++;
+  let j = 0; while (j < a.length - i && j < b.length - i && eq(a[a.length - 1 - j], b[b.length - 1 - j])) j++;
+  const miolo = p => p.map(semPont).filter(Boolean), de = miolo(a.slice(i, a.length - j)), para = miolo(b.slice(i, b.length - j));
+  return !para.length || para.length > 4 || de.length > 6 ? null : {de: de.join(' '), para: para.join(' ')};
+}
+let hItens = [], hSel = null, tBusca, hConfirma = false, rascunho = {};  // rascunho: id → texto em edição, sobrevive a busca e troca de aba
+async function copiar(texto) {
+  try { await navigator.clipboard.writeText(texto); }
+  catch (_) { const t = document.createElement('textarea'); t.value = texto; document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); }
+}
+const pad = n => String(n).padStart(2, '0');
+const chaveDia = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dataDe = iso => new Date(iso);  // ISO local sem fuso: o JS interpreta como hora local
+function nomeDia(iso) {
+  const d = dataDe(iso), hoje = new Date(), ontem = new Date(hoje.getTime() - 864e5);
+  return chaveDia(d) === chaveDia(hoje) ? 'Hoje' : chaveDia(d) === chaveDia(ontem) ? 'Ontem' : `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+const hora = iso => { const d = dataDe(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const NOME_IDIOMA = {pt: 'Português', en: 'Inglês', auto: 'Automático'}, NOME_MODO = {literal: 'Literal', revisado: 'Revisado', formal: 'Formal (e-mail)', whatsapp: 'WhatsApp', ingles: 'Inglês (traduzido)'};
+function avisoHist(msg, erro) { const m = $('hmsg'); if (m) { m.className = 'msg ' + (erro ? 'err' : 'ok'); m.textContent = msg; if (!erro) setTimeout(() => { if (m.textContent === msg) m.textContent = ''; }, 2500); } }
+function desenharLista() {
+  const l = $('hlista'); l.innerHTML = '';
+  if (!hItens.length) {
+    l.innerHTML = '<div class="vazio">' + ($('hbusca').value ? 'Nenhum ditado com essa busca.' : 'Nenhum ditado ainda.<br>Segure o atalho, fale e solte: ele aparece aqui.') + '</div>';
+    return;
+  }
+  let dia = '';
+  hItens.forEach(it => {
+    const nd = nomeDia(it.criado_em);
+    if (nd !== dia) { dia = nd; const h = document.createElement('div'); h.className = 'dia'; h.textContent = nd; l.appendChild(h); }
+    const b = document.createElement('button'); b.className = 'it' + (hSel === it.id ? ' on' : '');
+    const g = document.createElement('small'); g.textContent = hora(it.criado_em) + (it.app ? ' · ' + it.app : '') + (it.editado ? ' · editado' : '');
+    const t = document.createElement('span'); t.textContent = it.texto.split('\n')[0];
+    b.append(g, t); b.onclick = () => { hSel = it.id; hConfirma = false; desenharLista(); desenharDetalhe(); }; l.appendChild(b);
+  });
+}
+function desenharDetalhe() {
+  const d = $('hdet'), it = hItens.find(x => x.id === hSel);
+  if (!it) { d.innerHTML = '<div class="vazio">' + (hItens.length ? 'Escolha um ditado na lista.' : 'Quando você ditar, o texto aparece aqui para corrigir e copiar.') + '</div>'; return; }
+  d.innerHTML = '';
+  const topo = document.createElement('div'); topo.className = 'k';
+  const dt = dataDe(it.criado_em); topo.textContent = `${nomeDia(it.criado_em)}, ${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()} às ${hora(it.criado_em)}`;
+  const tags = document.createElement('div'); tags.className = 'tags';
+  [it.app && 'App: ' + it.app, 'Modo: ' + (NOME_MODO[it.modo] || it.modo), it.idioma && 'Idioma: ' + (NOME_IDIOMA[it.idioma] || it.idioma), it.duracao_s ? 'Duração: ' + it.duracao_s.toFixed(1).replace('.', ',') + ' s' : '', it.palavras + ' palavras', it.editado && 'Editado'].filter(Boolean)
+    .forEach(t => { const e = document.createElement('span'); e.className = 'tag'; e.textContent = t; tags.appendChild(e); });
+  const ta = document.createElement('textarea'); ta.id = 'htexto'; ta.value = rascunho[it.id] ?? it.texto; ta.setAttribute('aria-label', 'Texto do ditado');
+  const ac = document.createElement('div'); ac.className = 'acoes';
+  const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = txt; b.onclick = fn; return b; };
+  const salvarB = mk('Salvar correção', '', async () => {
+    const r = await api('hEditar', {id: it.id, texto: ta.value});
+    if (r.ok) { const t = trocaDe(it.texto, ta.value); hTroca = t && {...t, id: it.id}; delete rascunho[it.id]; await carregarHist(); avisoHist('Correção salva.'); } else avisoHist(r.erro || 'Não consegui salvar.', true);
+  });
+  const mudou = () => {
+    salvarB.disabled = ta.value === it.texto || !ta.value.trim();
+    if (ta.value === it.texto) delete rascunho[it.id]; else rascunho[it.id] = ta.value;
+  };
+  mudou(); ta.oninput = mudou;
+  const copiarB = mk('Copiar', 'sec', async () => { await copiar(ta.value); avisoHist('Copiado.'); });
+  const excB = mk(hConfirma ? 'Confirmar exclusão' : 'Excluir', 'sec ' + (hConfirma ? 'conf' : 'perigo'), async () => {
+    if (!hConfirma) { hConfirma = true; desenharDetalhe(); return; }
+    const r = await api('hExcluir', {id: it.id}); delete rascunho[it.id]; hSel = null; hConfirma = false; await carregarHist(); if (!r.ok) avisoHist(r.erro || 'Não consegui excluir.', true);
+  });
+  const msg = document.createElement('span'); msg.id = 'hmsg'; msg.className = 'msg'; msg.style.margin = '0';
+  ac.append(salvarB, copiarB, excB, msg);
+  d.append(topo, tags, ta, ac);
+  if (hTroca && hTroca.id === it.id) {
+    const t = document.createElement('div'); t.className = 'troca';
+    const txt = document.createElement('div'); txt.textContent = hTroca.de ? `Troca: “${hTroca.de}” → “${hTroca.para}”` : `Você acrescentou “${hTroca.para}”`;
+    const bt = document.createElement('div'); bt.className = 'acoes';
+    const noVoc = termos.some(x => x.toLowerCase() === hTroca.para.toLowerCase());
+    if (hTroca.feito || noVoc) txt.textContent += hTroca.feito ? ' · adicionado ao vocabulário.' : ' · já está no vocabulário.';
+    else {
+      const add = mk('Adicionar ao vocabulário', 'peq', () => { addTermo(hTroca.para); hTroca.feito = true; desenharDetalhe(); });
+      bt.append(add);
+    }
+    const fecha = mk('Dispensar', 'sec peq', () => { hTroca = null; desenharDetalhe(); });
+    bt.append(fecha); t.append(txt, bt); d.append(t);
+    requestAnimationFrame(() => { d.scrollTop = d.scrollHeight; });
+  }
+}
+async function carregarHist() {
+  const r = await api('hListar', {busca: $('hbusca').value});
+  if (!r.ok) { $('hlista').innerHTML = '<div class="vazio">' + r.erro + '</div>'; return; }
+  hItens = r.itens;
+  const antes = hSel;
+  if (hSel !== null && !hItens.some(x => x.id === hSel)) hSel = null;
+  if (hSel === null && hItens.length) hSel = hItens[0].id;
+  if (hSel !== antes) hConfirma = false;  // a confirmação vale só para o item em que foi pedida
+  desenharLista(); desenharDetalhe();
+}
+function iniciarHist() {
+  $('nhist').hidden = false;
+  $('hbusca').oninput = () => { clearTimeout(tBusca); tBusca = setTimeout(() => { hSel = null; carregarHist(); }, 200); };
+  $('hlimpar').onclick = async () => {
+    const b = $('hlimpar');
+    if (!hConfirmaTudo) { hConfirmaTudo = true; b.textContent = 'Confirmar: apagar todos'; b.classList.add('conf'); setTimeout(() => { hConfirmaTudo = false; b.textContent = 'Apagar tudo'; b.classList.remove('conf'); }, 4000); return; }
+    hConfirmaTudo = false; b.textContent = 'Apagar tudo'; b.classList.remove('conf');
+    await api('hApagar', {}); rascunho = {}; hSel = null; await carregarHist();
+  };
+  carregarHist();
+}
+let hConfirmaTudo = false;
+if (TAURI) { iniciarHist(); document.getElementById('nhist').addEventListener('click', carregarHist); }
+
+// ---------- Início (só na janela Tauri) ----------
+const DIA_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+function duracaoTxt(s) {
+  const m = Math.round(s / 60);
+  return s < 60 ? Math.round(s) + ' s' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + pad(m % 60) + ' min';
+}
+function rotuloColar() { return aj.atalho_colar ? 'Para colar de novo no programa em uso: ' + rotuloAtalho(aj.atalho_colar) + '.' : ''; }
+async function carregarInicio() {
+  if (!aj.atalho_colar) aj = (await api('ajustes')).ajustes;
+  const r = await api('inicio');
+  if (!r.ok) { $('ivazio').hidden = false; $('ivazio').textContent = r.erro; $('icorpo').hidden = true; $('isug').hidden = true; return; }
+  $('ivazio').hidden = !r.vazio; $('icorpo').hidden = r.vazio; $('ivazio').textContent = '';
+  if (r.vazio) $('ivazio').innerHTML = 'Nenhum ditado ainda.<br>Segure o atalho, fale e solte: o resumo, o último texto e as sugestões de termos aparecem aqui.';
+  else {
+    $('ihoje').textContent = r.hoje.toLocaleString('pt-BR'); $('isem').textContent = r.semana.toLocaleString('pt-BR');
+    $('ipoup').textContent = duracaoTxt(r.poupado_s);
+    const g = $('igraf'); g.innerHTML = ''; const max = Math.max(1, ...r.dias.map(d => d.palavras));
+    r.dias.forEach((d, i) => {
+      const [y, m, dd] = d.dia.split('-').map(Number), col = document.createElement('div'); col.className = 'col' + (i === r.dias.length - 1 ? ' hoje' : '');
+      const v = document.createElement('b'); v.textContent = d.palavras || '';
+      const bw = document.createElement('div'); bw.className = 'bw'; const barra = document.createElement('i'); barra.style.height = (d.palavras / max * 100) + '%'; bw.append(barra);
+      const n = document.createElement('small'); n.textContent = i === r.dias.length - 1 ? 'hoje' : DIA_SEMANA[new Date(y, m - 1, dd).getDay()];
+      col.title = `${pad(dd)}/${pad(m)}: ${d.palavras} palavras`; col.append(v, bw, n); g.append(col);
+    });
+    const u = r.ultimo;
+    $('iult').textContent = u ? u.texto : ''; $('iultk').textContent = u ? `Último ditado · ${nomeDia(u.criado_em)} às ${hora(u.criado_em)}` + (u.app ? ' · ' + u.app : '') : 'Último ditado';
+    $('icopiar').hidden = !u; $('icopiar').onclick = async () => { await copiar(u.texto); $('imsg').className = 'msg ok'; $('imsg').textContent = 'Copiado.'; setTimeout(() => { $('imsg').textContent = ''; }, 2500); };
+    $('icolar').textContent = u ? rotuloColar() : '';
+  }
+  const lista = $('isuglista'); lista.innerHTML = ''; $('isug').hidden = !r.sugestoes.length;
+  r.sugestoes.forEach(sg => {
+    const it = document.createElement('div'); it.className = 'item'; const t = document.createElement('div');
+    const nome = document.createElement('b'); nome.textContent = sg.termo;
+    const k = document.createElement('div'); k.className = 'k'; k.textContent = sg.motivo === 'correcao' ? 'Você corrigiu para este termo' : `Apareceu ${sg.contagem} vezes nos últimos 30 dias`;
+    t.append(nome, k);
+    const mk = (txt, cls, acao) => { const b = document.createElement('button'); b.className = 'btn peq ' + cls; b.textContent = txt; b.onclick = async () => {
+      b.disabled = true; const x = await api('sugResolver', {termo: sg.termo, acao});
+      if (x.ok) { if (x.vocab) { termos = x.vocab; desenhar(); } carregarInicio().then(() => { if (x.vocab && termos.join(', ').length > limite) { $('imsg').className = 'msg err'; $('imsg').textContent = 'Vocabulário cheio: “' + sg.termo + '” ficou de fora do ditado. Remova um termo em Vocabulário.'; } }); } else { b.disabled = false; $('imsg').className = 'msg err'; $('imsg').textContent = x.erro || 'Não consegui salvar.'; }
+    }; return b; };
+    it.append(t, mk('Aceitar', '', 'aceitar'), mk('Ignorar', 'sec', 'ignorar')); lista.append(it);
+  });
+}
+const inicioPronto = TAURI ? carregarInicio().catch(() => { $('ninicio').hidden = true; }) : null;
+if (TAURI) { $('ninicio').hidden = false; $('ninicio').addEventListener('click', () => carregarInicio().catch(() => {})); }
+
+// ---------- Substituições (só na janela Tauri) ----------
+const COMANDOS_UI = [['nova_linha', 'Nova linha', '“nova linha” quebra a linha'], ['ponto_final', 'Ponto final', '“ponto final” escreve .'], ['virgula', 'Vírgula', '“vírgula” escreve ,'],
+  ['interrogacao', 'Ponto de interrogação', '“ponto de interrogação” escreve ?'], ['abre_parenteses', 'Abre parênteses', '“abre parênteses” escreve ('], ['fecha_parenteses', 'Fecha parênteses', '“fecha parênteses” escreve )']];
+let regras = [];
+function msgRegras(t, erro) { $('rmsg').className = 'msg ' + (erro ? 'err' : 'mut'); $('rmsg').textContent = t || ''; }
+function desenharRegras() {
+  const c = $('regras'); c.innerHTML = '';
+  if (!regras.length) { c.innerHTML = '<div class="k" style="padding:8px 0">Nenhuma regra ainda.</div>'; return; }
+  regras.forEach((r, i) => {
+    const d = document.createElement('div'); d.className = 'regra';
+    const q = document.createElement('span'); q.textContent = r.quando; const e = document.createElement('span'); e.textContent = '→ ' + r.escreva;
+    const x = document.createElement('button'); x.textContent = '✕'; x.title = 'Remover'; x.setAttribute('aria-label', 'Remover regra ' + r.quando);
+    x.onclick = () => { regras.splice(i, 1); desenharRegras(); salvarRegras(); };
+    d.append(q, e, x); c.append(d);
+  });
+}
+async function salvarRegras() {
+  const r = await api('subSalvar', {regras});
+  if (r.ok) { msgRegras(''); $('salvo4').classList.add('on'); setTimeout(() => $('salvo4').classList.remove('on'), 1400); }
+  else { msgRegras(r.erro || 'Não consegui salvar.', true); await carregarSub(); }
+}
+async function carregarSub() { regras = (await api('subLer')).regras; desenharRegras(); }
+function adicionarRegra() {
+  const q = $('rq').value.trim(), e = $('re').value.trim();
+  if (!q || !e) { msgRegras('Preencha “Quando eu disser” e “Escreva”.', true); return; }
+  if (regras.some(r => r.quando.toLowerCase() === q.toLowerCase())) { msgRegras('Já existe uma regra para “' + q + '”.', true); return; }
+  regras.push({quando: q, escreva: e}); $('rq').value = ''; $('re').value = ''; desenharRegras(); salvarRegras(); $('rq').focus();
+}
+async function iniciarSub() {
+  const lista = $('cmds'); lista.innerHTML = '';
+  const comandos = (await api('ajustes')).ajustes.comandos;
+  COMANDOS_UI.forEach(([chave, nome, dica]) => {
+    const l = document.createElement('label'); l.className = 'chk item'; const i = document.createElement('input'); i.type = 'checkbox'; i.checked = comandos[chave] !== false;
+    const t = document.createElement('span'); const n = document.createElement('div'); n.textContent = nome; const k = document.createElement('div'); k.className = 'k'; k.textContent = dica; t.append(n, k);
+    i.onchange = async () => {
+      const r = await api('salvarAjustes', {valores: {comandos: {[chave]: i.checked}}});
+      if (r.ok) { $('salvo4').classList.add('on'); setTimeout(() => $('salvo4').classList.remove('on'), 1400); } else { i.checked = !i.checked; msgRegras(r.erro || 'Não consegui salvar.', true); }
+    };
+    l.append(i, t); lista.append(l);
+  });
+  await carregarSub(); $('nsub').hidden = false;
+  $('radd').onclick = adicionarRegra;
+  [$('rq'), $('re')].forEach(e => e.addEventListener('keydown', ev => { if (ev.key === 'Enter') adicionarRegra(); }));
+}
+if (TAURI) iniciarSub().catch(() => { $('nsub').hidden = true; });
+
+// ---------- Escrita com IA ----------
+const MODOS = Object.keys(NOME_MODO).filter(m => m !== 'ingles');  // 'ingles' só vem do atalho de traduzir
+let modosApps = {};
+const opcoesModo = sel => { sel.innerHTML = ''; MODOS.forEach(m => sel.append(new Option(NOME_MODO[m], m))); };
+async function salvarEscrita(valores, aoFalhar) {
+  const r = await api('salvarAjustes', {valores});
+  if (r.ok) { $('salvo5').classList.add('on'); setTimeout(() => $('salvo5').classList.remove('on'), 1400); $('amsg').textContent = ''; }
+  else { $('amsg').className = 'msg err'; $('amsg').textContent = r.erro || 'Não consegui salvar.'; aoFalhar?.(); }
+}
+function desenharApps() {
+  const c = $('apps'); c.innerHTML = '';
+  const nomes = Object.keys(modosApps).sort();
+  if (!nomes.length) { c.innerHTML = '<div class="k" style="padding:8px 0">Nenhum aplicativo: vale o modo padrão em todos.</div>'; return; }
+  nomes.forEach(app => {
+    const d = document.createElement('div'); d.className = 'regra';
+    const n = document.createElement('span'); n.textContent = app;
+    const s = document.createElement('select'); s.className = 'sel'; s.setAttribute('aria-label', 'Modo de ' + app); opcoesModo(s); s.value = modosApps[app];
+    s.onchange = () => { modosApps[app] = s.value; salvarApps(); };
+    const x = document.createElement('button'); x.textContent = '✕'; x.title = 'Remover'; x.setAttribute('aria-label', 'Remover ' + app);
+    x.onclick = () => { delete modosApps[app]; desenharApps(); salvarApps(); };
+    d.append(n, s, x); c.append(d);
+  });
+}
+function adicionarApp() {
+  const app = $('aapp').value.trim().toLowerCase();
+  if (!app) { $('amsg').className = 'msg err'; $('amsg').textContent = 'Escreva o nome do aplicativo.'; return; }
+  modosApps[app] = $('amodo').value; $('aapp').value = ''; desenharApps(); salvarApps(); $('aapp').focus();
+}
+// gravação recusada: a lista volta ao que está no arquivo (a mensagem de erro fica)
+async function recarregarApps() { const r = await api('ajustes'); if (r.ajustes) { modosApps = {...r.ajustes.modos_apps}; desenharApps(); } }
+const salvarApps = () => salvarEscrita({modos_apps: modosApps}, recarregarApps);
+async function iniciarEscrita() {
+  const a = (await api('ajustes')).ajustes;
+  opcoesModo($('modo')); opcoesModo($('amodo'));
+  $('modo').value = a.modo; modosApps = {...a.modos_apps}; desenharApps();
+  $('modo').onchange = () => { const antes = a.modo; a.modo = $('modo').value; salvarEscrita({modo: a.modo}, () => { $('modo').value = a.modo = antes; }); };
+  $('aadd').onclick = adicionarApp;
+  $('aapp').addEventListener('keydown', ev => { if (ev.key === 'Enter') adicionarApp(); });
+  $('nesc').hidden = false;
+}
+if (TAURI) iniciarEscrita().catch(() => { $('nesc').hidden = true; });
+
 api('estado').then(e => {
   termos = e.vocab; limite = e.limite; desenhar();
   const v = e.versao.split(' · ');
@@ -183,8 +682,8 @@ api('estado').then(e => {
   $('sm').textContent = e.memoria ? e.memoria + ' MB' : '—';
   $('sd').textContent = e.ditados_hoje;
   $('su').textContent = e.verificacao ? 'Última verificação: ' + e.verificacao : 'Ainda não verificou hoje';
-  aba(e.aba || 'voc');
-  TAURI?.invoke('mostrar');  // só aparece já desenhada, sem piscar branco
+  aba(e.aba || 'voc');  // a janela Tauri recebe 'inicio' por padrão
+  Promise.all([aparPronta, inicioPronto]).then(() => TAURI?.invoke('mostrar'));  // só aparece já desenhada, sem piscar branco
 });
 if (!TAURI) {  // modo antigo: avisa o servidor Python que a janela segue aberta
   setInterval(() => fetch('api/ping').catch(() => {}), 2000);
