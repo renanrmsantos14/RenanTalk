@@ -1,13 +1,13 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 4 de 7 Go
-- Próximo passo: responder o card do Go · com você
+- Etapa: 5 de 7 Construir
+- Próximo passo: tarefa 1 (ajustes.json + aba Ditado e som) · sozinho
 - Branch e PR: t3/desktop-historico-termos-volume · ainda não
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
-- Go: pendente
+- Go: 26/11/2026 22:08 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 26/11/2026 21:59
+- Atualizado: 26/11/2026 22:08
 
 ## Contexto levantado (código)
 - Python (bandeja, ditado, luz) + janela de configurações em Tauri/Rust (`config/src/main.rs`, `app/ui/index.html`), com fallback Python+Edge (`app/configuracoes.py`).
