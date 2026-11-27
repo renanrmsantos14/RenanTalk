@@ -81,8 +81,8 @@ class Bandeja:
         d.szTip = f"{NOME} v{self.versao.split(' ')[0]} · segure Ctrl+Win para ditar"
         return d
 
-    def notificar(self, texto: str) -> None:
-        if not ajustes.ler()["notificacoes"]:  # desligadas: erro continua no bipe grave e no log
+    def notificar(self, texto: str, forcar: bool = False) -> None:
+        if not forcar and not ajustes.ler()["notificacoes"]:  # desligadas: erro continua no bipe grave e no log
             return
         d = self._dados()
         d.uFlags = 0x10  # NIF_INFO: balão do Windows

@@ -471,8 +471,8 @@ class Bandeja:
         self.remover()
         self.ao_sair()
 
-    def notificar(self, texto: str) -> None:
-        if not ajustes.ler()["notificacoes"]:  # desligadas: erro continua no bipe grave e no log
+    def notificar(self, texto: str, forcar: bool = False) -> None:
+        if not forcar and not ajustes.ler()["notificacoes"]:  # desligadas: erro continua no bipe grave e no log
             return
         subprocess.Popen(["notify-send", "-i", ICONE_PNG, "-a", NOME, NOME, texto],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
