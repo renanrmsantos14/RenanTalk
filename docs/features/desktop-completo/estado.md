@@ -2,7 +2,7 @@
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
 - Etapa: 5 de 7 Construir
-- Próximo passo: tarefa 1 (ajustes.json + aba Ditado e som) · sozinho
+- Próximo passo: tarefa 2 (historico.db + aba Histórico) · sozinho
 - Branch e PR: t3/desktop-historico-termos-volume · ainda não
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
@@ -33,7 +33,7 @@
 ## Tarefas e provas
 | # | Tarefa | Depende de | Cenário (ação → resultado) | Prova | Nível | Resultado |
 |---|---|---|---|---|---|---|
-| 1 | PR 1 · `ajustes.json` (Python e Rust) + aba "Ditado e som": volume com bipe gerado no Windows, microfone, idioma, atalho configurável · Sonnet | — | 5, 6, 7, 8 | Linux: app rodando, bipes medidos, print da aba; Windows: notebook via delegação | — | pendente |
+| 1 | PR 1 · `ajustes.json` (Python e Rust) + aba "Ditado e som": volume com bipe gerado no Windows, microfone, idioma, atalho configurável · Sonnet | — | 5, 6, 7, 8 | Linux: app rodando, bipes medidos, print da aba; Windows: notebook via delegação | 4 | passou (local): 13 testes; listener X real trocou ctrl+alt/ctrl+win sem reiniciar; janela Tauri real compilada e renderizada (print). Falta: clique na janela (tela bloqueada) e Windows | 
 | 2 | PR 1 · `historico.db` + aba Histórico (layout C): gravar, buscar, editar, copiar, colar, excluir, retenção · Sonnet | 1 | 1, 2, 3, 10 | ditar de verdade e print do item; consulta SQLite antes e depois | — | pendente |
 | 3 | PR 1 · Colar último: menu da bandeja (Windows e Linux) + atalho · Sonnet | 1, 2 | 4 | atalho num editor de texto, print | — | pendente |
 | 4 | PR 1 · Aparência: luz, tema, notificações · Sonnet | 1 | 9 | print da luz em cada posição e do tema | — | pendente |
@@ -48,7 +48,10 @@
 |---|---|---|---|---|---|---|
 
 ## Pendências e fora de escopo
--
+- Provar por clique na janela Tauri as abas novas (tela estava bloqueada em 26/11 22:18).
+- Provar no Windows: bipe gerado, atalho via `keyboard` + Casador.
+- Microfone plugado com o app aberto só aparece após reiniciar (cache do PortAudio).
+- Rótulo "Segure Ctrl + Super" no menu da bandeja Linux ainda fixo.
 
 ## Retro
 -
