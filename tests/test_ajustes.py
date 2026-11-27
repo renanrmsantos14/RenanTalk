@@ -52,7 +52,7 @@ class Ajustes(unittest.TestCase):
 
     def test_atalho_colar_padrao_invalido_e_igual(self):
         self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v")
-        for ruim in ("v", "alt+win+v+x", 5, "ctrl+win", "ctrl+win+h"):  # inválidos, igual ou contendo o de ditar (ctrl+win)
+        for ruim in ("v", "alt+win+v+x", 5, ["alt", "win"], "ctrl+win", "ctrl+win+h"):  # inválidos, igual ou contendo o de ditar (ctrl+win)
             gravar(json.dumps({"atalho_colar": ruim}))
             ajustes._cache["mtime"] = -1
             self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v", ruim)
@@ -102,6 +102,17 @@ class Ajustes(unittest.TestCase):
 
 
 class Som(unittest.TestCase):
+    def test_lista_so_microfones_que_abrem_a_16k(self):
+        sd = mock.MagicMock()
+        sd.query_devices.side_effect = lambda kind=None: {"name": "Mic USB"} if kind else [
+            {"index": 0, "name": "Mic USB", "max_input_channels": 1},
+            {"index": 1, "name": "Mic WDM-KS", "max_input_channels": 2},
+            {"index": 2, "name": "Alto-falante", "max_input_channels": 0},
+        ]
+        sd.check_input_settings.side_effect = lambda device, **_: None if device == 0 else (_ for _ in ()).throw(ValueError())
+        with mock.patch.dict(sys.modules, {"sounddevice": sd}):
+            self.assertEqual(ajustes.listar_entradas(), [{"nome": "Mic USB", "padrao": True}])
+
     def test_pico_proporcional_ao_volume(self):
         self.assertAlmostEqual(float(abs(ajustes.onda_bipe(880, 60, 30)).max()), 0.3, delta=0.01)
         self.assertEqual(float(abs(ajustes.onda_bipe(880, 60, 0)).max()), 0.0)

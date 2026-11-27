@@ -188,10 +188,7 @@ def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
         texto = transcrever(audio)
         log(f"transcrito {len(texto)} caracteres")
         if texto:
-            try:
-                app = plat.app_ativo()  # antes de colar, com o foco ainda na janela de destino
-            except Exception:  # noqa: BLE001 - nunca impedir a colagem
-                app = ""
+            app = plat.app_ativo()  # antes de colar, com o foco na janela de destino; nunca levanta
             plat.colar(texto + " ")  # colar primeiro: banco travado não atrasa o texto
             historico.gravar(texto, app=app, idioma=ajustes.ler()["idioma"], duracao_s=duracao)  # nunca levanta
         LUZ.definir("done")

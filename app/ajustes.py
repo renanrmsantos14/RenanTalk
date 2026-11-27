@@ -2,7 +2,6 @@
 
 Chaves desconhecidas são preservadas ao salvar (atalhos extras e modos virão depois).
 """
-import functools
 import json
 import os
 import threading
@@ -37,7 +36,6 @@ _cache: dict = {"mtime": None, "dados": dict(PADROES)}
 
 
 # ---------- atalho ----------
-@functools.lru_cache(maxsize=32)  # chamada a cada tecla com os mesmos textos
 def validar_atalho(texto) -> tuple[str, ...] | None:
     """'ctrl+win' -> ('ctrl', 'win'); modificadores em ordem fixa e no máximo uma tecla. None se inválido."""
     if not isinstance(texto, str):
@@ -241,6 +239,8 @@ def listar_entradas() -> list[dict]:
 
 def _abre_a_16k(d: dict) -> bool:
     """No Windows, entradas WDM-KS e saídas listadas como entrada não abrem a 16 kHz: ficam fora da lista."""
+    import sounddevice as sd
+
     try:
         sd.check_input_settings(device=d["index"], channels=1, dtype="int16", samplerate=16000)
         return True
