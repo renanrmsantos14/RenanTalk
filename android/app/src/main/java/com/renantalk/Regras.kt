@@ -93,6 +93,15 @@ object Regras {
     }
 
     /**
+     * Texto que o usuário digitou no campo. Campo vazio costuma devolver a dica ("Message" no
+     * WhatsApp) em text sem marcar isShowingHintText; sem esse filtro a dica ia junto no ditado.
+     */
+    fun textoDoCampo(texto: String?, dica: String?, mostrandoDica: Boolean): String {
+        if (mostrandoDica || texto == null) return ""
+        return if (!dica.isNullOrEmpty() && texto == dica) "" else texto
+    }
+
+    /**
      * Texto do campo depois de inserir o ditado no cursor (ou no lugar da seleção), com espaço
      * antes quando o caractere anterior não for espaço. Devolve o texto novo e a posição do cursor.
      */
