@@ -162,8 +162,8 @@ class Bandeja:
         inst = k32.GetModuleHandleW(None)
         wc = WNDCLASSW(lpfnWndProc=self._proc, hInstance=inst, lpszClassName="RenanTalkBandeja")
         u32.RegisterClassW(ctypes.byref(wc))
+        self.msg_barra = u32.RegisterWindowMessageW("TaskbarCreated")  # antes: a criação já dispara mensagens
         self.hwnd = u32.CreateWindowExW(0, "RenanTalkBandeja", NOME, 0, 0, 0, 0, 0, None, None, inst, None)
-        self.msg_barra = u32.RegisterWindowMessageW("TaskbarCreated")
         tam = u32.GetSystemMetrics(49)  # SM_CXSMICON
         self.hicon = u32.LoadImageW(None, ICONE, 1, tam, tam, 0x10)  # IMAGE_ICON, LR_LOADFROMFILE
         self._adicionar()
