@@ -36,7 +36,7 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 - Atalho de traduzir (padrão `shift+win`): `xdotool keydown shift super`, falar, `keyup` → mesmo ciclo do ditar com `em_ingles=True`.
 
 ## Não dá para provar aqui
-- IA real (modelo `llama-3.3-70b-versatile` em `/openai/v1/models`, cada modo, chave inválida → literal): não há chave no Linux; provar no Windows.
+- IA real (modelo `openai/gpt-oss-120b` em `/openai/v1/models` (o llama-3.3-70b foi desligado em 16/08/2026; teste só com mock não pega modelo removido), cada modo, chave inválida → literal): não há chave no Linux; provar no Windows.
 - Ditado real (microfone + Groq): Xvfb não tem áudio. Provar numa máquina com microfone e chave.
 - Windows (`keyboard` + Casador, `winsound`, bandeja Win32, abaixar outros sons via pycaw): delegar ao notebook `Betinhos-Renan`.
 

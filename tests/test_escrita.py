@@ -47,8 +47,8 @@ class Aplicar(unittest.TestCase):
         u.assert_not_called()
 
     def test_reescreve_com_o_modo_e_tira_as_marcacoes(self):
-        with mock.patch("urllib.request.urlopen", return_value=resposta(" <ditado>Olá, tudo bem?</ditado> ")) as u:
-            self.assertEqual(escrita.aplicar("ola tudo bem", "revisado"), ("Olá, tudo bem?", "revisado"))
+        with mock.patch("urllib.request.urlopen", return_value=resposta(" <ditado>Olá, às 10\u202fh?</ditado> ")) as u:
+            self.assertEqual(escrita.aplicar("ola tudo bem", "revisado"), ("Olá, às 10 h?", "revisado"))
         corpo = json.loads(u.call_args.args[0].data)
         self.assertEqual(corpo["model"], escrita.MODELO)
         self.assertIn("<ditado>ola tudo bem</ditado>", corpo["messages"][1]["content"])
@@ -116,6 +116,7 @@ class Fluxo(unittest.TestCase):
         with mock.patch.object(d, "transcrever", return_value="ola tudo bem"), \
                 mock.patch.object(d.plat, "app_ativo", return_value=app), \
                 mock.patch.object(d.plat, "colar") as colar, \
+                mock.patch.object(d.plat, "bipe") as self.bipe, \
                 mock.patch.object(d.historico, "gravar") as gravar, \
                 mock.patch.object(d.ajustes, "ler", return_value=ajustes.normalizar({})), \
                 mock.patch("urllib.request.urlopen", **ia) as u:
@@ -130,6 +131,7 @@ class Fluxo(unittest.TestCase):
         colado, modo, u = self.rodar("firefox", ia={})
         self.assertEqual((colado, modo), ("ola tudo bem ", "literal"))
         u.assert_not_called()
+        self.bipe.assert_not_called()
 
     def test_traduzir_ignora_o_modo_do_app(self):
         colado, modo, u = self.rodar("code", em_ingles=True, ia={"return_value": resposta("Hi, how are you?")})
@@ -139,6 +141,7 @@ class Fluxo(unittest.TestCase):
     def test_ia_fora_do_ar_cola_o_literal(self):
         colado, modo, _ = self.rodar("whatsapp", ia={"side_effect": OSError("sem rede")})
         self.assertEqual((colado, modo), ("ola tudo bem ", "literal"))
+        self.bipe.assert_called_once_with(300, 150)  # a falha não passa em silêncio
 
 
 if __name__ == "__main__":

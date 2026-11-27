@@ -222,8 +222,11 @@ def transcrever_e_colar(audio: bytes, duracao: float = 0.0, em_ingles: bool = Fa
             except Exception as e:  # noqa: BLE001 - regra ou comando com defeito não pode perder o ditado: cola como veio
                 log(f"substituições falharam ({type(e).__name__})")
                 final = texto
-            final, modo = escrita.aplicar(final, "ingles" if em_ingles else escrita.modo_para(app, a))  # nunca levanta
+            pedido = "ingles" if em_ingles else escrita.modo_para(app, a)
+            final, modo = escrita.aplicar(final, pedido)  # nunca levanta
             plat.colar(final + " ")
+            if modo != pedido and pedido in escrita.INSTRUCOES:  # a IA falhou: colou o literal, avisa com bipe grave
+                plat.bipe(300, 150)
         LUZ.definir("done")  # antes de gravar: banco travado ou recálculo das sugestões não atrasam o texto nem a luz
         if texto:
             historico.gravar(final, app=app, modo=modo, idioma=a["idioma"], duracao_s=duracao, original=texto)  # nunca levanta

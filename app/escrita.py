@@ -10,7 +10,7 @@ import urllib.request
 from comum import cabecalhos_groq, log
 
 URL = "https://api.groq.com/openai/v1/chat/completions"
-MODELO = "llama-3.3-70b-versatile"
+MODELO = "openai/gpt-oss-120b"  # o llama-3.3-70b-versatile foi desligado pela Groq em 16/08/2026
 LIMITE_S = 4.0
 INSTRUCOES = {
     "revisado": "Corrija pontuação, acentuação, concordância e tire hesitações da fala (é, tipo, né, repetições). "
@@ -44,7 +44,7 @@ def reescrever(texto: str, modo: str) -> str:
     req = urllib.request.Request(URL, data=corpo, headers=cabecalhos_groq("application/json"))
     with urllib.request.urlopen(req, timeout=LIMITE_S) as r:
         saida = json.load(r)["choices"][0]["message"]["content"]
-    saida = saida.replace("<ditado>", "").replace("</ditado>", "").strip()
+    saida = saida.replace("<ditado>", "").replace("</ditado>", "").replace("\u202f", " ").strip()  # 10\u202fa.m.
     if not saida:
         raise ValueError("resposta vazia")
     return saida
