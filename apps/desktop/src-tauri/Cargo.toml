@@ -1,6 +1,6 @@
 [package]
 name = "renantalk"
-version = "0.0.0"
+version = "0.0.4"
 edition = "2021"
 description = "RenanTalk: ditado por voz com a Groq (casca Tauri sobre o talk-core)"
 publish = false

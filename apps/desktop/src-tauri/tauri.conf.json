@@ -1,15 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "RenanTalk",
-  "version": "0.0.0",
+  "version": "0.0.4",
   "identifier": "br.com.renan.renantalk",
   "build": {
-    "frontendDist": "../dist"
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:36495",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self'; style-src-attr 'unsafe-inline'"
     }
   },
   "bundle": {

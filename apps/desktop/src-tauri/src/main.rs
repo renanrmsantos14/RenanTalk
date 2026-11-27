@@ -1,9 +1,10 @@
 //! RenanTalk desktop: casca Tauri sobre o `talk-core`. Sobe sem janela, com bandeja, e roda o ditado.
-//! A tela (webview) é criada sob demanda e destruída ao fechar; atualização e as abas entram nas próximas tarefas.
+//! A tela (webview, React em `apps/desktop/src`) é criada sob demanda e destruída ao fechar; a atualização entra na tarefa 9.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod casca;
 mod plataforma;
+mod tela;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -22,6 +23,11 @@ fn main() {
         // então os dois coexistem) e o Linux (D-Bus).
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| casca::abrir_janela(app, casca::aba_dos_args(&args))))
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .invoke_handler(tauri::generate_handler![
+            tela::estado, tela::ajustes, tela::salvar_ajustes, tela::historico_listar, tela::historico_editar, tela::historico_excluir,
+            tela::historico_apagar_tudo, tela::salvar_vocab, tela::inicio, tela::sugestao_resolver, tela::substituicoes_ler,
+            tela::substituicoes_salvar, tela::salvar_chave, tela::abrir, tela::mostrar, tela::fechar,
+        ])
         .on_window_event(|janela, evento| {
             if let tauri::WindowEvent::Destroyed = evento {
                 casca::devolver_memoria(janela.app_handle().clone());

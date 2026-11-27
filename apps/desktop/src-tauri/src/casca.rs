@@ -55,10 +55,15 @@ pub fn abrir_janela(app: &AppHandle, aba: Option<String>) {
             .inner_size(800.0, 580.0)
             .min_inner_size(640.0, 480.0)
             .center()
+            .visible(false) // a tela pede `mostrar` quando já desenhou
             .build();
         match r {
             Ok(w) => {
-                let _ = w.set_focus();
+                // rede de segurança: se a página não pedir para aparecer, mostra assim mesmo
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(2000));
+                    let _ = w.show();
+                });
             }
             Err(e) => pasta::log(&pasta::padrao(), &format!("janela: falhou ao abrir ({e})")),
         }
@@ -121,6 +126,18 @@ pub fn autostart_primeira_vez(app: &AppHandle, dir: &Path) {
         }
         Err(e) => pasta::log(dir, &format!("iniciar com a sessão: não foi possível ligar ({e})")),
     }
+}
+
+/// Abre um arquivo ou endereço no programa padrão do sistema.
+pub fn abrir_externo(destino: &str) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let r = {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("explorer").arg(destino).creation_flags(0x0800_0000).spawn()
+    };
+    #[cfg(not(windows))]
+    let r = std::process::Command::new("xdg-open").arg(destino).spawn();
+    r.map(|_| ())
 }
 
 fn abrir_log(dir: &Path) {

@@ -9,3 +9,5 @@ chave.txt
 target/
 node_modules/
 apps/desktop/src-tauri/gen/
+apps/desktop/dist/
+apps/desktop/tsconfig.tsbuildinfo

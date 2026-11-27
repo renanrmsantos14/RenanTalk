@@ -3,9 +3,10 @@
 //! pasta de dados.
 
 use crate::substituicoes::{parse_regras, Regra};
-use crate::{historico, pasta};
+use crate::{ajustes, historico, pasta};
 use rusqlite::Connection;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 /// Abre o banco só se ele existe: sem ditado ainda, a lista é vazia e nenhum arquivo é criado.
@@ -145,6 +146,182 @@ pub fn substituicoes_salvar(dir: &Path, regras: &[Regra]) -> Value {
     }
 }
 
+// ---------- ajustes, estado e chave (a janela de configurações) ----------
+
+/// Ajustes para a tela (já normalizados) e a lista de microfones, que só a casca conhece (cpal).
+pub fn ajustes_da_tela(dir: &Path, dispositivos: Value) -> Value {
+    json!({ "ajustes": ajustes::ler(dir), "dispositivos": dispositivos })
+}
+
+/// Chave, rótulo para o erro de conflito.
+const ATALHOS_ROTULO: [(&str, &str, &str); 3] = [
+    ("atalho_ditar", "ctrl+win", "ditar"),
+    ("atalho_colar", "alt+win+v", "colar o último ditado"),
+    ("atalho_traduzir", "shift+win", "traduzir"),
+];
+
+fn recusa(erro: &str) -> Value {
+    json!({ "ok": false, "erro": erro })
+}
+
+/// Grava só o que a tela edita; as outras chaves do arquivo ficam como estão (o próximo ditado já lê o valor novo,
+/// pelo mtime). Valor inválido recusa tudo; atalho recusado não impede gravar o resto (volume, microfone...):
+/// grava e devolve o erro, e a tela volta o cartão ao atalho gravado.
+pub fn salvar_ajustes(dir: &Path, valores: &Map<String, Value>) -> Value {
+    let atual = ajustes::ler(dir);
+    let mut novos = Map::new();
+    for chave in ["volume", "volume_outros"] {
+        if let Some(v) = valores.get(chave).and_then(Value::as_f64) {
+            novos.insert(chave.into(), json!(v.clamp(0.0, 100.0).round() as i64));
+        }
+    }
+    if let Some(m) = valores.get("microfone").and_then(Value::as_str) {
+        novos.insert("microfone".into(), json!(m));
+    }
+    if let Some(i) = valores.get("idioma").and_then(Value::as_str) {
+        if !ajustes::IDIOMAS.contains(&i) {
+            return recusa("Idioma inválido.");
+        }
+        novos.insert("idioma".into(), json!(i));
+    }
+    if let Some(l) = valores.get("luz") {
+        let Some(novo) = l.as_object() else { return recusa("Ajuste da luz inválido.") };
+        let mut luz = atual["luz"].as_object().cloned().unwrap_or_default();
+        for (chave, v) in novo {
+            let valido = match chave.as_str() {
+                "ligada" => v.is_boolean(),
+                "cor" => v.as_str().is_some_and(|x| ajustes::CORES_LUZ.contains(&x)),
+                "espessura" => v.as_str().is_some_and(|x| ajustes::ESPESSURAS.contains(&x)),
+                "posicao" => v.as_str().is_some_and(|x| ajustes::POSICOES.contains(&x)),
+                _ => false,
+            };
+            if !valido {
+                return recusa("Ajuste da luz inválido.");
+            }
+            luz.insert(chave.clone(), v.clone());
+        }
+        novos.insert("luz".into(), Value::Object(luz));
+    }
+    if let Some(c) = valores.get("comandos") {
+        let Some(c) = c.as_object() else { return recusa("Ajuste dos comandos inválido.") };
+        let mut comandos = atual["comandos"].as_object().cloned().unwrap_or_default();
+        for (chave, v) in c {
+            if !ajustes::COMANDOS.contains(&chave.as_str()) || !v.is_boolean() {
+                return recusa("Ajuste dos comandos inválido.");
+            }
+            comandos.insert(chave.clone(), v.clone());
+        }
+        novos.insert("comandos".into(), Value::Object(comandos));
+    }
+    if let Some(t) = valores.get("tema").and_then(Value::as_str) {
+        if !ajustes::TEMAS.contains(&t) {
+            return recusa("Tema inválido.");
+        }
+        novos.insert("tema".into(), json!(t));
+    }
+    for chave in ["notificacoes", "abaixar_outros"] {
+        if let Some(b) = valores.get(chave).and_then(Value::as_bool) {
+            novos.insert(chave.into(), json!(b));
+        }
+    }
+    if let Some(m) = valores.get("modo").and_then(Value::as_str) {
+        if !ajustes::MODOS.contains(&m) {
+            return recusa("Modo de escrita inválido.");
+        }
+        novos.insert("modo".into(), json!(m));
+    }
+    if let Some(m) = valores.get("modos_apps") {
+        if !m.is_object() {
+            return recusa("Modos por aplicativo inválidos.");
+        }
+        novos.insert("modos_apps".into(), m.clone()); // a normalização (minúsculas, só modos válidos) é do `salvar`
+    }
+    let mut erro: Option<String> = None;
+    for (chave, _, _) in ATALHOS_ROTULO {
+        let Some(t) = valores.get(chave).and_then(Value::as_str) else { continue };
+        let Some(ok) = ajustes::validar_atalho(t).map(|p| p.join("+")) else {
+            erro.get_or_insert_with(|| "Atalho inválido: use Ctrl, Alt ou Win com mais uma tecla, e não atalhos do sistema (Alt + Shift, Win + letra, Ctrl + V e parecidos).".into());
+            continue;
+        };
+        let conflito = ATALHOS_ROTULO.iter().filter(|(outra, _, _)| *outra != chave).find_map(|(outra, padrao, para_que)| {
+            let da_outra = valores.get(*outra).and_then(Value::as_str).and_then(ajustes::validar_atalho).map(|p| p.join("+"))
+                .or_else(|| atual[*outra].as_str().filter(|s| !s.is_empty()).map(String::from))
+                .unwrap_or_else(|| padrao.to_string());
+            ajustes::atalhos_conflitam(&ok, &da_outra).then(|| format!("Esse atalho se confunde com o de {para_que} ({da_outra}). Escolha outro."))
+        });
+        if let Some(e) = conflito {
+            erro.get_or_insert(e);
+            continue;
+        }
+        novos.insert(chave.into(), json!(ok));
+    }
+    match (ajustes::salvar(dir, &novos), erro) {
+        (Err(_), _) => recusa("Não consegui salvar os ajustes."),
+        (Ok(_), Some(e)) => recusa(&e),
+        (Ok(_), None) => json!({ "ok": true }),
+    }
+}
+
+/// `gsk_abcd••••••••••wxyz`: nunca a chave inteira. Curta demais: vazio.
+pub fn mascarar_chave(chave: &str) -> String {
+    if chave.chars().count() > 8 {
+        let ini: String = chave.chars().take(4).collect();
+        let fim: String = chave.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+        format!("{ini}{}{fim}", "•".repeat(10))
+    } else {
+        String::new()
+    }
+}
+
+/// Dados da tela: vocabulário, chave mascarada, ditados de hoje e a última verificação de atualização (lidos do log).
+pub fn estado(dir: &Path, memoria_mb: Option<u64>) -> Value {
+    let hoje = chrono::Local::now().format("%d/%m/%Y").to_string();
+    let (mut ditados, mut verificacao) = (0, String::new());
+    if let Ok(f) = std::fs::File::open(dir.join(pasta::ARQ_LOG)) {
+        for linha in BufReader::new(f).lines().map_while(Result::ok) {
+            if linha.starts_with(&hoje) && linha.contains("transcrito") {
+                ditados += 1;
+            }
+            if let Some((_, resto)) = linha.split_once("atualização:") {
+                let sit = resto.split_whitespace().next().unwrap_or("");
+                let sit = match sit { "em_dia" => "em dia", "erro" => "falhou", s => s };
+                verificacao = format!("{} · {sit}", linha.chars().take(16).collect::<String>());
+            }
+        }
+    }
+    json!({
+        "vocab": pasta::ler_vocabulario(dir), "limite": pasta::LIMITE_VOCAB,
+        "chave": mascarar_chave(&pasta::ler_chave(dir)), "memoria": memoria_mb,
+        "ditados_hoje": ditados, "verificacao": verificacao,
+    })
+}
+
+/// Confere a chave na Groq (lista de modelos) e só então grava. `base` é a URL da API (a casca passa a de
+/// `RENANTALK_GROQ_URL` ou a real). A chave nunca vai para log nem para a mensagem de erro.
+pub fn salvar_chave(dir: &Path, base: &str, chave: &str) -> Value {
+    let k = chave.trim();
+    if !k.starts_with("gsk_") {
+        return recusa("A chave da Groq começa com gsk_.");
+    }
+    let resp = ureq::get(&format!("{}/models", base.trim_end_matches('/')))
+        .set("Authorization", &format!("Bearer {k}"))
+        .set("User-Agent", "renantalk/1.0")
+        .timeout(std::time::Duration::from_secs(15))
+        .call();
+    match resp {
+        Ok(_) => match pasta::salvar_chave(dir, k) {
+            Ok(()) => {
+                pasta::log(dir, "chave da Groq atualizada");
+                json!({ "ok": true, "chave": mascarar_chave(k) })
+            }
+            Err(_) => recusa("Não consegui gravar a chave."),
+        },
+        Err(ureq::Error::Status(401 | 403, _)) => recusa("A Groq recusou essa chave."),
+        Err(ureq::Error::Status(c, _)) => recusa(&format!("A Groq respondeu erro {c}.")),
+        Err(_) => recusa("Sem conexão com a Groq. Tente de novo."),
+    }
+}
+
 #[cfg(test)]
 mod testes {
     use super::*;
@@ -245,5 +422,92 @@ mod testes {
         assert_eq!(substituicoes_salvar(d.path(), &[r("Bom  Dia", "a"), r("bom dia", "b")])["ok"], false); // duplicada
         assert_eq!(substituicoes_salvar(d.path(), &vec![r("a", "b"); 201])["erro"], "Cabem até 200 regras.");
         assert!(!d.path().join(pasta::ARQ_SUBST).exists());
+    }
+
+    fn m(v: Value) -> Map<String, Value> {
+        v.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn salvar_ajustes_grava_volume_e_o_proximo_ditado_le() {
+        let d = TempDir::new().unwrap();
+        let mut cache = ajustes::Cache::default();
+        assert_eq!(cache.ler(d.path())["volume"], 60);
+        assert_eq!(salvar_ajustes(d.path(), &m(json!({"volume": 20, "luz": {"cor": "verde"}, "modo": "formal"}))), json!({"ok": true}));
+        let a = cache.ler(d.path()).clone(); // mesma instância do cache que o ditado usa: relê pelo mtime
+        assert_eq!((a["volume"].clone(), a["luz"]["cor"].clone(), a["modo"].clone()), (json!(20), json!("verde"), json!("formal")));
+        assert_eq!(a["luz"]["espessura"], "media"); // o resto da luz fica
+    }
+
+    #[test]
+    fn salvar_ajustes_recusa_valor_invalido_sem_gravar() {
+        let d = TempDir::new().unwrap();
+        for v in [json!({"idioma": "fr"}), json!({"tema": "rosa"}), json!({"luz": {"cor": "preto"}}), json!({"modo": "ingles"}), json!({"comandos": {"x": true}})] {
+            assert_eq!(salvar_ajustes(d.path(), &m(v))["ok"], false);
+        }
+        assert!(!d.path().join(pasta::ARQ_AJUSTES).exists());
+    }
+
+    #[test]
+    fn atalho_recusado_nao_impede_gravar_o_resto() {
+        let d = TempDir::new().unwrap();
+        let r = salvar_ajustes(d.path(), &m(json!({"atalho_ditar": "ctrl+c", "volume": 10})));
+        assert_eq!(r["ok"], false);
+        assert!(r["erro"].as_str().unwrap().starts_with("Atalho inválido"));
+        let a = ajustes::ler(d.path());
+        assert_eq!((a["volume"].clone(), a["atalho_ditar"].clone()), (json!(10), json!("ctrl+win")));
+        let r = salvar_ajustes(d.path(), &m(json!({"atalho_traduzir": "ctrl+win+v"}))); // contém o de ditar
+        assert!(r["erro"].as_str().unwrap().contains("se confunde com o de ditar"));
+        assert_eq!(salvar_ajustes(d.path(), &m(json!({"atalho_ditar": "Super+Ctrl+d"})))["ok"], true);
+        assert_eq!(ajustes::ler(d.path())["atalho_ditar"], "ctrl+win+d");
+    }
+
+    #[test]
+    fn chave_mascarada_e_estado_sem_a_chave() {
+        let d = TempDir::new().unwrap();
+        assert_eq!(mascarar_chave("curta"), "");
+        pasta::salvar_chave(d.path(), "gsk_ABCDEFGHIJKLMNOP1234").unwrap();
+        pasta::log(d.path(), "transcrito 12 caracteres");
+        pasta::log(d.path(), "atualização: em_dia v0.0.1");
+        let e = estado(d.path(), Some(12));
+        assert_eq!(e["chave"], "gsk_••••••••••1234");
+        assert_eq!((e["ditados_hoje"].clone(), e["memoria"].clone()), (json!(1), json!(12)));
+        assert!(e["verificacao"].as_str().unwrap().ends_with("em dia"));
+        assert!(!e.to_string().contains("ABCDEFGH"));
+    }
+
+    /// Servidor mínimo que responde sempre `status` a qualquer pedido (a Groq falsa).
+    fn groq_falsa(status: u16) -> String {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", l.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for c in l.incoming().flatten() {
+                let mut c = c;
+                let mut b = [0u8; 2048];
+                let _ = c.read(&mut b);
+                let _ = write!(c, "HTTP/1.1 {status} X\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{{}}");
+            }
+        });
+        url
+    }
+
+    #[test]
+    fn chave_falsa_e_recusada_sem_expor_nem_gravar() {
+        let d = TempDir::new().unwrap();
+        let r = salvar_chave(d.path(), &groq_falsa(401), "gsk_SEGREDOSEGREDOSEGREDO");
+        assert_eq!(r, json!({"ok": false, "erro": "A Groq recusou essa chave."}));
+        assert_eq!(salvar_chave(d.path(), "http://127.0.0.1:1", "nao-comeca")["erro"], "A chave da Groq começa com gsk_.");
+        assert!(salvar_chave(d.path(), "http://127.0.0.1:1", "gsk_SEGREDOSEGREDOSEGREDO")["erro"].as_str().unwrap().starts_with("Sem conexão"));
+        assert!(pasta::ler_chave(d.path()).is_empty());
+        assert!(!std::fs::read_to_string(d.path().join(pasta::ARQ_LOG)).unwrap_or_default().contains("SEGREDO"));
+    }
+
+    #[test]
+    fn chave_valida_e_gravada_e_devolvida_mascarada() {
+        let d = TempDir::new().unwrap();
+        let r = salvar_chave(d.path(), &groq_falsa(200), " gsk_ABCDEFGHIJKLMNOP1234 ");
+        assert_eq!(r, json!({"ok": true, "chave": "gsk_••••••••••1234"}));
+        assert_eq!(pasta::ler_chave(d.path()), "gsk_ABCDEFGHIJKLMNOP1234");
     }
 }
