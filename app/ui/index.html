@@ -300,8 +300,10 @@ $('atual').onclick = async () => {
   const m = $('amsg'); $('atual').disabled = true; m.className = 'msg mut'; m.textContent = 'Procurando…';
   const r = await api('atualizar', {});
   $('atual').disabled = false;
-  const txt = {atualizado: `✓ Atualizado para ${r.detalhe}. O RenanTalk foi reiniciado.`, em_dia: '✓ Você já está na versão mais recente.', dev: 'Versão de desenvolvimento: sem atualização automática.'};
+  const txt = {atualizado: `✓ Atualizado para ${r.detalhe}. Reabrindo a janela…`, em_dia: '✓ Você já está na versão mais recente.', dev: 'Versão de desenvolvimento: sem atualização automática.'};
   m.className = 'msg ' + (r.situacao === 'erro' ? 'err' : 'ok'); m.textContent = txt[r.situacao] || 'Não consegui procurar agora. Veja o log.';
+  // esta janela é da versão antiga: o ditado novo abre outra já atualizada
+  if (r.situacao === 'atualizado' && TAURI) setTimeout(() => TAURI.invoke('fechar'), 1500);
 };
 document.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => api('abrir', {alvo: b.dataset.abrir}));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') TAURI ? TAURI.invoke('fechar') : window.close(); });

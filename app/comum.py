@@ -51,9 +51,14 @@ def abrir(alvo: str) -> None:
         subprocess.Popen(["xdg-open", alvo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+_janela = None  # processo da última janela aberta por este ditado
+
+
 def abrir_configuracoes(aba: str = "inicio") -> None:
     """Abre a janela de configurações: o executável Rust/Tauri se existir; senão, a versão Python + navegador."""
     import subprocess
+
+    global _janela
 
     app = os.path.dirname(os.path.abspath(__file__))
     import ajustes
@@ -63,10 +68,18 @@ def abrir_configuracoes(aba: str = "inicio") -> None:
     if os.path.exists(exe):
         # python.exe (com console oculto pelo Rust) para o "Procurar atualização"; pythonw não devolve saída
         python = os.path.join(os.path.dirname(sys.executable), "python.exe") if WINDOWS else sys.executable
-        subprocess.Popen([exe, str(os.getpid()), aba, python, app], cwd=app)
+        _janela = subprocess.Popen([exe, str(os.getpid()), aba, python, app], cwd=app)
     else:
         aba_antiga = "voc" if aba == "inicio" else aba  # a janela antiga não tem Início
-        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba_antiga], cwd=app)
+        _janela = subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba_antiga], cwd=app)
+
+
+def fechar_janela() -> bool:
+    """Fecha a janela aberta por este ditado (numa atualização ela ficaria na versão antiga). True se estava aberta."""
+    if _janela is None or _janela.poll() is not None:
+        return False
+    _janela.terminate()
+    return True
 
 
 def gerar_icone() -> None:

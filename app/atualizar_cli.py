@@ -33,5 +33,6 @@ if situacao == "atualizado":
     if sys.platform == "win32":
         python = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")  # sem janela de console
     # sem herdar a saída de quem chamou: senão um "| tail" no terminal fica preso até o app fechar
-    subprocess.Popen([python, os.path.join(APP, "ditado.pyw")], cwd=APP, stdin=subprocess.DEVNULL,
+    # --janela: quem chamou foi a janela, que se fecha; o ditado novo a reabre já na versão nova
+    subprocess.Popen([python, os.path.join(APP, "ditado.pyw"), "--janela"], cwd=APP, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=sys.platform != "win32")

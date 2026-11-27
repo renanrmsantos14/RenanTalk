@@ -36,6 +36,7 @@ description: "Verifica a janela de configurações do RenanTalk desktop (Tauri +
 10. Histórico: editar um ditado trocando uma palavra (ex.: "van" → "Sprinter") e Salvar correção → caixa "Troca: “van” → “Sprinter”" visível sem rolar, botões dentro da caixa; "Adicionar ao vocabulário" grava o termo. Apagar tudo também zera a tabela `sugestao`.
 11. Aba Escrita com IA (`esc`): trocar o Modo padrão para Revisado → `ajustes.json` `modo: revisado` e selo "Salvo"; digitar "Slack" em Aplicativo e Enter → `modos_apps.slack` (minúsculas); ✕ numa linha a remove do arquivo. Padrões: code, olk, outlook, whatsapp.
 12. Aba Ditado e som rola até o card "Atalho de traduzir" (padrão Shift + Win); Ctrl + Alt + Shift + Win → aviso "se confunde com o de ditar"; Alt + Shift e Win + L → "Atalho inválido … atalhos do sistema" (Alt + Shift troca o idioma do teclado no Windows).
+13. Atualização com a janela aberta: abrir a janela com um `<python>` falso (script que imprime `{"situacao":"atualizado","detalhe":"v9.9.9"}`) e clicar "Procurar agora" (688,221) → "Reabrindo a janela…" e, ~1,5 s depois, 0 janelas e 0 processos `renantalk-confi`. Com `{"situacao":"em_dia"}` a janela continua aberta. `python3 app/ditado.pyw --janela` (com chave) abre direto em Sobre; sem `--janela`, não abre. `comum.fechar_janela()` fecha a janela aberta pelo ditado (True) e devolve False se já fechou (`tests/test_janela.py`).
 
 ## Casos de borda
 - Busca não ignora acento ("agua" não acha "água") — conhecido, pendente.
