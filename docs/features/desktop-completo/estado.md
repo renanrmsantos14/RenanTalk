@@ -1,13 +1,13 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 5 de 7 Construir
-- Próximo passo: etapa 6 do PR 1 (code-review, qualidade, prova no Windows) · sozinho
-- Branch e PR: t3/desktop-historico-termos-volume · ainda não
+- Etapa: 6 de 7 Revisar e verificar
+- Próximo passo: receber a prova no Windows (delegada ao notebook), qualidade-antes-do-pr, verificacao-manter e abrir o PR 1 · sozinho
+- Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR ainda não
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 26/11/2026 22:08
+- Atualizado: 26/11/2026 22:57
 
 ## Contexto levantado (código)
 - Python (bandeja, ditado, luz) + janela de configurações em Tauri/Rust (`config/src/main.rs`, `app/ui/index.html`), com fallback Python+Edge (`app/configuracoes.py`).
@@ -47,7 +47,13 @@
 | # | Ação | Alvo real (ambiente, tabela, registros) | Simulação | Backup conferido | Plano de volta | Executada em |
 |---|---|---|---|---|---|---|
 
+## Revisão de código do PR 1 (subagente Sonnet, 26/11/2026)
+- Corrigidos: microfone desligado com o fluxo aberto agora reabre no padrão (antes falhava calado); sem microfone nenhum → luz e bipe de erro; atalho contido no outro (ctrl+win × ctrl+win+v) recusado no Rust e no Python; Ctrl+C/V/X/Z/A/S, Alt+F4 e atalho só com Shift recusados; F01/f+1 recusados no Rust; atalho recusado não perde o resto do lote (volume, microfone) e a UI volta ao atalho gravado (print `depois-atalho-recusado.png`); correção em edição no Histórico sobrevive a busca e troca de aba (print `depois-rascunho-preservado.png`); cola antes de gravar no histórico; rename do ajustes.json com 3 tentativas (Windows).
+- Não corrigidos (registrados): busca não ignora acento ("agua" não acha "água"); lista de microfones só atualiza ao reiniciar o app; volume 0 também cala o bipe de erro (decisão: 0 = mudo).
+- Sem achado: XSS, SQL injection, chaves desconhecidas do ajustes.json, retenção, fluxo antigo (`configuracoes.py`).
+
 ## Pendências e fora de escopo
+- Busca do Histórico sem ignorar acento.
 - Provar por clique na janela Tauri as abas novas (tela estava bloqueada em 26/11 22:18).
 - Provar no Windows: bipe gerado, atalho via `keyboard` + Casador.
 - Microfone plugado com o app aberto só aparece após reiniciar (cache do PortAudio).

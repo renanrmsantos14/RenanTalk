@@ -75,10 +75,28 @@ def garantir_fluxo() -> None:
     dispositivo = ajustes.indice_do_microfone(mic, list(sd.query_devices())) if mic else None
     try:
         fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio, device=dispositivo)
+        fluxo_mic = mic
     except Exception as e:  # noqa: BLE001 - dispositivo ocupado ou inválido: cai no padrão
         log(f"microfone {mic!r} não abriu ({e!r}), usando o padrão do sistema")
         fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio)
-    fluxo_mic = mic
+        fluxo_mic = None  # tenta o microfone escolhido de novo no próximo ditado
+
+
+def iniciar_fluxo() -> None:
+    """Abre e liga o fluxo. Microfone desligado depois de aberto: descarta o fluxo e tenta o padrão."""
+    global fluxo, fluxo_mic
+    garantir_fluxo()
+    try:
+        fluxo.start()
+    except Exception as e:  # noqa: BLE001
+        log(f"microfone parou de responder ({e!r}), reabrindo no padrão do sistema")
+        try:
+            fluxo.close()
+        except Exception:  # noqa: BLE001
+            pass
+        fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio)
+        fluxo_mic = None
+        fluxo.start()
 
 
 def comecar() -> None:
@@ -89,8 +107,13 @@ def comecar() -> None:
         quadros.clear()
         outra_tecla = False
         inicio = time.time()
-        garantir_fluxo()
-        fluxo.start()
+        try:
+            iniciar_fluxo()
+        except Exception as e:  # noqa: BLE001 - sem microfone nenhum: avisa em vez de falhar calado
+            log(f"erro: nenhum microfone abriu ({e!r})")
+            LUZ.definir("erro")
+            plat.bipe(300, 250)
+            return
         gravando = True
     LUZ.definir("rec")
     plat.bipe(880, 60)
@@ -165,10 +188,10 @@ def transcrever(audio: bytes) -> str:
         return json.load(r)["text"].strip()
 
 
-def guardar_no_historico(texto: str, duracao: float) -> None:
-    """Guarda o ditado no histórico local. Qualquer falha é ignorada: o texto precisa ser colado."""
+def guardar_no_historico(texto: str, duracao: float, app: str = "") -> None:
+    """Guarda o ditado no histórico local. Qualquer falha é ignorada: o texto já foi colado."""
     try:
-        historico.gravar(texto, app=plat.app_ativo(), idioma=ajustes.ler()["idioma"], duracao_s=duracao)
+        historico.gravar(texto, app=app, idioma=ajustes.ler()["idioma"], duracao_s=duracao)
     except Exception as e:  # noqa: BLE001
         log(f"histórico: falhou ({type(e).__name__})")
 
@@ -178,8 +201,12 @@ def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
         texto = transcrever(audio)
         log(f"transcrito {len(texto)} caracteres")
         if texto:
-            guardar_no_historico(texto, duracao)
-            plat.colar(texto + " ")
+            try:
+                app = plat.app_ativo()  # antes de colar, com o foco ainda na janela de destino
+            except Exception:  # noqa: BLE001 - nunca impedir a colagem
+                app = ""
+            plat.colar(texto + " ")  # colar primeiro: banco travado não atrasa o texto
+            guardar_no_historico(texto, duracao, app)
         LUZ.definir("done")
     except Exception as e:  # noqa: BLE001 - qualquer falha vira log, luz vermelha e bipe grave
         log(f"erro: {e!r}")

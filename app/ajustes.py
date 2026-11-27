@@ -53,9 +53,22 @@ def validar_atalho(texto) -> tuple[str, ...] | None:
         return None
     mods = [p for p in partes if p in MODIFICADORES]
     teclas = [p for p in partes if p not in MODIFICADORES]
-    if len(teclas) > 1 or (teclas and teclas[0] not in TECLAS) or not mods:
+    # só Shift intercepta a digitação comum (Shift+A): precisa de Ctrl, Alt ou Win
+    if len(teclas) > 1 or (teclas and teclas[0] not in TECLAS) or not set(mods) - {"shift"}:
         return None
-    return tuple(sorted(mods, key=MODIFICADORES.index)) + tuple(teclas)
+    saida = tuple(sorted(mods, key=MODIFICADORES.index)) + tuple(teclas)
+    if "+".join(saida) in ATALHOS_PROIBIDOS:  # o colar manda Ctrl+V; os outros são de todo programa
+        return None
+    return saida
+
+
+ATALHOS_PROIBIDOS = ("ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4")
+
+
+def atalhos_conflitam(a: str, b: str) -> bool:
+    """Um atalho contido no outro (ctrl+win e ctrl+win+v) faz um disparar no lugar do outro."""
+    ca, cb = set(a.split("+")), set(b.split("+"))
+    return ca <= cb or cb <= ca
 
 
 class Casador:
@@ -144,8 +157,8 @@ def normalizar(bruto) -> dict:
     else:
         dados["atalho_ditar"] = "+".join(validar_atalho(dados["atalho_ditar"]))
     colar = validar_atalho(dados["atalho_colar"])
-    if colar is None or "+".join(colar) == dados["atalho_ditar"]:
-        _log(f"ajustes: atalho_colar inválido ou igual ao de ditar {dados['atalho_colar']!r}, usando {PADROES['atalho_colar']}")
+    if colar is None or atalhos_conflitam("+".join(colar), dados["atalho_ditar"]):
+        _log(f"ajustes: atalho_colar inválido ou em conflito com o de ditar {dados['atalho_colar']!r}, usando {PADROES['atalho_colar']}")
         dados["atalho_colar"] = PADROES["atalho_colar"]
     else:
         dados["atalho_colar"] = "+".join(colar)

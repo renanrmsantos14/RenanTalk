@@ -172,14 +172,30 @@ fn validar_atalho(texto: &str) -> Option<String> {
     let tecla_ok = |t: &str| {
         (t.len() == 1 && t.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()))
             || t == "space"
-            || (t.starts_with('f') && t[1..].parse::<u8>().map_or(false, |n| (1..=12).contains(&n)))
+            || (t.len() >= 2 && t.starts_with('f') && !t[1..].starts_with('0') && t[1..].chars().all(|c| c.is_ascii_digit())
+                && t[1..].parse::<u8>().map_or(false, |n| (1..=12).contains(&n)))
     };
-    if mods.is_empty() || teclas.len() > 1 || teclas.first().map_or(false, |t| !tecla_ok(t)) {
+    // só Shift intercepta a digitação comum (Shift+A); precisa de Ctrl, Alt ou Win
+    if mods.iter().all(|m| *m == "shift") || teclas.len() > 1 || teclas.first().map_or(false, |t| !tecla_ok(t)) {
         return None;
     }
     let mut saida: Vec<String> = mods.iter().map(|m| m.to_string()).collect();
     saida.extend(teclas.into_iter().cloned());
-    Some(saida.join("+"))
+    let junto = saida.join("+");
+    // atalhos que o próprio app usa (o colar manda Ctrl+V) ou que todo programa usa
+    if ATALHOS_PROIBIDOS.contains(&junto.as_str()) {
+        return None;
+    }
+    Some(junto)
+}
+
+const ATALHOS_PROIBIDOS: [&str; 7] = ["ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4"];
+
+/// Um atalho contido no outro (ctrl+win e ctrl+win+v) faz um disparar no lugar do outro.
+fn atalhos_conflitam(a: &str, b: &str) -> bool {
+    let ca: Vec<&str> = a.split('+').collect();
+    let cb: Vec<&str> = b.split('+').collect();
+    ca.iter().all(|x| cb.contains(x)) || cb.iter().all(|x| ca.contains(x))
 }
 
 fn ler_ajustes_arquivo() -> serde_json::Map<String, Value> {
@@ -285,19 +301,24 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
     if let Some(n) = valores.get("notificacoes").and_then(Value::as_bool) {
         a.insert("notificacoes".into(), json!(n));
     }
-    // (chave, a outra chave, padrão da outra, o que a outra faz): um atalho não pode repetir o outro
+    // (chave, a outra chave, padrão da outra, o que a outra faz): um atalho não pode repetir nem conter o outro.
+    // Atalho recusado não impede gravar o resto (volume, microfone...): grava e devolve o erro.
+    let mut erro: Option<String> = None;
     for (chave, outra, padrao_outra, para_que) in [
         ("atalho_ditar", "atalho_colar", "alt+win+v", "colar o último ditado"),
         ("atalho_colar", "atalho_ditar", "ctrl+win", "ditar"),
     ] {
         let Some(t) = valores.get(chave).and_then(Value::as_str) else { continue };
         let Some(ok) = validar_atalho(t) else {
-            return json!({ "ok": false, "erro": "Atalho inválido: use pelo menos 2 teclas diferentes." });
+            erro.get_or_insert_with(|| "Atalho inválido: use Ctrl, Alt ou Win com mais uma tecla, e não Ctrl+C, Ctrl+V e parecidos.".into());
+            continue;
         };
-        let da_outra = valores.get(outra).and_then(Value::as_str).or_else(|| a.get(outra).and_then(Value::as_str))
-            .and_then(validar_atalho).unwrap_or_else(|| padrao_outra.into());
-        if ok == da_outra {
-            return json!({ "ok": false, "erro": format!("Esse atalho já serve para {para_que}. Escolha outro.") });
+        let da_outra = valores.get(outra).and_then(Value::as_str).and_then(validar_atalho)
+            .or_else(|| a.get(outra).and_then(Value::as_str).and_then(validar_atalho))
+            .unwrap_or_else(|| padrao_outra.into());
+        if atalhos_conflitam(&ok, &da_outra) {
+            erro.get_or_insert_with(|| format!("Esse atalho se confunde com o de {para_que} ({da_outra}). Escolha outro."));
+            continue;
         }
         a.insert(chave.into(), json!(ok));
     }
@@ -305,8 +326,19 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
     let arq = pasta().join("ajustes.json");
     let tmp = pasta().join("ajustes.json.tmp");
     let texto = serde_json::to_string_pretty(&Value::Object(a)).unwrap_or_default();
-    let ok = fs::write(&tmp, texto).and_then(|_| fs::rename(&tmp, &arq)).is_ok();
-    json!({ "ok": ok })
+    // No Windows o rename falha se o Python estiver lendo o arquivo naquele instante: tenta de novo.
+    let gravou = fs::write(&tmp, texto).is_ok()
+        && (0..3).any(|i| {
+            if i > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(30));
+            }
+            fs::rename(&tmp, &arq).is_ok()
+        });
+    match (gravou, erro) {
+        (false, _) => json!({ "ok": false, "erro": "Não consegui salvar os ajustes." }),
+        (true, Some(e)) => json!({ "ok": false, "erro": e }),
+        (true, None) => json!({ "ok": true }),
+    }
 }
 
 // ---------- Histórico (historico.db; o Python grava, esta janela lê e edita) ----------
@@ -495,4 +527,26 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("erro ao abrir a janela");
+}
+
+#[cfg(test)]
+mod testes {
+    use super::*;
+
+    #[test]
+    fn atalho_mesma_regra_do_python() {
+        assert_eq!(validar_atalho("Super+Ctrl").as_deref(), Some("ctrl+win"));
+        assert_eq!(validar_atalho("alt+win+v").as_deref(), Some("alt+win+v"));
+        assert_eq!(validar_atalho("ctrl+f12").as_deref(), Some("ctrl+f12"));
+        for ruim in ["ctrl", "d+e", "shift+a", "shift+space", "ctrl+v", "V+Ctrl", "alt+f4", "ctrl+f01", "ctrl+f+1", "ctrl+f13"] {
+            assert_eq!(validar_atalho(ruim), None, "{ruim}");
+        }
+    }
+
+    #[test]
+    fn atalho_contido_no_outro_conflita() {
+        assert!(atalhos_conflitam("ctrl+win", "ctrl+win+v"));
+        assert!(atalhos_conflitam("ctrl+win+v", "ctrl+win"));
+        assert!(!atalhos_conflitam("ctrl+win", "alt+win+v"));
+    }
 }

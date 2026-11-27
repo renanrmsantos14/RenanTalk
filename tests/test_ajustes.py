@@ -51,15 +51,15 @@ class Ajustes(unittest.TestCase):
 
     def test_atalho_colar_padrao_invalido_e_igual(self):
         self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v")
-        for ruim in ("v", "alt+win+v+x", 5, "ctrl+win"):  # inválidos e igual ao de ditar (ctrl+win)
+        for ruim in ("v", "alt+win+v+x", 5, "ctrl+win", "ctrl+win+h"):  # inválidos, igual ou contendo o de ditar (ctrl+win)
             gravar(json.dumps({"atalho_colar": ruim}))
             ajustes._cache["mtime"] = -1
             self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v", ruim)
         with open(ajustes.ARQ_LOG, encoding="utf-8") as f:
-            self.assertIn("atalho_colar inválido ou igual", f.read())
-        gravar(json.dumps({"atalho_colar": "Super+Ctrl+Shift+H"}))
+            self.assertIn("atalho_colar inválido ou em conflito", f.read())
+        gravar(json.dumps({"atalho_colar": "Super+Alt+Shift+H"}))
         ajustes._cache["mtime"] = -1
-        self.assertEqual(ajustes.ler()["atalho_colar"], "ctrl+shift+win+h")
+        self.assertEqual(ajustes.ler()["atalho_colar"], "alt+shift+win+h")
 
     def test_luz_tema_notificacoes_padroes(self):
         a = ajustes.ler()
@@ -89,8 +89,15 @@ class Ajustes(unittest.TestCase):
         v = ajustes.validar_atalho
         self.assertEqual(v("Super+Ctrl"), ("ctrl", "win"))
         self.assertEqual(v("ctrl+alt+d"), ("ctrl", "alt", "d"))
-        for ruim in ("ctrl", "ctrl+ctrl", "d+e", "ctrl+ç", "", None, "d+f1"):
+        for ruim in ("ctrl", "ctrl+ctrl", "d+e", "ctrl+ç", "", None, "d+f1",
+                     "shift+a", "shift+space", "ctrl+v", "V+Ctrl", "ctrl+c", "alt+f4", "ctrl+f01"):
             self.assertIsNone(v(ruim), ruim)
+
+    def test_atalho_contido_no_outro_conflita(self):
+        self.assertTrue(ajustes.atalhos_conflitam("ctrl+win", "ctrl+win+v"))
+        self.assertTrue(ajustes.atalhos_conflitam("ctrl+win+v", "ctrl+win"))
+        self.assertFalse(ajustes.atalhos_conflitam("ctrl+win", "alt+win+v"))
+        self.assertEqual(ajustes.normalizar({"atalho_colar": "ctrl+win+v"})["atalho_colar"], "alt+win+v")
 
 
 class Som(unittest.TestCase):

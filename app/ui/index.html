@@ -268,15 +268,25 @@ function salvarSom(valores, msgEl) {
     const enviar = pendente; pendente = {};
     const r = await api('salvarAjustes', {valores: enviar});
     if (r.ok) { $('salvo2').classList.add('on'); setTimeout(() => $('salvo2').classList.remove('on'), 1400); if (msgEl) msgEl.textContent = ''; }
-    else { const m = msgEl || document.querySelector('.atalho .amsg'); m.className = 'msg amsg err'; m.textContent = r.erro || 'Não consegui salvar os ajustes.'; }
+    else {
+      // o que foi recusado não vale: volta os cartões de atalho para o que está gravado
+      const m = msgEl || document.querySelector('.atalho .amsg'), erro = r.erro || 'Não consegui salvar os ajustes.';
+      await recarregarAtalhos(); m.className = 'msg amsg err'; m.textContent = erro;
+    }
   }, 250);
 }
 function mostrarAtalho(a) {
   $('dica').innerHTML = 'Segure ' + a.split('+').map(p => '<kbd>' + (NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase())) + '</kbd>').join(' + ') + ', fale e solte.';
 }
 // Um cartão de atalho (Ctrl/Alt/Shift/Win + tecla opcional): serve para ditar e para colar o último.
+async function recarregarAtalhos() {
+  const r = await api('ajustes'); if (!r.ajustes) return; aj = r.ajustes;
+  document.querySelectorAll('.atalho').forEach(c => iniciarAtalho(c, aj[c.dataset.chave]));
+  mostrarAtalho(aj.atalho_ditar);
+}
 function iniciarAtalho(card, valor) {
   const chave = card.dataset.chave, tecla = card.querySelector('.tecla'), msg = card.querySelector('.amsg');
+  tecla.innerHTML = '';
   const mods = new Set(valor.split('+').filter(p => NOMES_MOD[p]));
   tecla.append(new Option('sem tecla extra', ''));
   [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].forEach(c => tecla.append(new Option(c, c.toLowerCase())));
@@ -358,7 +368,7 @@ async function iniciarApar() {
 const aparPronta = TAURI ? iniciarApar().catch(() => { $('napar').hidden = true; }) : null;  // o tema vale antes de a janela aparecer
 
 // ---------- Histórico (só na janela Tauri) ----------
-let hItens = [], hSel = null, tBusca, hConfirma = false;
+let hItens = [], hSel = null, tBusca, hConfirma = false, rascunho = {};  // rascunho: id → texto em edição, sobrevive a busca e troca de aba
 const pad = n => String(n).padStart(2, '0');
 const chaveDia = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const dataDe = iso => new Date(iso);  // ISO local sem fuso: o JS interpreta como hora local
@@ -394,14 +404,18 @@ function desenharDetalhe() {
   const tags = document.createElement('div'); tags.className = 'tags';
   [it.app && 'App: ' + it.app, 'Modo: ' + (NOME_MODO[it.modo] || it.modo), it.idioma && 'Idioma: ' + (NOME_IDIOMA[it.idioma] || it.idioma), it.duracao_s ? 'Duração: ' + it.duracao_s.toFixed(1).replace('.', ',') + ' s' : '', it.palavras + ' palavras', it.editado && 'Editado'].filter(Boolean)
     .forEach(t => { const e = document.createElement('span'); e.className = 'tag'; e.textContent = t; tags.appendChild(e); });
-  const ta = document.createElement('textarea'); ta.id = 'htexto'; ta.value = it.texto; ta.setAttribute('aria-label', 'Texto do ditado');
+  const ta = document.createElement('textarea'); ta.id = 'htexto'; ta.value = rascunho[it.id] ?? it.texto; ta.setAttribute('aria-label', 'Texto do ditado');
   const ac = document.createElement('div'); ac.className = 'acoes';
   const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = txt; b.onclick = fn; return b; };
   const salvarB = mk('Salvar correção', '', async () => {
     const r = await api('hEditar', {id: it.id, texto: ta.value});
-    if (r.ok) { await carregarHist(); avisoHist('Correção salva.'); } else avisoHist(r.erro || 'Não consegui salvar.', true);
+    if (r.ok) { delete rascunho[it.id]; await carregarHist(); avisoHist('Correção salva.'); } else avisoHist(r.erro || 'Não consegui salvar.', true);
   });
-  salvarB.disabled = true; ta.oninput = () => { salvarB.disabled = ta.value === it.texto || !ta.value.trim(); };
+  const mudou = () => {
+    salvarB.disabled = ta.value === it.texto || !ta.value.trim();
+    if (ta.value === it.texto) delete rascunho[it.id]; else rascunho[it.id] = ta.value;
+  };
+  mudou(); ta.oninput = mudou;
   const copiarB = mk('Copiar', 'sec', async () => {
     try { await navigator.clipboard.writeText(ta.value); }
     catch (_) { ta.select(); document.execCommand('copy'); }
@@ -409,7 +423,7 @@ function desenharDetalhe() {
   });
   const excB = mk(hConfirma ? 'Confirmar exclusão' : 'Excluir', 'sec ' + (hConfirma ? 'conf' : 'perigo'), async () => {
     if (!hConfirma) { hConfirma = true; desenharDetalhe(); return; }
-    const r = await api('hExcluir', {id: it.id}); hSel = null; hConfirma = false; await carregarHist(); if (!r.ok) avisoHist(r.erro || 'Não consegui excluir.', true);
+    const r = await api('hExcluir', {id: it.id}); delete rascunho[it.id]; hSel = null; hConfirma = false; await carregarHist(); if (!r.ok) avisoHist(r.erro || 'Não consegui excluir.', true);
   });
   const msg = document.createElement('span'); msg.id = 'hmsg'; msg.className = 'msg'; msg.style.margin = '0';
   ac.append(salvarB, copiarB, excB, msg);
@@ -430,7 +444,7 @@ function iniciarHist() {
     const b = $('hlimpar');
     if (!hConfirmaTudo) { hConfirmaTudo = true; b.textContent = 'Confirmar: apagar todos'; b.classList.add('conf'); setTimeout(() => { hConfirmaTudo = false; b.textContent = 'Apagar tudo'; b.classList.remove('conf'); }, 4000); return; }
     hConfirmaTudo = false; b.textContent = 'Apagar tudo'; b.classList.remove('conf');
-    await api('hApagar', {}); hSel = null; await carregarHist();
+    await api('hApagar', {}); rascunho = {}; hSel = null; await carregarHist();
   };
   carregarHist();
 }
