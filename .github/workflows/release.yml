@@ -98,7 +98,7 @@ jobs:
           path: config/target/release/${{ matrix.bin }}
 
   android:
-    # Teclado Android (android/). PR: testes + APK de depuração. Main: APK assinado com a mesma versão.
+    # App Android (bolha de ditado, em android/). PR: testes + APK de depuração. Main: APK assinado com a mesma versão.
     needs: versao
     runs-on: ubuntu-latest
     steps:
@@ -162,5 +162,5 @@ jobs:
         run: |
           gh release create "v${{ needs.versao.outputs.versao }}" RenanTalk.zip RenanTalk-linux.zip $(ls RenanTalk.apk 2>/dev/null) \
             --title "RenanTalk v${{ needs.versao.outputs.versao }}" \
-            --notes "Publicado em ${{ needs.versao.outputs.data }} (America/Sao_Paulo). RenanTalk.zip = Windows; RenanTalk-linux.zip = Linux; RenanTalk.apk = teclado Android. O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
+            --notes "Publicado em ${{ needs.versao.outputs.data }} (America/Sao_Paulo). RenanTalk.zip = Windows; RenanTalk-linux.zip = Linux; RenanTalk.apk = app Android (bolha de ditado). O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
             --target "${{ github.sha }}"

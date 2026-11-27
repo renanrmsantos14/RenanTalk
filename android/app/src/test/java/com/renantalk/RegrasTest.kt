@@ -63,7 +63,7 @@ class RegrasTest {
     }
 
     @Test fun inserirNoCursor() {
-        assertEquals("" + "oi" to 2, Regras.inserir("", -1, -1, "oi"))
+        assertEquals("oi" to 2, Regras.inserir("", -1, -1, "oi"))
         assertEquals("Olá mundo" to 9, Regras.inserir("Olá", 3, 3, "mundo"))
         assertEquals("Olá mundo!" to 9, Regras.inserir("Olá!", 3, 3, "mundo"))
         assertEquals("a b" to 3, Regras.inserir("a ", 2, 2, "b"))

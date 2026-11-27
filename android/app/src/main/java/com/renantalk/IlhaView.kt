@@ -10,6 +10,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
 import android.view.View
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
@@ -70,6 +71,7 @@ class IlhaView(contexto: Context) : View(contexto) {
     val janelaA = altura + margem * 2
 
     init {
+        contentDescription = DESCRICAO_DITAR
         fundo.setShadowLayer(10 * dp, 0f, 3 * dp, 0x99000000.toInt())
         setLayerType(LAYER_TYPE_HARDWARE, null)
     }
@@ -83,7 +85,7 @@ class IlhaView(contexto: Context) : View(contexto) {
         if (novo == Modo.GRAVANDO) { nivel = 0f; historico.fill(0f) }
         repousou = false
         contentDescription = when (novo) {
-            Modo.DITAR -> "Ditar com o RenanTalk: segure e fale, ou toque para começar"
+            Modo.DITAR -> DESCRICAO_DITAR
             Modo.GRAVANDO -> "Gravando: toque para enviar, ou no X para cancelar"
             Modo.ESCREVENDO -> "Escrevendo o texto"
             Modo.OK -> "Texto inserido"
@@ -118,8 +120,7 @@ class IlhaView(contexto: Context) : View(contexto) {
         val k = 520f; val c = 2 * sqrt(k) * 0.72f
         vEsq += (k * (l - esq) - c * vEsq) * dt; esq += vEsq * dt
         vDir += (k * (r - dir) - c * vDir) * dt; dir += vDir * dt
-        val parado = kotlin.math.abs(l - esq) < 0.5f && kotlin.math.abs(r - dir) < 0.5f &&
-            kotlin.math.abs(vEsq) < 8f && kotlin.math.abs(vDir) < 8f
+        val parado = abs(l - esq) < 0.5f && abs(r - dir) < 0.5f && abs(vEsq) < 8f && abs(vDir) < 8f
         if (parado) { esq = l; dir = r; vEsq = 0f; vDir = 0f }
         if (parado && !repousou) {
             repousou = true
@@ -174,7 +175,6 @@ class IlhaView(contexto: Context) : View(contexto) {
     }
 
     private fun desenharDitar(c: Canvas, alfa: Int) {
-        val cor = 0xFFDBEAFE.toInt()
         val w = 14 * dp + 5 * dp + texto.measureText("Ditar")
         var x = rect.centerX() - w / 2
         val cy = rect.centerY()
@@ -183,7 +183,7 @@ class IlhaView(contexto: Context) : View(contexto) {
         icone.setBounds(x.toInt(), (cy - 7 * dp).toInt(), (x + 14 * dp).toInt(), (cy + 7 * dp).toInt())
         icone.draw(c)
         x += 19 * dp
-        texto.color = cor; texto.alpha = alfa
+        texto.color = 0xFFDBEAFE.toInt(); texto.alpha = alfa
         c.drawText("Ditar", x, cy - (texto.ascent() + texto.descent()) / 2, texto)
     }
 
@@ -248,5 +248,6 @@ class IlhaView(contexto: Context) : View(contexto) {
 
     private companion object {
         const val ESCALA = 1.35f // 30 dp de altura ficou pequeno no POCO; 40,5 dp
+        const val DESCRICAO_DITAR = "Ditar com o RenanTalk: segure e fale, ou toque para começar"
     }
 }

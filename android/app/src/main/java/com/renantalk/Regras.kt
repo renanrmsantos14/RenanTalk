@@ -21,23 +21,23 @@ object Regras {
 
     enum class Decisao { CURTO, SILENCIO, ENVIAR }
 
-    /** pcm = PCM 16 bits little-endian mono. */
     /** O Whisper devolve "." ou "…" quando só ouve ruído: sem letra nem número, não há fala. */
     fun semFala(texto: String) = texto.none { it.isLetterOrDigit() }
 
+    /** pcm = PCM 16 bits little-endian mono. */
     fun decidir(pcm: ByteArray, duracaoS: Double): Decisao {
         if (duracaoS < MINIMO_S) return Decisao.CURTO
         return if (pico(pcm) < SILENCIO) Decisao.SILENCIO else Decisao.ENVIAR // o Whisper inventa texto no silêncio
     }
 
-    fun pico(pcm: ByteArray, n: Int = pcm.size): Int {
-        val b = ByteBuffer.wrap(pcm, 0, n - n % 2).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+    fun pico(pcm: ByteArray): Int {
+        val b = ByteBuffer.wrap(pcm, 0, pcm.size - pcm.size % 2).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         var max = 0
         while (b.hasRemaining()) max = maxOf(max, abs(b.get().toInt()))
         return max
     }
 
-    /** Brilho da luz (0..1), mesmo cálculo do desktop: RMS / 2500. */
+    /** Brilho da luz (0..1) a partir do RMS das amostras. */
     fun nivel(amostras: ShortArray, n: Int): Float {
         if (n <= 0) return 0f
         var soma = 0.0
@@ -91,7 +91,6 @@ object Regras {
         }
         return false
     }
-
 
     /**
      * Texto do campo depois de inserir o ditado no cursor (ou no lugar da seleção), com espaço

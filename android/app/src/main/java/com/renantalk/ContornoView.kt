@@ -146,14 +146,14 @@ class ContornoView(contexto: Context) : View(contexto) {
 
         var ganho = 1f
         var aberto = 1f
-        val n: Float
         when (estado) {
-            Estado.REC -> { if (animar) aberto = 1f - (1f - minOf(t / 0.45f, 1f)).pow(3); n = nivel }
-            Estado.PROC -> n = 0.25f
-            Estado.ERRO -> { n = 0.8f; ganho = minOf(1f, t / 0.12f) * (if (t > 0.7f) 1f - (t - 0.7f) / 0.5f else 1f) }
-            Estado.FIM -> { n = 0.3f; ganho = 1f - t / 0.5f }
-            Estado.PARADA -> { n = nAntes; ganho = 1f - t / 0.3f }
+            Estado.REC -> if (animar) aberto = 1f - (1f - minOf(t / 0.45f, 1f)).pow(3)
+            Estado.PROC -> Unit
+            Estado.ERRO -> ganho = minOf(1f, t / 0.12f) * (if (t > 0.7f) 1f - (t - 0.7f) / 0.5f else 1f)
+            Estado.FIM -> ganho = 1f - t / 0.5f
+            Estado.PARADA -> ganho = 1f - t / 0.3f
         }
+        val n = if (estado == Estado.PARADA) nAntes else intensidade()
         if (ganho <= 0f) { apagou = true; aoApagar?.invoke(); return }
         val (cNucleo, cBrilho, cNevoa) = (if (estado == Estado.ERRO) vermelho else azul) ?: return
 

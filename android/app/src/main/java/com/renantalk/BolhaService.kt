@@ -69,6 +69,7 @@ class BolhaService : AccessibilityService() {
     private var xAbaNoToque = 0
     private var arrastando = false
     private var comecouNesteToque = false
+    private var tocando = false // o DOWN foi aceito: só então MOVE/UP valem
     private var gravouEm = 0L
     private var alvo: AccessibilityNodeInfo? = null
     private val gravador = Gravador { n -> contorno.audio(n); aba.audio(n) }
@@ -99,6 +100,7 @@ class BolhaService : AccessibilityService() {
 
     override fun onDestroy() {
         principal.removeCallbacksAndMessages(null)
+        fundo.shutdown()
         if (gravador.ativo) gravador.parar()
         esconderAba()
         esconderLegenda()
@@ -121,8 +123,6 @@ class BolhaService : AccessibilityService() {
         aba = IlhaView(this).apply {
             setOnTouchListener { _, ev -> tocar(ev); true }
             aoRecolher = { recolhido() }
-            definir(IlhaView.Modo.DITAR)
-            contentDescription = "Ditar com o RenanTalk: segure e fale, ou toque para começar"
         }
         pAba = janela(aba.pilulaL, aba.janelaA, tocavel = true)
 
@@ -229,7 +229,6 @@ class BolhaService : AccessibilityService() {
 
     /** A legenda fica centrada sobre o teclado, logo acima da pílula. */
     private fun posicionarLegenda() {
-        legenda.maxWidth = teclado.width() - px(32)
         legenda.measure(View.MeasureSpec.makeMeasureSpec(teclado.width() - px(32), View.MeasureSpec.AT_MOST),
             View.MeasureSpec.UNSPECIFIED)
         pLegenda.width = legenda.measuredWidth
@@ -262,9 +261,11 @@ class BolhaService : AccessibilityService() {
 
     private fun tocar(ev: MotionEvent) {
         val folga = ViewConfiguration.get(this).scaledTouchSlop
+        if (ev.actionMasked != MotionEvent.ACTION_DOWN && !tocando) return
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (recolhendo || fase == Fase.TRANSCREVENDO) return
+                tocando = true
                 aba.animate().scaleX(0.96f).scaleY(0.96f).setDuration(100).setInterpolator(suave).start()
                 tocouEm = SystemClock.uptimeMillis()
                 xToque = ev.rawX; yToque = ev.rawY
@@ -289,8 +290,9 @@ class BolhaService : AccessibilityService() {
                     fase == Fase.GRAVANDO && !modoToque && dy > px(CANCELAR_DP) -> cancelar()
                 }
             }
-            MotionEvent.ACTION_UP -> soltar(ev.x)
+            MotionEvent.ACTION_UP -> { tocando = false; soltar(ev.x) }
             MotionEvent.ACTION_CANCEL -> {
+                tocando = false
                 aba.animate().scaleX(1f).scaleY(1f).setDuration(160).setInterpolator(suave).start()
                 principal.removeCallbacks(iniciar)
                 arrastando = false
@@ -302,21 +304,21 @@ class BolhaService : AccessibilityService() {
     private fun soltar(x: Float) {
         aba.animate().scaleX(1f).scaleY(1f).setDuration(160).setInterpolator(suave).start()
         when {
-                arrastando -> {
-                    arrastando = false
-                    val min = xAba(0f); val max = xAba(1f)
-                    if (max > min) prefs.edit().putFloat(POSICAO, (pAba.x - min).toFloat() / (max - min)).apply()
-                }
-                fase == Fase.OCIOSA -> { // toque rápido: começa no modo toque
-                    principal.removeCallbacks(iniciar)
-                    comecar()
-                    if (fase == Fase.GRAVANDO) modoToque = true
-                }
-                fase != Fase.GRAVANDO -> Unit
-                comecouNesteToque && SystemClock.uptimeMillis() - tocouEm < SEGURAR_MS -> modoToque = true
-                modoToque && aba.tocouCancelar(x) -> cancelar()
-                else -> parar()
+            arrastando -> {
+                arrastando = false
+                val min = xAba(0f); val max = xAba(1f)
+                if (max > min) prefs.edit().putFloat(POSICAO, (pAba.x - min).toFloat() / (max - min)).apply()
             }
+            fase == Fase.OCIOSA -> { // toque rápido: começa no modo toque
+                principal.removeCallbacks(iniciar)
+                comecar()
+                if (fase == Fase.GRAVANDO) modoToque = true
+            }
+            fase != Fase.GRAVANDO -> Unit
+            comecouNesteToque && SystemClock.uptimeMillis() - tocouEm < SEGURAR_MS -> modoToque = true
+            modoToque && aba.tocouCancelar(x) -> cancelar()
+            else -> parar()
+        }
     }
 
     private fun comecar() {
