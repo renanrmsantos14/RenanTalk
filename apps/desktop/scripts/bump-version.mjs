@@ -1,11 +1,13 @@
-// Sobe a versão de publicação (PATCH, ou a versão passada como argumento) e grava data/hora de São Paulo.
+// Sobe a versão de publicação (PATCH) e grava data/hora de São Paulo.
 // Mantém package.json, src/version.json, tauri.conf.json e a versão da crate `renantalk` iguais.
+// Versão fixa: argumento (`node bump-version.mjs 0.0.30`) ou RENANTALK_VERSAO. No release, o CI passa a versão da
+// tag `v0.0.N` em RENANTALK_VERSAO; o `pnpm build` que o `tauri build` roda de novo regrava a mesma, sem subir o PATCH.
 import { readFileSync, writeFileSync } from "node:fs";
 
 const pkgUrl = new URL("../package.json", import.meta.url);
 const pkg = JSON.parse(readFileSync(pkgUrl, "utf8"));
 const [major, minor, patch] = pkg.version.split(".").map(Number);
-const wanted = process.argv[2]?.replace(/^v/, "");
+const wanted = (process.argv[2] || process.env.RENANTALK_VERSAO)?.replace(/^v/, "");
 if (wanted && !/^\d+\.\d+\.\d+$/.test(wanted)) throw new Error(`versão inválida: ${wanted}`);
 pkg.version = wanted ?? `${major}.${minor}.${patch + 1}`;
 writeFileSync(pkgUrl, JSON.stringify(pkg, null, 2) + "\n");

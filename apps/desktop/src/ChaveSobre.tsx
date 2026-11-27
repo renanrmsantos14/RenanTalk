@@ -39,7 +39,25 @@ export function Chave({ ativa, estado, aoSalvar }: { ativa: boolean; estado: Est
   );
 }
 
+const SITUACAO: Record<string, (v: string) => string> = {
+  em_dia: (v) => `✓ Em dia (v${v}).`,
+  instalando: (v) => `Instalando v${v}. O RenanTalk reinicia sozinho e reabre aqui.`,
+  adiada: (v) => `v${v} disponível; instalo quando o ditado acabar.`,
+};
+
 export function Sobre({ ativa, estado }: { ativa: boolean; estado: Estado | null }) {
+  const [msg, setMsg] = useState({ t: "", cls: "" });
+  const [ocupado, setOcupado] = useState(false);
+  const procurar = async () => {
+    setOcupado(true); setMsg({ t: "Procurando atualização…", cls: "mut" });
+    try {
+      const r = await chamar<Resposta>("procurar_atualizacao");
+      if (r.ok) setMsg({ t: SITUACAO[r.situacao as string]?.(r.versao as string) ?? "", cls: "ok" });
+      else setMsg({ t: r.erro || "Não consegui procurar atualização.", cls: "err" });
+      if (r.situacao === "instalando") return; // fica ocupado até o app reiniciar
+    } catch { setMsg({ t: "Não consegui procurar atualização.", cls: "err" }); }
+    setOcupado(false);
+  };
   return (
     <section className={"pane" + (ativa ? " on" : "")} id="sob">
       <h1>Sobre</h1>
@@ -51,9 +69,8 @@ export function Sobre({ ativa, estado }: { ativa: boolean; estado: Estado | null
       </div>
       <div className="card"><div className="row">
         <div><div>Atualização</div><div className="k">{estado?.verificacao ? "Última verificação: " + estado.verificacao : "Ainda não verificou hoje"}</div></div>
-        {/* A tarefa 9 liga: confere o release do GitHub e troca o executável. Até lá o botão fica desligado. */}
-        <button className="btn sec" disabled title="Chega com a atualização automática">Procurar agora</button>
-      </div><div className="msg" /></div>
+        <button className="btn sec" disabled={ocupado} onClick={procurar}>Procurar agora</button>
+      </div><Msg texto={msg.t} erro={msg.cls === "err"} mut={msg.cls === "mut"} /></div>
       <div className="links"><button onClick={() => chamar("abrir", { alvo: "log" })}>Ver log</button><button onClick={() => chamar("abrir", { alvo: "repo" })}>Repositório no GitHub</button></div>
     </section>
   );

@@ -21,6 +21,8 @@ talk-core = { path = "../../../crates/talk-core" }
 serde_json = { version = "1", features = ["preserve_order"] }
 # Microfone e bipe (ALSA/Pulse no Linux, WASAPI no Windows)
 cpal = "0.15"
+# Atualização assinada pelo latest.json do release (atualizar.rs)
+tauri-plugin-updater = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Gancho de teclado (RECORD), colar (XTest) e a luz (janela ARGB sem entrada via SHAPE, monitores via RANDR): sem root e sem o grupo input.

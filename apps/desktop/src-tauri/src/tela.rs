@@ -134,3 +134,9 @@ pub fn fechar(app: AppHandle) {
         let _ = w.close();
     }
 }
+
+/// Botão "Procurar agora" da aba Sobre: confere o `latest.json`; com versão nova, instala e reinicia.
+#[tauri::command]
+pub async fn procurar_atualizacao(app: AppHandle) -> Value {
+    crate::atualizar::procurar(&app, true).await
+}

@@ -171,6 +171,7 @@ pub fn bandeja(app: &AppHandle, ditado: Arc<Ditado>, dir: PathBuf) {
             &MenuItem::with_id(app, "config", "Configurações…", true, None::<&str>)?,
             &MenuItem::with_id(app, "colar", "Colar último ditado", true, None::<&str>)?,
             &MenuItem::with_id(app, "log", "Ver log", true, None::<&str>)?,
+            &MenuItem::with_id(app, "atualizar", "Procurar atualização", true, None::<&str>)?,
             &inicio,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "sair", "Sair do RenanTalk", true, None::<&str>)?,
@@ -185,6 +186,10 @@ pub fn bandeja(app: &AppHandle, ditado: Arc<Ditado>, dir: PathBuf) {
                     "config" => abrir_janela(app, Some(ABA_PADRAO.into())),
                     "colar" => ditado.colar_ultimo(Duration::from_millis(350)), // espera o menu fechar e o foco voltar
                     "log" => abrir_log(&dir),
+                    "atualizar" => {
+                        let a = app.clone();
+                        tauri::async_runtime::spawn(async move { crate::atualizar::procurar(&a, true).await; });
+                    }
                     "inicio" => {
                         let ligar = inicio_item.is_checked().unwrap_or(false); // o clique já inverteu a marca
                         let l = app.autolaunch();

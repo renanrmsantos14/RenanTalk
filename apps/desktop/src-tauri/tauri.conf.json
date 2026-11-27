@@ -16,10 +16,31 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": [
+      "appimage",
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.png",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJBMDQ3NUQ1RjM2MEQ4QTUKUldTbDJHRHoxWFVFS3V2NVFlek8zK3pha1ArWk9LM2c3QnVOWUJkUmVxWFZLVzIzVTRmNHpIUlUK",
+      "endpoints": [
+        "https://github.com/renanrmsantos14/RenanTalk/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

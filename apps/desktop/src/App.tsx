@@ -73,6 +73,9 @@ export default function App() {
   // O tema vale antes de a janela aparecer.
   useEffect(() => { document.documentElement.dataset.theme = aj?.tema ?? "sistema"; }, [aj?.tema]);
 
+  // A aba aberta fica na URL: ao atualizar, a casca lê dali onde reabrir a janela (#14).
+  useEffect(() => { history.replaceState(null, "", "?aba=" + aba); }, [aba]);
+
   // Aba pedida pela casca com a janela já aberta (tarefa 7 do menu da bandeja).
   useEffect(() => {
     if (!emTauri) return;

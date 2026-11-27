@@ -1,7 +1,8 @@
 //! RenanTalk desktop: casca Tauri sobre o `talk-core`. Sobe sem janela, com bandeja, e roda o ditado.
-//! A tela (webview, React em `apps/desktop/src`) é criada sob demanda e destruída ao fechar; a atualização entra na tarefa 9.
+//! A tela (webview, React em `apps/desktop/src`) é criada sob demanda e destruída ao fechar; a atualização está em `atualizar.rs`.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+mod atualizar;
 mod casca;
 mod plataforma;
 mod tela;
@@ -23,10 +24,11 @@ fn main() {
         // então os dois coexistem) e o Linux (D-Bus).
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| casca::abrir_janela(app, casca::aba_dos_args(&args))))
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             tela::estado, tela::ajustes, tela::salvar_ajustes, tela::historico_listar, tela::historico_editar, tela::historico_excluir,
             tela::historico_apagar_tudo, tela::salvar_vocab, tela::inicio, tela::sugestao_resolver, tela::substituicoes_ler,
-            tela::substituicoes_salvar, tela::salvar_chave, tela::abrir, tela::mostrar, tela::fechar,
+            tela::substituicoes_salvar, tela::salvar_chave, tela::abrir, tela::mostrar, tela::fechar, tela::procurar_atualizacao,
         ])
         .on_window_event(|janela, evento| {
             if let tauri::WindowEvent::Destroyed = evento {
@@ -54,6 +56,8 @@ fn main() {
     casca::autostart_primeira_vez(h, &dir);
     casca::bandeja(h, ditado.clone(), dir);
     app.manage(ditado);
+    atualizar::ao_iniciar(h);
+    atualizar::agendar(h.clone());
     app.run(|app, evento| match evento {
         // Sem janela aberta o app continua residente: só `exit` explícito (menu Sair) encerra.
         tauri::RunEvent::ExitRequested { api, code, .. } if code.is_none() => api.prevent_exit(),

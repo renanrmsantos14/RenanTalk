@@ -58,3 +58,41 @@ jobs:
       # Os testes do gancho, do SendInput e da área de transferência usam a sessão interativa do runner.
       - run: cargo test --workspace -- --nocapture
       - run: cargo build -p renantalk --release
+
+  pacotes:
+    # Mesmo build do modo PR do release.yml (job desktop): instalador NSIS no Windows e AppImage no Linux, sem assinar
+    # e sem secrets. Prova na branch que os instaladores saem nos dois sistemas antes do PR para a main.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            pacote: nsis
+          - os: ubuntu-22.04
+            pacote: appimage
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependências do Tauri e do áudio (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev libayatana-appindicator3-dev patchelf
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm install --frozen-lockfile
+      - run: node apps/desktop/scripts/bump-version.mjs 0.0.999
+      - name: Compilar o instalador (sem assinar)
+        working-directory: apps/desktop
+        run: |
+          echo '{"bundle":{"createUpdaterArtifacts":false}}' > "$RUNNER_TEMP/sem-assinatura.json"
+          pnpm tauri build --bundles ${{ matrix.pacote }} --config "$RUNNER_TEMP/sem-assinatura.json"
+          ls -l ../../target/release/bundle/${{ matrix.pacote }}/

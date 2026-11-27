@@ -107,6 +107,7 @@ export async function mockInvoke(cmd: string, a: Record<string, any>): Promise<a
       chave = k; return atraso({ ok: true, chave: mascarar(k) });
     }
     case "abrir": case "mostrar": case "fechar": return atraso({ ok: true });
+    case "procurar_atualizacao": return atraso({ ok: true, situacao: "em_dia", versao: "0.0.0" });
     default: throw new Error(`comando desconhecido: ${cmd}`);
   }
 }
