@@ -397,12 +397,22 @@ mod testes {
         let d = tempfile::tempdir().unwrap();
         let (dit, p, _) = montar(d.path(), Falsa::default(), Ok("x".into()), Err("x".into()));
         dit.colar_ultimo(Duration::ZERO);
-        std::thread::sleep(Duration::from_millis(300));
-        assert!(eventos(&p).contains(&"bipe:300".to_string()));
+        assert!(esperar_evento(&p, "bipe:300"));
         historico::gravar(d.path(), &NovoDitado { texto: "Ligar para o motorista", original: None, app: "", modo: "", idioma: "pt", duracao_s: 1.0 });
         dit.colar_ultimo(Duration::ZERO);
-        std::thread::sleep(Duration::from_millis(300));
-        assert!(eventos(&p).contains(&"colar:Ligar para o motorista ".to_string()));
+        assert!(esperar_evento(&p, "colar:Ligar para o motorista "));
+    }
+
+    /// Espera o evento aparecer (até 5 s): o colar roda em thread e o CI sob carga passa dos 300 ms.
+    fn esperar_evento(p: &Falsa, alvo: &str) -> bool {
+        let fim = std::time::Instant::now() + Duration::from_secs(5);
+        while std::time::Instant::now() < fim {
+            if eventos(p).iter().any(|e| e == alvo) {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        false
     }
 
     #[test]
