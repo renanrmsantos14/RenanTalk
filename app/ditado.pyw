@@ -26,6 +26,7 @@ import sounddevice as sd
 import ajustes
 import atualizador
 import historico
+import substituicoes
 from comum import WINDOWS, ler_chave, log, prompt_vocabulario
 
 if WINDOWS:
@@ -215,10 +216,17 @@ def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
         texto = transcrever(audio)
         log(f"transcrito {len(texto)} caracteres")
         if texto:
+            a = ajustes.ler()
+            try:
+                final = substituicoes.aplicar(texto, a["comandos"])
+            except Exception as e:  # noqa: BLE001 - regra ou comando com defeito não pode perder o ditado: cola como veio
+                log(f"substituições falharam ({type(e).__name__})")
+                final = texto
             app = plat.app_ativo()  # antes de colar, com o foco na janela de destino; nunca levanta
-            plat.colar(texto + " ")  # colar primeiro: banco travado não atrasa o texto
-            historico.gravar(texto, app=app, idioma=ajustes.ler()["idioma"], duracao_s=duracao)  # nunca levanta
-        LUZ.definir("done")
+            plat.colar(final + " ")
+        LUZ.definir("done")  # antes de gravar: banco travado ou recálculo das sugestões não atrasam o texto nem a luz
+        if texto:
+            historico.gravar(final, app=app, idioma=a["idioma"], duracao_s=duracao, original=texto)  # nunca levanta
     except Exception as e:  # noqa: BLE001 - qualquer falha vira log, luz vermelha e bipe grave
         log(f"erro: {e!r}")
         LUZ.definir("erro")

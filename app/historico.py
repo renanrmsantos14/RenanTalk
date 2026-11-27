@@ -8,10 +8,11 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 
-from comum import PASTA, log as _log
+import sugestoes
+from comum import PASTA, ler_vocabulario, log as _log
 
 ARQ_HISTORICO = os.path.join(PASTA, "historico.db")
-VERSAO = 1
+VERSAO = 2  # 2: garante a tabela `sugestao` em bancos criados antes dela (tudo é IF NOT EXISTS)
 RETENCAO_DIAS = 30
 TIMEOUT_S = 2.0  # banco travado por outro processo: espera pouco e desiste
 _FORMATO = "%Y-%m-%dT%H:%M:%S"
@@ -55,7 +56,9 @@ def conectar(arquivo: str | None = None) -> sqlite3.Connection:
 
 def gravar(texto: str, app: str = "", modo: str = "literal", idioma: str = "", duracao_s: float = 0.0,
            original: str | None = None, arquivo: str | None = None) -> int | None:
-    """Guarda um ditado. Devolve o id, ou None se falhar (o erro vai ao log, sem o texto)."""
+    """Guarda um ditado e atualiza as sugestões de termos. Devolve o id, ou None se falhar (o erro vai ao log, sem o texto).
+
+    `texto` é o que foi colado (já com as substituições); `original` é a transcrição crua do Whisper."""
     try:
         con = conectar(arquivo)
         try:
@@ -66,6 +69,10 @@ def gravar(texto: str, app: str = "", modo: str = "literal", idioma: str = "", d
                  modo, idioma or "", round(float(duracao_s), 2), len(texto.split())),
             )
             con.commit()
+            try:
+                sugestoes.atualizar(con, ler_vocabulario(), (datetime.now() - timedelta(days=RETENCAO_DIAS)).strftime(_FORMATO))
+            except Exception as e:  # noqa: BLE001 - sugestão é extra: o ditado já foi gravado
+                _log(f"histórico: sugestões não atualizaram ({type(e).__name__})")
             return cur.lastrowid
         finally:
             con.close()
@@ -113,6 +120,7 @@ def apagar_tudo(arquivo: str | None = None) -> int:
     con = conectar(arquivo)
     try:
         cur = con.execute("DELETE FROM ditado")
+        con.execute("DELETE FROM sugestao")  # os termos sugeridos vêm dos ditados: somem junto
         con.commit()
         return cur.rowcount
     finally:

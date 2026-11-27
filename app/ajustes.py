@@ -14,9 +14,11 @@ from comum import PASTA, log as _log
 
 ARQ_AJUSTES = os.path.join(PASTA, "ajustes.json")
 ARQ_DISPOSITIVOS = os.path.join(PASTA, "dispositivos.json")
+COMANDOS = ("nova_linha", "ponto_final", "virgula", "interrogacao", "abre_parenteses", "fecha_parenteses")  # falados, ver substituicoes.py
 PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+win", "atalho_colar": "alt+win+v",
            "luz": {"ligada": True, "cor": "azul", "espessura": "media", "posicao": "embaixo"},
-           "tema": "sistema", "notificacoes": True, "abaixar_outros": False, "volume_outros": 30}
+           "tema": "sistema", "notificacoes": True, "abaixar_outros": False, "volume_outros": 30,
+           "comandos": {c: True for c in COMANDOS}}
 IDIOMAS = ("pt", "auto", "en")
 MODIFICADORES = ("ctrl", "alt", "shift", "win")
 TECLAS = tuple("abcdefghijklmnopqrstuvwxyz0123456789") + tuple(f"f{i}" for i in range(1, 13)) + ("space",)
@@ -129,6 +131,15 @@ def _normalizar_luz(bruto) -> dict:
     return luz
 
 
+def _normalizar_comandos(bruto) -> dict:
+    """Liga/desliga dos comandos falados: o que faltar ou não for booleano fica ligado (chaves extras ficam)."""
+    comandos = dict(bruto) if isinstance(bruto, dict) else {}
+    for c in COMANDOS:
+        if not isinstance(comandos.get(c), bool):
+            comandos[c] = True
+    return comandos
+
+
 def normalizar(bruto) -> dict:
     """Mescla com os padrões e troca valor inválido pelo padrão (a chave desconhecida segue junto)."""
     dados = dict(bruto) if isinstance(bruto, dict) else {}
@@ -150,6 +161,7 @@ def normalizar(bruto) -> dict:
             _log(f"ajustes: {chave} inválido ou em conflito com o de ditar {dados[chave]!r}, usando {PADROES[chave]}")
             dados[chave] = PADROES[chave]
     dados["luz"] = _normalizar_luz(dados["luz"])
+    dados["comandos"] = _normalizar_comandos(dados["comandos"])
     if dados["tema"] not in TEMAS:
         dados["tema"] = PADROES["tema"]
     for chave in ("notificacoes", "abaixar_outros"):

@@ -32,6 +32,7 @@ Clique no ícone do RenanTalk (na área de notificação ou na setinha `^`):
 
 - **Configurações…**: abre a janela do RenanTalk (segue o tema claro/escuro do Windows):
   - **Vocabulário**: nomes, siglas e termos que o ditado deve escrever certo (ex.: nomes de clientes, `Dataverse`, `RD Station`). Adicione com Enter, remova no ✕; salva sozinho e vale no próximo ditado. Cabem cerca de 850 caracteres; o que passar fica riscado e de fora.
+  - **Início e Substituições**: resumo dos ditados e sugestões de termos novos (aceite ou ignore); comandos falados ("nova linha", "ponto final", "vírgula"…) e regras próprias `quando eu disser => escreva` em `substituicoes.txt`.
   - **Chave Groq**: cola a chave nova; ela é validada na Groq antes de ser salva.
   - **Sobre**: versão, memória em uso, ditados do dia, atualização e log.
 - **Procurar atualização**: verifica agora em vez de esperar o ciclo automático.

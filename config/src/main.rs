@@ -198,6 +198,22 @@ fn atalhos_conflitam(a: &str, b: &str) -> bool {
     ca.iter().all(|x| cb.contains(x)) || cb.iter().all(|x| ca.contains(x))
 }
 
+/// Escrita atômica: arquivo temporário e rename, para quem lê (o Python) nunca ver o arquivo pela metade.
+fn gravar_atomico(arq: &std::path::Path, texto: &str) -> bool {
+    let _ = fs::create_dir_all(pasta());
+    let mut tmp = arq.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    // No Windows o rename falha se o Python estiver lendo o arquivo naquele instante: tenta de novo.
+    fs::write(&tmp, texto).is_ok()
+        && (0..3).any(|i| {
+            if i > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(30));
+            }
+            fs::rename(&tmp, arq).is_ok()
+        })
+}
+
 fn ler_ajustes_arquivo() -> serde_json::Map<String, Value> {
     fs::read_to_string(pasta().join("ajustes.json"))
         .ok()
@@ -210,6 +226,18 @@ const CORES_LUZ: [&str; 4] = ["azul", "verde", "roxo", "ambar"];
 const ESPESSURAS: [&str; 3] = ["fina", "media", "grossa"];
 const POSICOES: [&str; 2] = ["embaixo", "topo"];
 const TEMAS: [&str; 3] = ["sistema", "claro", "escuro"];
+const COMANDOS: [&str; 6] = ["nova_linha", "ponto_final", "virgula", "interrogacao", "abre_parenteses", "fecha_parenteses"];
+
+/// Liga/desliga dos comandos falados: o que faltar ou não for booleano fica ligado; chaves extras ficam.
+fn comandos_normalizados(bruto: Option<&Value>) -> serde_json::Map<String, Value> {
+    let mut c = bruto.and_then(Value::as_object).cloned().unwrap_or_default();
+    for chave in COMANDOS {
+        if !c.get(chave).map_or(false, Value::is_boolean) {
+            c.insert(chave.into(), json!(true));
+        }
+    }
+    c
+}
 
 /// Luz com os quatro campos válidos (o que faltar ou for inválido volta ao padrão); chaves extras ficam.
 fn luz_normalizada(bruto: Option<&Value>) -> serde_json::Map<String, Value> {
@@ -245,6 +273,8 @@ fn ajustes() -> Value {
     a.insert("atalho_colar".into(), json!(colar.unwrap_or_else(|| "alt+win+v".into())));
     let luz = luz_normalizada(a.get("luz"));
     a.insert("luz".into(), Value::Object(luz));
+    let comandos = comandos_normalizados(a.get("comandos"));
+    a.insert("comandos".into(), Value::Object(comandos));
     if !a.get("tema").and_then(Value::as_str).map_or(false, |t| TEMAS.contains(&t)) {
         a.insert("tema".into(), json!("sistema"));
     }
@@ -298,6 +328,17 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
         }
         a.insert("luz".into(), Value::Object(luz));
     }
+    if let Some(novos) = valores.get("comandos") {
+        let Some(novos) = novos.as_object() else { return json!({ "ok": false, "erro": "Ajuste dos comandos inválido." }) };
+        let mut comandos = comandos_normalizados(a.get("comandos"));
+        for (chave, v) in novos {
+            if !COMANDOS.contains(&chave.as_str()) || !v.is_boolean() {
+                return json!({ "ok": false, "erro": "Ajuste dos comandos inválido." });
+            }
+            comandos.insert(chave.clone(), v.clone());
+        }
+        a.insert("comandos".into(), Value::Object(comandos));
+    }
     if let Some(t) = valores.get("tema").and_then(Value::as_str) {
         if !TEMAS.contains(&t) {
             return json!({ "ok": false, "erro": "Tema inválido." });
@@ -330,18 +371,8 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
         }
         a.insert(chave.into(), json!(ok));
     }
-    let _ = fs::create_dir_all(pasta());
-    let arq = pasta().join("ajustes.json");
-    let tmp = pasta().join("ajustes.json.tmp");
     let texto = serde_json::to_string_pretty(&Value::Object(a)).unwrap_or_default();
-    // No Windows o rename falha se o Python estiver lendo o arquivo naquele instante: tenta de novo.
-    let gravou = fs::write(&tmp, texto).is_ok()
-        && (0..3).any(|i| {
-            if i > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(30));
-            }
-            fs::rename(&tmp, &arq).is_ok()
-        });
+    let gravou = gravar_atomico(&pasta().join("ajustes.json"), &texto);
     match (gravou, erro) {
         (false, _) => json!({ "ok": false, "erro": "Não consegui salvar os ajustes." }),
         (true, Some(e)) => json!({ "ok": false, "erro": e }),
@@ -422,8 +453,12 @@ fn historico_excluir(id: i64) -> Value {
 fn historico_apagar_tudo() -> Value {
     match abrir_historico() {
         Err(e) if e == "vazio" => json!({ "ok": true }),
-        r => match r.and_then(|c| c.execute("DELETE FROM ditado", []).map_err(|e| e.to_string())) {
-            Ok(_) => json!({ "ok": true }),
+        r => match r.and_then(|c| {
+            c.execute("DELETE FROM ditado", []).map_err(|e| e.to_string())?;
+            let _ = c.execute("DELETE FROM sugestao", []); // os termos sugeridos vêm dos ditados: somem junto (a tabela pode não existir)
+            Ok(())
+        }) {
+            Ok(()) => json!({ "ok": true }),
             Err(e) => erro_historico(e),
         },
     }
@@ -432,9 +467,147 @@ fn historico_apagar_tudo() -> Value {
 #[tauri::command]
 fn salvar_vocab(termos: Vec<String>) -> Value {
     let termos: Vec<String> = termos.into_iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect();
-    let _ = fs::create_dir_all(pasta());
-    let ok = fs::write(pasta().join("vocabulario.txt"), termos.join("\n") + "\n").is_ok();
-    json!({ "ok": ok })
+    json!({ "ok": gravar_atomico(&pasta().join("vocabulario.txt"), &(termos.join("\n") + "\n")) })
+}
+
+// ---------- Início (resumo dos ditados e sugestões de termos) ----------
+/// Palavras por minuto de quem digita: base da estimativa de tempo poupado.
+const PALAVRAS_POR_MIN: f64 = 40.0;
+
+/// Resumo do painel: palavras hoje e nos últimos 7 dias, tempo poupado (palavras ÷ 40 por minuto, menos o tempo
+/// falado, nunca negativo), gráfico por dia, último ditado e sugestões novas fora do vocabulário.
+fn resumo(con: &rusqlite::Connection, hoje: chrono::NaiveDate, vocab: &[String]) -> rusqlite::Result<Value> {
+    let dias: Vec<String> = (0..7u64).rev().map(|i| (hoje - chrono::Days::new(i)).format("%Y-%m-%d").to_string()).collect();
+    let mut st = con.prepare("SELECT substr(criado_em, 1, 10), SUM(palavras), SUM(duracao_s) FROM ditado WHERE criado_em >= ?1 GROUP BY 1")?;
+    let linhas = st.query_map([&dias[0]], |l| Ok((l.get::<_, String>(0)?, l.get::<_, i64>(1)?, l.get::<_, f64>(2)?)))?;
+    let por_dia: std::collections::HashMap<String, (i64, f64)> = linhas.filter_map(Result::ok).map(|(d, p, s)| (d, (p, s))).collect();
+    let palavras_dia = |d: &String| por_dia.get(d).map_or(0, |v| v.0);
+    let semana: i64 = dias.iter().map(palavras_dia).sum();
+    let falado_s: f64 = dias.iter().filter_map(|d| por_dia.get(d)).map(|v| v.1).sum();
+    let poupado_s = (semana as f64 / PALAVRAS_POR_MIN * 60.0 - falado_s).max(0.0).round();
+    let total: i64 = con.query_row("SELECT COUNT(*) FROM ditado", [], |l| l.get(0))?;
+    let ultimo = con
+        .query_row("SELECT id, criado_em, texto, app FROM ditado ORDER BY criado_em DESC, id DESC LIMIT 1", [], |l| {
+            Ok(json!({ "id": l.get::<_, i64>(0)?, "criado_em": l.get::<_, String>(1)?, "texto": l.get::<_, String>(2)?, "app": l.get::<_, String>(3)? }))
+        })
+        .ok();
+    // banco sem a tabela (criado antes dela): sem sugestões, sem erro
+    let conhecidos: Vec<String> = vocab.iter().map(|t| t.to_lowercase()).collect();
+    let sugestoes: Vec<Value> = (|| -> rusqlite::Result<Vec<Value>> {
+        let mut st = con.prepare("SELECT termo, motivo, contagem FROM sugestao WHERE estado = 'nova' ORDER BY contagem DESC, termo LIMIT 30")?;
+        let l = st.query_map([], |l| Ok((l.get::<_, String>(0)?, l.get::<_, String>(1)?, l.get::<_, i64>(2)?)))?;
+        Ok(l.filter_map(Result::ok)
+            .filter(|(t, _, _)| !conhecidos.contains(&t.to_lowercase()))
+            .take(8)
+            .map(|(t, m, c)| json!({ "termo": t, "motivo": m, "contagem": c }))
+            .collect())
+    })()
+    .unwrap_or_default();
+    Ok(json!({
+        "ok": true, "vazio": total == 0, "hoje": palavras_dia(&dias[6]), "semana": semana, "poupado_s": poupado_s,
+        "dias": dias.iter().map(|d| json!({ "dia": d, "palavras": palavras_dia(d) })).collect::<Vec<_>>(),
+        "ultimo": ultimo, "sugestoes": sugestoes,
+    }))
+}
+
+#[tauri::command]
+fn inicio() -> Value {
+    let hoje = chrono::Local::now().date_naive();
+    match abrir_historico() {
+        Err(e) if e == "vazio" => json!({ "ok": true, "vazio": true, "hoje": 0, "semana": 0, "poupado_s": 0, "dias": [], "ultimo": null, "sugestoes": [] }),
+        Err(e) => erro_historico(e),
+        Ok(con) => resumo(&con, hoje, &ler_vocabulario()).unwrap_or_else(erro_historico),
+    }
+}
+
+/// Aceitar acrescenta o termo ao vocabulario.txt (sem duplicar, mantendo comentários) e marca `aceita`;
+/// ignorar só marca `ignorada`. Devolve o vocabulário atual quando aceita.
+#[tauri::command]
+fn sugestao_resolver(termo: String, acao: String) -> Value {
+    let termo = termo.trim().to_string();
+    if termo.is_empty() || !["aceitar", "ignorar"].contains(&acao.as_str()) {
+        return json!({ "ok": false, "erro": "Pedido inválido." });
+    }
+    let aceitar = acao == "aceitar";
+    if aceitar && !ler_vocabulario().iter().any(|t| t.to_lowercase() == termo.to_lowercase()) {
+        let arq = pasta().join("vocabulario.txt");
+        let mut texto = fs::read_to_string(&arq).unwrap_or_default();
+        if !texto.is_empty() && !texto.ends_with('\n') {
+            texto.push('\n');
+        }
+        texto.push_str(&format!("{termo}\n"));
+        if !gravar_atomico(&arq, &texto) {
+            return json!({ "ok": false, "erro": "Não consegui gravar o vocabulário." });
+        }
+    }
+    let marcado = match abrir_historico() {
+        Err(e) if e == "vazio" => Ok(()),
+        r => r.and_then(|c| {
+            c.execute_batch("CREATE TABLE IF NOT EXISTS sugestao(termo TEXT PRIMARY KEY, motivo TEXT NOT NULL DEFAULT '', contagem INTEGER NOT NULL DEFAULT 0, estado TEXT NOT NULL DEFAULT 'nova')")
+                .and_then(|_| c.execute(
+                    "INSERT INTO sugestao(termo, estado) VALUES(?1, ?2) ON CONFLICT(termo) DO UPDATE SET estado = excluded.estado",
+                    rusqlite::params![termo, if aceitar { "aceita" } else { "ignorada" }],
+                ))
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        }),
+    };
+    match marcado {
+        Ok(()) => json!({ "ok": true, "vocab": ler_vocabulario() }),
+        Err(e) => erro_historico(e),
+    }
+}
+
+// ---------- Substituições (substituicoes.txt: `quando eu disser => escreva`, uma por linha) ----------
+#[derive(Serialize, serde::Deserialize)]
+struct Regra {
+    quando: String,
+    escreva: String,
+}
+
+/// Mesmo formato do Python (`substituicoes.ler_regras`); o `\n` do lado direito segue como está no arquivo.
+fn parse_regras(texto: &str) -> Vec<Regra> {
+    texto
+        .lines()
+        .filter_map(|l| {
+            let (q, e) = l.split_once("=>")?;
+            let (q, e) = (q.trim(), e.trim());
+            (!q.is_empty() && !q.starts_with('#') && !e.is_empty()).then(|| Regra { quando: q.into(), escreva: e.into() })
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn substituicoes_ler() -> Value {
+    let regras = parse_regras(&fs::read_to_string(pasta().join("substituicoes.txt")).unwrap_or_default());
+    json!({ "ok": true, "regras": regras })
+}
+
+/// Reescreve o arquivo inteiro com as regras recebidas (comentários do arquivo não são mantidos).
+#[tauri::command]
+fn substituicoes_salvar(regras: Vec<Regra>) -> Value {
+    if regras.len() > 200 {
+        return json!({ "ok": false, "erro": "Cabem até 200 regras." });
+    }
+    let mut vistas: Vec<String> = Vec::new();
+    let mut texto = String::new();
+    for r in &regras {
+        let (q, e) = (r.quando.trim(), r.escreva.trim().replace("\r\n", "\\n").replace('\n', "\\n"));
+        if q.is_empty() || e.is_empty() || q.contains("=>") || q.contains('\n') || q.starts_with('#') || q.chars().count() > 200 || e.chars().count() > 500 {
+            return json!({ "ok": false, "erro": "Cada regra precisa de “quando eu disser” e “escreva”, sem “=>” nem # no começo." });
+        }
+        let chave = q.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+        if vistas.contains(&chave) {
+            return json!({ "ok": false, "erro": format!("Já existe uma regra para “{q}”.") });
+        }
+        vistas.push(chave);
+        texto.push_str(&format!("{q} => {e}\n"));
+    }
+    if gravar_atomico(&pasta().join("substituicoes.txt"), &texto) {
+        json!({ "ok": true })
+    } else {
+        json!({ "ok": false, "erro": "Não consegui salvar as regras." })
+    }
 }
 
 #[tauri::command]
@@ -534,7 +707,7 @@ fn main() {
     });
     let _ = CTX.set(Ctx {
         pid: args.get(1).and_then(|p| p.parse().ok()).unwrap_or(0),
-        aba: args.get(2).cloned().unwrap_or_else(|| "voc".into()),
+        aba: args.get(2).cloned().unwrap_or_else(|| "inicio".into()),
         python: args.get(3).cloned().unwrap_or_else(|| if cfg!(windows) { "python".into() } else { "python3".into() }),
         app: app_dir,
     });
@@ -542,7 +715,7 @@ fn main() {
         iniciar_ditado(&ctx().app);
     }
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![estado, ajustes, salvar_ajustes, historico_listar, historico_editar, historico_excluir, historico_apagar_tudo, salvar_vocab, salvar_chave, atualizar, abrir, mostrar, fechar])
+        .invoke_handler(tauri::generate_handler![estado, ajustes, salvar_ajustes, historico_listar, historico_editar, historico_excluir, historico_apagar_tudo, salvar_vocab, inicio, sugestao_resolver, substituicoes_ler, substituicoes_salvar, salvar_chave, atualizar, abrir, mostrar, fechar])
         .setup(|app| {
             // rede de segurança: se a página não pedir para aparecer, mostra assim mesmo
             let j = app.get_webview_window("main").expect("janela");
@@ -575,5 +748,69 @@ mod testes {
         assert!(atalhos_conflitam("ctrl+win", "ctrl+win+v"));
         assert!(atalhos_conflitam("ctrl+win+v", "ctrl+win"));
         assert!(!atalhos_conflitam("ctrl+win", "alt+win+v"));
+    }
+
+    fn banco(linhas: &[(&str, &str, i64, f64)]) -> rusqlite::Connection {
+        let con = rusqlite::Connection::open_in_memory().unwrap();
+        con.execute_batch(
+            "CREATE TABLE ditado(id INTEGER PRIMARY KEY, criado_em TEXT NOT NULL, texto TEXT NOT NULL, original TEXT NOT NULL DEFAULT '', app TEXT NOT NULL DEFAULT '', palavras INTEGER NOT NULL DEFAULT 0, duracao_s REAL NOT NULL DEFAULT 0);",
+        )
+        .unwrap();
+        for (quando, texto, palavras, dur) in linhas {
+            con.execute("INSERT INTO ditado(criado_em, texto, palavras, duracao_s) VALUES(?1,?2,?3,?4)", rusqlite::params![quando, texto, palavras, dur]).unwrap();
+        }
+        con
+    }
+
+    #[test]
+    fn resumo_conta_hoje_semana_e_poupado() {
+        let hoje = chrono::NaiveDate::from_ymd_opt(2026, 11, 26).unwrap();
+        // 80 palavras em 20 s hoje + 40 em 10 s há 6 dias; 500 palavras há 7 dias ficam de fora
+        let con = banco(&[("2026-11-26T09:00:00", "a", 80, 20.0), ("2026-11-20T10:00:00", "b", 40, 10.0), ("2026-11-19T10:00:00", "c", 500, 5.0)]);
+        let r = resumo(&con, hoje, &[]).unwrap();
+        assert_eq!((r["hoje"].as_i64(), r["semana"].as_i64(), r["vazio"].as_bool()), (Some(80), Some(120), Some(false)));
+        assert_eq!(r["poupado_s"].as_f64(), Some(120.0 / 40.0 * 60.0 - 30.0));
+        assert_eq!(r["dias"].as_array().unwrap().len(), 7);
+        assert_eq!(r["dias"][0], json!({ "dia": "2026-11-20", "palavras": 40 }));
+        assert_eq!(r["ultimo"]["texto"], "a");
+    }
+
+    #[test]
+    fn resumo_poupado_nunca_negativo_e_banco_sem_tabela_de_sugestao() {
+        let hoje = chrono::NaiveDate::from_ymd_opt(2026, 11, 26).unwrap();
+        let con = banco(&[("2026-11-26T09:00:00", "oi", 2, 60.0)]);
+        let r = resumo(&con, hoje, &[]).unwrap();
+        assert_eq!(r["poupado_s"].as_f64(), Some(0.0));
+        assert_eq!(r["sugestoes"], json!([]));
+        assert_eq!(resumo(&banco(&[]), hoje, &[]).unwrap()["vazio"], true);
+    }
+
+    #[test]
+    fn sugestoes_so_novas_e_fora_do_vocabulario() {
+        let hoje = chrono::NaiveDate::from_ymd_opt(2026, 11, 26).unwrap();
+        let con = banco(&[]);
+        con.execute_batch(
+            "CREATE TABLE sugestao(termo TEXT PRIMARY KEY, motivo TEXT NOT NULL DEFAULT '', contagem INTEGER NOT NULL DEFAULT 0, estado TEXT NOT NULL DEFAULT 'nova');
+             INSERT INTO sugestao VALUES('Marcondes','frequencia',7,'nova'),('CTF','frequencia',6,'nova'),('Ana','frequencia',9,'ignorada'),('Dataverse','frequencia',5,'nova');",
+        )
+        .unwrap();
+        let r = resumo(&con, hoje, &["dataverse".to_string()]).unwrap();
+        let termos: Vec<&str> = r["sugestoes"].as_array().unwrap().iter().map(|s| s["termo"].as_str().unwrap()).collect();
+        assert_eq!(termos, ["Marcondes", "CTF"]);
+    }
+
+    #[test]
+    fn regras_ida_e_volta_do_arquivo() {
+        let r = parse_regras("# c\nbom dia => Bom dia, tudo bem?\nlinha => a\\nb\nsem seta\n => x\ny =>\n");
+        assert_eq!(r.len(), 2);
+        assert_eq!((r[0].quando.as_str(), r[0].escreva.as_str()), ("bom dia", "Bom dia, tudo bem?"));
+        assert_eq!(r[1].escreva, "a\\nb");
+    }
+
+    #[test]
+    fn comandos_faltando_ficam_ligados() {
+        let c = comandos_normalizados(Some(&json!({ "nova_linha": false, "virgula": "x", "extra": 1 })));
+        assert_eq!((c["nova_linha"].as_bool(), c["virgula"].as_bool(), c["ponto_final"].as_bool(), c["extra"].as_i64()), (Some(false), Some(true), Some(true), Some(1)));
+        assert_eq!(comandos_normalizados(None).len(), 6);
     }
 }
