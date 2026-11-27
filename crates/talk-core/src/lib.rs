@@ -5,3 +5,8 @@
 pub mod ajustes;
 pub mod casador;
 pub mod pasta;
+pub mod comandos;
+pub mod escrita;
+pub mod historico;
+pub mod substituicoes;
+pub mod sugestoes;
