@@ -1,14 +1,14 @@
 # RenanTalk desktop em Rust no modelo do Posta
 
 - Nível: 2 (reescrita do app desktop inteiro: núcleo, instalador, atualização e tela; não cabe numa sessão)
-- Etapa: 4 de 7 Go
-- Próximo passo: Go no card · com você
+- Etapa: 5 de 7 Construir
+- Próximo passo: tarefa 1 (workspace + talk-core ajustes), numa sessão nova · sozinho
 - Branch e PR: rust-tauri · ainda não
 - Protótipo: sem protótipo (a tela copia o visual atual do `app/ui/index.html`)
 - Spec: `docs/features/rust-tauri/spec.md`
-- Go: pendente
+- Go: 27/11/2026 15:14 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 27/11/2026 15:10
+- Atualizado: 27/11/2026 15:14
 
 ## Referência
 - Posta (`~/Desktop/Projetos/Posta`, repo `renanrmsantos14/posta`): núcleo em crate Rust (`crates/mail-core`), casca Tauri 2 com comandos (`apps/client/src-tauri`), tela React + Vite (`apps/client`, com dados de exemplo fora do Tauri), pnpm workspace, atualização assinada do Tauri, release por tag.
