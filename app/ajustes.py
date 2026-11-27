@@ -27,7 +27,8 @@ ATALHOS = ("atalho_ditar", "atalho_colar", "atalho_traduzir")  # nenhum pode rep
 IDIOMAS = ("pt", "auto", "en")
 MODIFICADORES = ("ctrl", "alt", "shift", "win")
 TECLAS = tuple("abcdefghijklmnopqrstuvwxyz0123456789") + tuple(f"f{i}" for i in range(1, 13)) + ("space",)
-ATALHOS_PROIBIDOS = ("ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4")  # o colar manda Ctrl+V
+ATALHOS_PROIBIDOS = ("ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4",  # o colar manda Ctrl+V
+                     "alt+space")  # menu da janela
 FREQ_BIPE_TAXA = 44100
 TEMAS = ("sistema", "claro", "escuro")
 POSICOES = ("embaixo", "topo")
@@ -58,7 +59,10 @@ def validar_atalho(texto) -> tuple[str, ...] | None:
     if len(teclas) > 1 or (teclas and teclas[0] not in TECLAS) or not set(mods) - {"shift"}:
         return None
     saida = tuple(sorted(mods, key=MODIFICADORES.index)) + tuple(teclas)
-    return None if "+".join(saida) in ATALHOS_PROIBIDOS else saida
+    # do sistema: Alt+Shift troca o idioma do teclado (mesmo com Win junto) e o Windows usa quase todo Win+tecla
+    if "+".join(saida) in ATALHOS_PROIBIDOS or {"alt", "shift"} <= set(mods) or (mods == ["win"] and teclas):
+        return None
+    return saida
 
 
 def atalhos_conflitam(a: str, b: str) -> bool:

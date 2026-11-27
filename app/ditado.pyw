@@ -28,7 +28,7 @@ import atualizador
 import escrita
 import historico
 import substituicoes
-from comum import WINDOWS, cabecalhos_groq, ler_chave, log, prompt_vocabulario
+from comum import WINDOWS, cabecalhos_groq, conferir_modelos, ler_chave, log, prompt_vocabulario
 
 if WINDOWS:
     import plataforma_windows as plat
@@ -307,4 +307,5 @@ if __name__ == "__main__":
     threading.Thread(target=ciclo_atualizacao, daemon=True).start()
     threading.Thread(target=ajustes.escrever_dispositivos, daemon=True).start()
     threading.Thread(target=historico.ciclo_retencao, daemon=True).start()  # apaga > 30 dias ao iniciar e 1x por dia
+    threading.Thread(target=conferir_modelos, args=(MODELO, escrita.MODELO), daemon=True).start()
     plat.rodar(comecar, parar, marcar_outra_tecla, lambda: gravando, lambda: colar_ultimo(0.1))

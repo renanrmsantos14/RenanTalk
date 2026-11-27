@@ -144,5 +144,27 @@ class Fluxo(unittest.TestCase):
         self.bipe.assert_called_once_with(300, 150)  # a falha não passa em silêncio
 
 
+class ConferirModelos(unittest.TestCase):
+    def conferir(self, ids, chave="k"):
+        import comum
+        resposta = io.BytesIO(json.dumps({"data": [{"id": i, "active": True} for i in ids]}).encode())
+        with mock.patch.object(comum, "ler_chave", return_value=chave), \
+                mock.patch.object(comum.urllib.request, "urlopen", return_value=resposta) as rede, \
+                mock.patch.object(comum, "log") as log:
+            comum.conferir_modelos("whisper-large-v3", escrita.MODELO)
+        return [c.args[0] for c in log.call_args_list], rede
+
+    def test_modelo_desligado_vai_ao_log(self):
+        linhas, _ = self.conferir(["whisper-large-v3"])
+        self.assertEqual(len(linhas), 1)
+        self.assertIn(escrita.MODELO, linhas[0])
+
+    def test_todos_ativos_ou_sem_chave_nao_avisa(self):
+        self.assertEqual(self.conferir(["whisper-large-v3", escrita.MODELO])[0], [])
+        linhas, rede = self.conferir([], chave="")
+        self.assertEqual(linhas, [])
+        rede.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

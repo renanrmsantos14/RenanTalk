@@ -35,7 +35,7 @@ description: "Verifica a janela de configurações do RenanTalk desktop (Tauri +
 9. Aba Substituições: desmarcar "Vírgula" → `ajustes.json` `comandos.virgula: false`. Em "Suas regras", digitar "meu email" e "contato@exemplo.com" e Adicionar → linha `meu email => contato@exemplo.com` em `substituicoes.txt`; regra com `\n` aparece como `\n` literal na lista. O arquivo é lido ao abrir a janela.
 10. Histórico: editar um ditado trocando uma palavra (ex.: "van" → "Sprinter") e Salvar correção → caixa "Troca: “van” → “Sprinter”" visível sem rolar, botões dentro da caixa; "Adicionar ao vocabulário" grava o termo. Apagar tudo também zera a tabela `sugestao`.
 11. Aba Escrita com IA (`esc`): trocar o Modo padrão para Revisado → `ajustes.json` `modo: revisado` e selo "Salvo"; digitar "Slack" em Aplicativo e Enter → `modos_apps.slack` (minúsculas); ✕ numa linha a remove do arquivo. Padrões: code, olk, outlook, whatsapp.
-12. Aba Ditado e som rola até o card "Atalho de traduzir" (padrão Shift + Win); Ctrl + Alt + Shift + Win → aviso "se confunde com o de ditar"; Alt + Shift → gravado.
+12. Aba Ditado e som rola até o card "Atalho de traduzir" (padrão Shift + Win); Ctrl + Alt + Shift + Win → aviso "se confunde com o de ditar"; Alt + Shift e Win + L → "Atalho inválido … atalhos do sistema" (Alt + Shift troca o idioma do teclado no Windows).
 
 ## Casos de borda
 - Busca não ignora acento ("agua" não acha "água") — conhecido, pendente.

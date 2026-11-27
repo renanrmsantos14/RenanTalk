@@ -179,17 +179,19 @@ fn validar_atalho(texto: &str) -> Option<String> {
     if mods.iter().all(|m| *m == "shift") || teclas.len() > 1 || teclas.first().map_or(false, |t| !tecla_ok(t)) {
         return None;
     }
+    // do sistema: Alt+Shift troca o idioma do teclado (mesmo com Win junto) e o Windows usa quase todo Win+tecla
+    let do_sistema = (mods.contains(&"alt") && mods.contains(&"shift")) || (mods == ["win"] && !teclas.is_empty());
     let mut saida: Vec<String> = mods.iter().map(|m| m.to_string()).collect();
     saida.extend(teclas.into_iter().cloned());
     let junto = saida.join("+");
     // atalhos que o próprio app usa (o colar manda Ctrl+V) ou que todo programa usa
-    if ATALHOS_PROIBIDOS.contains(&junto.as_str()) {
+    if do_sistema || ATALHOS_PROIBIDOS.contains(&junto.as_str()) {
         return None;
     }
     Some(junto)
 }
 
-const ATALHOS_PROIBIDOS: [&str; 7] = ["ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4"];
+const ATALHOS_PROIBIDOS: [&str; 8] = ["ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4", "alt+space"];
 
 /// Um atalho contido no outro (ctrl+win e ctrl+win+v) faz um disparar no lugar do outro.
 fn atalhos_conflitam(a: &str, b: &str) -> bool {
@@ -404,7 +406,7 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
     for (chave, _, _) in ATALHOS {
         let Some(t) = valores.get(chave).and_then(Value::as_str) else { continue };
         let Some(ok) = validar_atalho(t) else {
-            erro.get_or_insert_with(|| "Atalho inválido: use Ctrl, Alt ou Win com mais uma tecla, e não Ctrl+C, Ctrl+V e parecidos.".into());
+            erro.get_or_insert_with(|| "Atalho inválido: use Ctrl, Alt ou Win com mais uma tecla, e não atalhos do sistema (Alt + Shift, Win + letra, Ctrl + V e parecidos).".into());
             continue;
         };
         let conflito = ATALHOS.iter().filter(|(outra, _, _)| *outra != chave).find_map(|(outra, padrao, para_que)| {
@@ -787,7 +789,7 @@ mod testes {
         assert_eq!(validar_atalho("Super+Ctrl").as_deref(), Some("ctrl+win"));
         assert_eq!(validar_atalho("alt+win+v").as_deref(), Some("alt+win+v"));
         assert_eq!(validar_atalho("ctrl+f12").as_deref(), Some("ctrl+f12"));
-        for ruim in ["ctrl", "d+e", "shift+a", "shift+space", "ctrl+v", "V+Ctrl", "alt+f4", "ctrl+f01", "ctrl+f+1", "ctrl+f13"] {
+        for ruim in ["ctrl", "d+e", "shift+a", "shift+space", "ctrl+v", "V+Ctrl", "alt+f4", "ctrl+f01", "ctrl+f+1", "ctrl+f13", "alt+shift+win", "alt+shift", "win+l", "win+space", "alt+space"] {
             assert_eq!(validar_atalho(ruim), None, "{ruim}");
         }
     }
