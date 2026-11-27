@@ -135,13 +135,13 @@ class BolhaService : AccessibilityService() {
         }
 
         legenda = TextView(this).apply {
-            textSize = 12.5f
+            textSize = 15f
             typeface = resources.getFont(R.font.geist_semibold)
             setTextColor(0xFFDBEAFE.toInt())
             gravity = Gravity.CENTER
-            setPadding(px(14), px(7), px(14), px(7))
+            setPadding(px(16), px(9), px(16), px(9))
             background = GradientDrawable().apply {
-                cornerRadius = 14 * dp
+                cornerRadius = 18 * dp
                 setColor(0xF5080B12.toInt())
                 setStroke(px(1), 0x24FFFFFF)
             }

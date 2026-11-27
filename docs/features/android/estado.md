@@ -1,7 +1,7 @@
 # RenanTalk Android — estado
 
 - **Nível:** 2 (feature grande)
-- **Etapa:** 4 de 6 — build, instalar e prints (v0.0.12 no POCO)
+- **Etapa:** 4 de 6 — build, instalar e prints (v0.0.13 no POCO)
 - **Próximo passo:** Renan testar no WhatsApp (segurar/tocar, ✕, enviar) e dizer se a borda/ilha ficaram boas; depois qualidade-antes-do-pr e PR.
 
 ## Visual "Contorno + Ilha" (26/11/2026, escolha do Renan no card)
@@ -10,6 +10,7 @@
 - **IlhaView:** pílula "Ditar" pequena e centralizada sobre o teclado (posição em `prefs["posicao"]`), abre em ilha com ✕, barras da voz, relógio e ↑ (mola k=520); ESCREVENDO = anel; OK = ✓ verde.
 - OndaView removida.
 - **Provas v0.0.12:** pílula parada centralizada; ilha gravando (0:01, 0:03); ✕ cancela com "Cancelado." e volta à pílula; borda presente nas 4 bordas (núcleo 120,170,255 embaixo). Falta: envio real e teste no WhatsApp (Renan).
+- **v0.0.13:** ilha 1,35x maior (40,5 dp de altura, texto 16,9 sp) e legenda 15 sp, a pedido do Renan ("UI muito pequena"); provado: pílula, gravando e ✕ cancelando.
 
 ## Mudança de direção (26/11/2026, decisão do Renan)
 - O RenanTalk **não é mais um teclado**: funciona como o Wispr Flow no Android — uma **bolha flutuante** que aparece acima do teclado que já estiver em uso (Gboard) quando ele abre e some quando fecha. O texto entra no campo focado pelo **serviço de acessibilidade**.

@@ -29,7 +29,7 @@ class IlhaView(contexto: Context) : View(contexto) {
     /** x da pílula dentro desta view, quando a janela está aberta e a pílula não está no canto. */
     var ancora = 0f
 
-    private val dp = resources.displayMetrics.density
+    private val dp = resources.displayMetrics.density * ESCALA // tudo da ilha cresce junto
     private val fonte: Typeface = resources.getFont(R.font.geist_semibold)
     var modo = Modo.DITAR
         private set
@@ -48,9 +48,9 @@ class IlhaView(contexto: Context) : View(contexto) {
     private val icone = contexto.getDrawable(R.drawable.ic_mic)!!.mutate()
     private val fundo = Paint(Paint.ANTI_ALIAS_FLAG)
     private val borda = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val texto = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = fonte; textSize = 12.5f * resources.displayMetrics.scaledDensity }
+    private val texto = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = fonte; textSize = 12.5f * resources.displayMetrics.scaledDensity * ESCALA }
     private val relogio = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = fonte; textSize = 11.5f * resources.displayMetrics.scaledDensity
+        typeface = fonte; textSize = 11.5f * resources.displayMetrics.scaledDensity * ESCALA
         fontFeatureSettings = "tnum"; color = 0xFF94A3B8.toInt(); textAlign = Paint.Align.RIGHT
     }
     private val traco = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -244,5 +244,9 @@ class IlhaView(contexto: Context) : View(contexto) {
         vistoMedida.getSegment(0f, vistoMedida.length * (t / 0.22f).coerceIn(0f, 1f), vistoParcial, true)
         traco.color = 0xFF4ADE80.toInt(); traco.alpha = alfa; traco.strokeWidth = 2.5f * dp
         c.drawPath(vistoParcial, traco)
+    }
+
+    private companion object {
+        const val ESCALA = 1.35f // 30 dp de altura ficou pequeno no POCO; 40,5 dp
     }
 }
