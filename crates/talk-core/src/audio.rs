@@ -20,6 +20,16 @@ pub fn para_16k_mono(amostras: &[f32], taxa: u32, canais: usize) -> Vec<i16> {
         .collect()
 }
 
+/// Nível de 0 a 1 para a luz: RMS da mistura mono, com 2500 (de 32767) como fundo de escala (igual ao `ao_audio` do Python).
+pub fn nivel_luz(amostras: &[f32], canais: usize) -> f32 {
+    let canais = canais.max(1);
+    let (soma, n) = amostras.chunks(canais).fold((0f64, 0usize), |(s, n), q| {
+        let m = q.iter().sum::<f32>() as f64 / q.len() as f64;
+        (s + m * m, n + 1)
+    });
+    if n == 0 { 0.0 } else { (((soma / n as f64).sqrt() * 32767.0 / 2500.0) as f32).min(1.0) }
+}
+
 /// WAV PCM de 16 bits, 16 kHz, mono (o que a Groq recebe).
 pub fn wav(amostras: &[i16]) -> Vec<u8> {
     let dados = (amostras.len() * 2) as u32;
@@ -95,6 +105,16 @@ pub fn onda_bipe(freq: u32, ms: u32, volume: u8, taxa: u32) -> Vec<f32> {
 #[cfg(test)]
 mod testes {
     use super::*;
+
+    #[test]
+    fn nivel_da_luz_segue_a_voz_e_satura() {
+        assert_eq!(nivel_luz(&[], 1), 0.0);
+        assert_eq!(nivel_luz(&[0.0; 100], 2), 0.0);
+        let meio = nivel_luz(&[0.04; 100], 1); // 0,04 * 32767 = 1310 -> 0,52
+        assert!((meio - 0.524).abs() < 0.01, "{meio}");
+        assert_eq!(nivel_luz(&[0.5; 100], 1), 1.0);
+        assert!((nivel_luz(&[0.04, 0.04].repeat(50), 2) - meio).abs() < 1e-6); // estéreo igual ao mono
+    }
 
     #[test]
     fn wav_tem_cabecalho_e_tamanho() {

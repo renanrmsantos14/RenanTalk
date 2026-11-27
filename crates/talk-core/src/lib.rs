@@ -11,5 +11,6 @@ pub mod ditado;
 pub mod escrita;
 pub mod groq;
 pub mod historico;
+pub mod luz;
 pub mod substituicoes;
 pub mod sugestoes;

@@ -37,6 +37,10 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 - `tests/test_escrita.py` cobre modo por app, fallback e o atalho de traduzir. Fluxo: no mesmo esquema acima, `mock.patch("urllib.request.urlopen", return_value=<BytesIO com {"choices":[{"message":{"content":"..."}}]}>)` e `d.plat.app_ativo` → `"OUTLOOK.EXE"` → colado o texto da IA e `historico.gravar(..., modo="formal")`; `d.transcrever_e_colar(b"", 1.0, True)` → modo `ingles` em qualquer app; `urlopen` com `side_effect=OSError` → colado o texto cru, modo `literal` e o log diz "IA (…) falhou" sem o conteúdo.
 - Atalho de traduzir (padrão `shift+win`): `xdotool keydown shift super`, falar, `keyup` → mesmo ciclo do ditar com `em_ingles=True`.
 
+## Luz (versão Rust)
+- Desenho puro: `cargo test -p talk-core luz` (pixels-chave, bandeira de 7 listras, topo/embaixo, `luz.ligada:false`).
+- Print no Xvfb `:99` (nunca na tela real) com `XDG_CONFIG_HOME` próprio e `luz.cor/posicao` no `ajustes.json`: sobe `renantalk` com `RENANTALK_AUDIO_TESTE=<wav>`, `xdotool keydown ctrl super`, `import -window root -crop 1280x60+0+740 +repage`; Shift+Win mostra a bandeira. Sem compositor o transparente sai preto.
+
 ## Não dá para provar aqui
 - IA real (modelo `openai/gpt-oss-120b` em `/openai/v1/models` (o llama-3.3-70b foi desligado em 16/08/2026; teste só com mock não pega modelo removido), cada modo, chave inválida → literal): não há chave no Linux; provar no Windows.
 - Ditado real (microfone + Groq): Xvfb não tem áudio. Provar numa máquina com microfone e chave.

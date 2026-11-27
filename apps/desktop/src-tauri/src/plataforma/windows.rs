@@ -2,8 +2,10 @@
 //! - atalhos pelo gancho de teclado de baixo nível (`WH_KEYBOARD_LL`), casados por `talk_core::casador::Casador`;
 //! - colar por `SendInput` (Ctrl+V) guardando e devolvendo todos os formatos da área de transferência, fora do Win+V;
 //! - volume dos outros apps por sessão de áudio (WASAPI), microfone e bipe pelo `cpal` (`som.rs`);
+//! - luz do ditado numa janela em camadas (`luz_win.rs`);
 //! - app ativo pelo nome do executável da janela em primeiro plano; instância única por mutex.
 
+use super::luz_win::JanelaWin;
 use super::som::{self, Captura};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -12,7 +14,8 @@ use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 use talk_core::casador::{Acao, Casador};
-use talk_core::ditado::{Ditado, Plataforma};
+use talk_core::ditado::{Ditado, EstadoLuz, Plataforma};
+use talk_core::luz::Luz;
 use talk_core::{ajustes, pasta};
 use windows::core::{Interface, HSTRING, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, GetLastError, GlobalFree, HANDLE, HGLOBAL, HINSTANCE, ERROR_ALREADY_EXISTS, LPARAM, LRESULT, WPARAM};
@@ -370,12 +373,16 @@ pub struct Windows {
     dir: PathBuf,
     captura: Mutex<Option<Captura>>,
     abaixados: Mutex<Vec<(String, f32)>>,
+    luz: Luz,
     // O Windows guarda o volume por app: um app que fechou ainda baixo voltaria baixo. Fica aqui até reaparecer.
     pendentes: Mutex<HashMap<String, f32>>,
 }
 
 pub fn nova(dir: &Path) -> Arc<dyn Plataforma> {
-    Arc::new(Windows { dir: dir.to_path_buf(), captura: Mutex::new(None), abaixados: Mutex::default(), pendentes: Mutex::default() })
+    Arc::new(Windows {
+        dir: dir.to_path_buf(), captura: Mutex::new(None), abaixados: Mutex::default(), pendentes: Mutex::default(),
+        luz: Luz::iniciar(dir.to_path_buf(), JanelaWin::criar),
+    })
 }
 
 impl Windows {
@@ -461,12 +468,17 @@ impl Plataforma for Windows {
     }
 
     fn iniciar_captura(&self, microfone: &str) -> Result<(), String> {
-        *self.captura.lock().unwrap() = Some(som::iniciar(&self.dir, microfone)?);
+        let luz = self.luz.clone();
+        *self.captura.lock().unwrap() = Some(som::iniciar(&self.dir, microfone, Arc::new(move |v| luz.audio(v)))?);
         Ok(())
     }
 
     fn parar_captura(&self) -> Vec<i16> {
         self.captura.lock().unwrap().take().map(som::parar).unwrap_or_default()
+    }
+
+    fn luz(&self, estado: EstadoLuz) {
+        self.luz.definir(estado);
     }
 }
 

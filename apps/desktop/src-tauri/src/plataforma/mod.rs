@@ -5,10 +5,14 @@
 mod som; // microfone e bipe (cpal), iguais nos dois sistemas
 
 #[cfg(target_os = "linux")]
+mod luz_x11;
+#[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
 pub use linux::{iniciar_gancho, nova};
 
+#[cfg(windows)]
+mod luz_win;
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]

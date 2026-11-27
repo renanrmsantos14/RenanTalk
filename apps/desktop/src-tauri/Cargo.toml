@@ -20,15 +20,15 @@ serde_json = { version = "1", features = ["preserve_order"] }
 cpal = "0.15"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# Gancho de teclado (RECORD) e colar (XTest): sem root e sem o grupo input.
-x11rb = { version = "0.13", features = ["record", "xtest"] }
+# Gancho de teclado (RECORD), colar (XTest) e a luz (janela ARGB sem entrada via SHAPE, monitores via RANDR): sem root e sem o grupo input.
+x11rb = { version = "0.13", features = ["record", "xtest", "shape", "randr"] }
 # Área de transferência: o X11 exige que o dono atenda os pedidos; a arboard mantém uma thread para isso.
 arboard = "3"
 
 [target.'cfg(windows)'.dependencies]
-# Gancho de teclado, SendInput, área de transferência, mutex, janela ativa e volume por sessão (WASAPI)
+# Luz (janela em camadas + GDI), gancho de teclado, SendInput, área de transferência, mutex, janela ativa e volume por sessão (WASAPI)
 windows = { version = "0.62", features = [
-    "Win32_Foundation", "Win32_Security", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage",
+    "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage",
     "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Threading",
     "Win32_System_Variant", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging",
 ] }

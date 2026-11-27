@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 pub const MINIMO_S: f64 = 0.4; // gravações mais curtas são ignoradas (toque acidental)
 
-/// Estado da luz (a tarefa 5 desenha; até lá a plataforma ignora).
+/// Estado da luz (desenhada por `talk_core::luz`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EstadoLuz {
     Gravando { ingles: bool },
@@ -39,7 +39,7 @@ pub trait Plataforma: Send + Sync {
     fn iniciar_captura(&self, microfone: &str) -> Result<(), String>;
     /// Para a captura e devolve o áudio em 16 kHz mono (vazio se a captura falhou no meio).
     fn parar_captura(&self) -> Vec<i16>;
-    /// Ponto de chamada da luz (tarefa 5). Padrão: não faz nada.
+    /// Ponto de chamada da luz. O nível de áudio chega por outro caminho: a captura da plataforma chama `Luz::audio`.
     fn luz(&self, _estado: EstadoLuz) {}
 }
 

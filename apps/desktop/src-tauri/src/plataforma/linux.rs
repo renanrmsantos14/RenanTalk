@@ -1,7 +1,8 @@
 //! Linux (X11), porta de `app/plataforma_linux.py`:
 //! - atalhos pela extensão RECORD (sem root nem grupo input), casados por `talk_core::casador::Casador`;
 //! - colar por XTest (Ctrl+V; Ctrl+Shift+V em terminais) devolvendo a área de transferência;
-//! - microfone e bipe pelo `cpal` (`som.rs`), volume dos outros apps pelo `pactl`.
+//! - microfone e bipe pelo `cpal` (`som.rs`), volume dos outros apps pelo `pactl`;
+//! - luz do ditado numa janela ARGB (`luz_x11.rs`).
 
 use arboard::Clipboard;
 use serde_json::Value;
@@ -12,7 +13,9 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use talk_core::casador::{Acao, Casador};
-use talk_core::ditado::{Ditado, Plataforma};
+use talk_core::ditado::{Ditado, EstadoLuz, Plataforma};
+use talk_core::luz::Luz;
+use super::luz_x11::JanelaX11;
 use super::som::{self, Captura};
 use talk_core::{ajustes, pasta};
 use x11rb::connection::Connection;
@@ -165,6 +168,7 @@ pub struct Linux {
     clip: Mutex<Option<Clipboard>>,
     captura: Mutex<Option<Captura>>,
     abaixados: Mutex<Vec<Abaixado>>,
+    luz: Luz,
     // O PipeWire guarda o volume por app: um app que fechou ainda baixo voltaria baixo. Fica aqui até reaparecer.
     pendentes: Mutex<HashMap<String, Vec<i64>>>,
 }
@@ -172,7 +176,7 @@ pub struct Linux {
 pub fn nova(dir: &Path) -> Arc<dyn Plataforma> {
     Arc::new(Linux {
         dir: dir.to_path_buf(), x: Mutex::new(None), clip: Mutex::new(None), captura: Mutex::new(None),
-        abaixados: Mutex::default(), pendentes: Mutex::default(),
+        abaixados: Mutex::default(), pendentes: Mutex::default(), luz: Luz::iniciar(dir.to_path_buf(), JanelaX11::criar),
     })
 }
 
@@ -319,12 +323,17 @@ impl Plataforma for Linux {
     }
 
     fn iniciar_captura(&self, microfone: &str) -> Result<(), String> {
-        *self.captura.lock().unwrap() = Some(som::iniciar(&self.dir, microfone)?);
+        let luz = self.luz.clone();
+        *self.captura.lock().unwrap() = Some(som::iniciar(&self.dir, microfone, Arc::new(move |v| luz.audio(v)))?);
         Ok(())
     }
 
     fn parar_captura(&self) -> Vec<i16> {
         self.captura.lock().unwrap().take().map(som::parar).unwrap_or_default()
+    }
+
+    fn luz(&self, estado: EstadoLuz) {
+        self.luz.definir(estado);
     }
 }
 
