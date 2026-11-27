@@ -2,7 +2,7 @@
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
 - Etapa: 5 de 7 Construir
-- Próximo passo: tarefas 3 e 4 (colar último; aparência) · sozinho
+- Próximo passo: etapa 6 do PR 1 (code-review, qualidade, prova no Windows) · sozinho
 - Branch e PR: t3/desktop-historico-termos-volume · ainda não
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
@@ -35,8 +35,8 @@
 |---|---|---|---|---|---|---|
 | 1 | PR 1 · `ajustes.json` (Python e Rust) + aba "Ditado e som": volume com bipe gerado no Windows, microfone, idioma, atalho configurável · Sonnet | — | 5, 6, 7, 8 | Linux: app rodando, bipes medidos, print da aba; Windows: notebook via delegação | 4 | passou (local): 13 testes; listener X real trocou ctrl+alt/ctrl+win sem reiniciar; clique real na janela Tauri (Xvfb) gravou atalho ctrl+alt. Falta: Windows | 
 | 2 | PR 1 · `historico.db` + aba Histórico (layout C): gravar, buscar, editar, copiar, colar, excluir, retenção · Sonnet | 1 | 1, 2, 3, 10 | ditar de verdade e print do item; consulta SQLite antes e depois | 4 | passou (local): 22 testes; na janela Tauri real (Xvfb) editar gravou editado=1 com original preservado, excluir em 2 passos apagou a linha; retenção tirou o item de 40 dias (print). Corrigido: botão Confirmar exclusão ilegível no hover. Falta: ditado real gravando e Windows; Colar fica para a tarefa 3 |
-| 3 | PR 1 · Colar último: menu da bandeja (Windows e Linux) + atalho · Sonnet | 1, 2 | 4 | atalho num editor de texto, print | — | pendente |
-| 4 | PR 1 · Aparência: luz, tema, notificações · Sonnet | 1 | 9 | print da luz em cada posição e do tema | — | pendente |
+| 3 | PR 1 · Colar último: menu da bandeja (Windows e Linux) + atalho · Sonnet | 1, 2 | 4 | atalho num editor de texto, print | 4 | passou (local): Alt+Win+V real colou o último ditado com acentos num editor (Xvfb, print). Falta: item do menu e Windows (conflito do Alt+Win+V) |
+| 4 | PR 1 · Aparência: luz, tema, notificações · Sonnet | 1 | 9 | print da luz em cada posição e do tema | 4 | passou (local): cliques reais em Escuro/Verde/Topo/Grossa gravaram no ajustes.json; luz verde no topo (Xvfb, sem compositor). Falta: Windows |
 | 5 | PR 2 · Tela Início (layout B) + estatísticas · Sonnet | 2 | 11 | print com dados reais do banco | — | pendente |
 | 6 | PR 2 · Sugestões de termos (correção + frequência), aceitar/ignorar · Sonnet | 2, 5 | 12, 13 | teste com histórico de exemplo + print | — | pendente |
 | 7 | PR 2 · Substituições (comandos + atalhos próprios) · Sonnet | 2 | 14 | teste unitário da função + ditado real | — | pendente |
