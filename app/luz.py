@@ -12,6 +12,7 @@ from ctypes import wintypes as W
 import numpy as np
 
 import ajustes
+import bandeira
 
 u32 = ctypes.windll.user32
 g32 = ctypes.windll.gdi32
@@ -93,13 +94,16 @@ class Luz:
         self.w = 0
         self.hbmp = None
         self.altura = ALTURA
+        self.ingles = False
+        self.bandeira = bandeira.eua()
         self._aplicar_ajustes()
         threading.Thread(target=self._loop, daemon=True).start()
 
     # API usada pelo ditado
-    def definir(self, estado: str) -> None:
+    def definir(self, estado: str, ingles: bool = False) -> None:
         if estado == "rec":
             self.cfg = ajustes.ler()["luz"]  # vale a partir deste ditado
+            self.ingles = ingles
             self.ligada = self.cfg["ligada"]
         if not self.ligada:  # luz desligada: não mostra a janela (o bipe e o resto do ditado seguem normais)
             if self.estado != "idle":  # e apaga a luz do ditado anterior que ainda estivesse na tela
@@ -186,6 +190,19 @@ class Luz:
             self.cor_nucleo = ponta[:, None] + (centro - ponta)[:, None] * (1 - fx)  # 3 x w
         self._topo()
 
+    def _bandeira(self, img: np.ndarray, alfa: float) -> None:
+        """Por cima da luz, no centro, logo acima do núcleo (abaixo dele com a luz no topo)."""
+        f = self.bandeira * alfa
+        h, w = f.shape[:2]
+        off = bandeira.distancia_da_borda(self.k)
+        y0 = off if self.topo else self.altura - off - h
+        x0 = (self.w - w) // 2
+        reg = img[y0:y0 + h, x0:x0 + w].astype(np.float32)
+        fundo = 1 - f[..., 3:]
+        reg[..., :3] = f[..., 2::-1] * 255 + reg[..., :3] * fundo  # BGRA
+        reg[..., 3:] = f[..., 3:] * 255 + reg[..., 3:] * fundo
+        img[y0:y0 + h, x0:x0 + w] = reg.astype(np.uint8)
+
     def _topo(self) -> None:
         u32.SetWindowPos(self.hwnd, W.HWND(-1), 0, 0, 0, 0, 0x10 | 0x2 | 0x1 | 0x40)  # topo, sem foco, mostrar
 
@@ -195,7 +212,7 @@ class Luz:
         t = time.time() - self.t0
         e = self.estado
         self.nivel += (self.alvo - self.nivel) * (0.5 if self.alvo > self.nivel else 0.12)
-        fx, ganho = self.fx, 1.0
+        fx, ganho, p = self.fx, 1.0, 1.0
         if e == "rec":
             p = 1 - (1 - min(t / 0.45, 1)) ** 3  # cresce do centro com desaceleração
             H = np.clip((p - fx) / 0.06, 0, 1) * self.queda
@@ -221,6 +238,8 @@ class Luz:
             c = (Ac * cn[canal] + Ab * brilho_c[canal] + An * nevoa_c[canal]) * ganho
             img[..., i] = np.minimum(c, A * 255)
         img[..., 3] = A * 255
+        if self.ingles and e != "erro":
+            self._bandeira(img, ganho * p)
         ctypes.memmove(self.bits, img.ctypes.data, img.nbytes)
         u32.UpdateLayeredWindow(self.hwnd, self.tela, ctypes.byref(W.POINT(self.x, self.y)),
                                 ctypes.byref(W.SIZE(self.w, self.altura)), self.mem, ctypes.byref(W.POINT(0, 0)), 0,

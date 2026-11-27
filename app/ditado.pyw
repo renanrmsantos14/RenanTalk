@@ -139,7 +139,7 @@ def comecar(em_ingles: bool = False) -> None:
             return
         gravando = True
         fila_volume.submit(abaixar_volume)  # dentro da trava: o parar() não enfileira a restauração antes
-    LUZ.definir("rec")
+    LUZ.definir("rec", em_ingles)  # inglês: bandeira dos EUA sobre a luz
     plat.bipe(880, 60)
 
 
