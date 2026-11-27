@@ -102,6 +102,9 @@ class Luz:
             self.cfg = ajustes.ler()["luz"]  # vale a partir deste ditado
             self.ligada = self.cfg["ligada"]
         if not self.ligada:  # luz desligada: não mostra a janela (o bipe e o resto do ditado seguem normais)
+            if self.estado != "idle":  # e apaga a luz do ditado anterior que ainda estivesse na tela
+                self.estado = "idle"
+                self.evento.set()
             return
         if estado == "rec":
             self.reposicionar = True

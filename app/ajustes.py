@@ -3,6 +3,7 @@
 Chaves desconhecidas são preservadas ao salvar (atalhos extras e modos virão depois).
 """
 import json
+import math
 import os
 import threading
 import time
@@ -134,7 +135,8 @@ def normalizar(bruto) -> dict:
     for chave, padrao in PADROES.items():
         dados.setdefault(chave, dict(padrao) if isinstance(padrao, dict) else padrao)
     v = dados["volume"]
-    dados["volume"] = max(0, min(100, int(v))) if isinstance(v, (int, float)) and not isinstance(v, bool) else PADROES["volume"]
+    ok = isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)  # json aceita NaN e Infinity
+    dados["volume"] = max(0, min(100, int(v))) if ok else PADROES["volume"]
     if not isinstance(dados["microfone"], str):
         dados["microfone"] = ""
     if dados["idioma"] not in IDIOMAS:

@@ -434,8 +434,10 @@ async function carregarHist() {
   const r = await api('hListar', {busca: $('hbusca').value});
   if (!r.ok) { $('hlista').innerHTML = '<div class="vazio">' + r.erro + '</div>'; return; }
   hItens = r.itens;
+  const antes = hSel;
   if (hSel !== null && !hItens.some(x => x.id === hSel)) hSel = null;
   if (hSel === null && hItens.length) hSel = hItens[0].id;
+  if (hSel !== antes) hConfirma = false;  // a confirmação vale só para o item em que foi pedida
   desenharLista(); desenharDetalhe();
 }
 function iniciarHist() {

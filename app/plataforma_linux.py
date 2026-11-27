@@ -205,6 +205,8 @@ class Luz:
         if estado == "rec":
             self._configurar()
         if not self.ligada:  # luz desligada: não mostra a janela (o bipe e o resto do ditado seguem normais)
+            if self.estado != "idle":  # e apaga a luz do ditado anterior que ainda estivesse na tela
+                self.estado = "idle"
             return False
         if estado == "rec":
             self.nivel = 0.0
@@ -322,7 +324,7 @@ class Bandeja:
         item(f"{NOME}   ·   v{versao.split(' ')[0]}", icone="audio-input-microphone")
         item("Segure Ctrl + Super para ditar")
         menu.append(Gtk.SeparatorMenuItem())
-        item("Configurações…", lambda: self.abrir_configuracoes(), negrito=True, icone="preferences-system")
+        item("Configurações…", lambda: threading.Thread(target=self.abrir_configuracoes, daemon=True).start(), negrito=True, icone="preferences-system")
         item("Colar último ditado", lambda: self.ao_colar and self.ao_colar(), icone="edit-paste")
         item("Procurar atualização",
              lambda: threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start(), icone="view-refresh")

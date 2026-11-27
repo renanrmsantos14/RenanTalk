@@ -138,8 +138,8 @@ class Bandeja:
         item = u32.TrackPopupMenu(m, 0x100 | 0x2, p.x, p.y, 0, self.hwnd, None)  # RETURNCMD | RIGHTBUTTON
         u32.PostMessageW(self.hwnd, 0, 0, 0)
         u32.DestroyMenu(m)
-        if item == ITEM_VOCAB:
-            self.abrir_configuracoes()
+        if item == ITEM_VOCAB:  # listar os microfones pode demorar: fora do laço de mensagens da bandeja
+            threading.Thread(target=self.abrir_configuracoes, daemon=True).start()
         elif item == ITEM_COLAR and self.ao_colar:
             self.ao_colar()  # o foco ainda volta do menu para a janela anterior: o ditado.pyw espera um instante
         elif item == ITEM_ATUALIZAR:
