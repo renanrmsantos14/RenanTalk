@@ -105,7 +105,7 @@ pub fn substituicoes_salvar(regras: Vec<Regra>) -> Value {
 /// Valida a chave na Groq e grava. Assíncrono: a chamada de rede não trava a fila da janela.
 #[tauri::command]
 pub async fn salvar_chave(chave: String) -> Value {
-    let base = std::env::var("RENANTALK_GROQ_URL").ok().filter(|u| !u.is_empty()).unwrap_or_else(|| groq::BASE.into());
+    let base = groq::base();
     comandos::salvar_chave(&dir(), &base, &chave)
 }
 

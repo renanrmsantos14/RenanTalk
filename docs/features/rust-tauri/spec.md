@@ -34,7 +34,7 @@ Trocar o ditado Python e a janela Tauri separada (`app/`, `config/`) por um app 
 - `app/atualizador.py` e o `release.yml` deixam de publicar `RenanTalk.zip` só depois de as 3 máquinas confirmarem a migração (última tarefa).
 - `app/ui/index.html` e `config/` são substituídos; as skills `verificar-ditado` e `verificar-janela` são atualizadas para o app novo.
 - Instalação no Windows: o NSIS instala em `%LOCALAPPDATA%\RenanTalk`, que é a pasta-mãe do Python (`...\RenanTalk\app`). A ponte apaga só `app\`, e o desinstalador do NSIS não pode apagar a pasta inteira.
-- Mutex "RenanTalk" do Python e instância única do Tauri: a ponte encerra o Python antes de o app novo confirmar que subiu, ou elas se bloqueiam.
+- Mutex "RenanTalk" do Python e instância única do Tauri (`br.com.renan.renantalk`) são diferentes e não se bloqueiam: a ponte só pausa o ditado do Python enquanto instala e o encerra depois de o app novo confirmar. Uma ponte interrompida deixa os dois no início automático; o Python, ao subir, termina a remoção (se o app novo roda) ou desfaz o autostart dele.
 
 ## Irreversível
 - A versão-ponte: depois de remover o Python, voltar só com uma reinstalação manual. Por isso a remoção só acontece depois de o app novo confirmar que subiu (cenário 11).

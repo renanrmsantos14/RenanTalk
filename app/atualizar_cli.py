@@ -20,14 +20,13 @@ from comum import ARQ_LOG  # noqa: E402
 pid = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 try:
     rel = atualizador.ler_release() if not atualizador.eh_dev() else None
-    alvo = ponte.procurar(rel) if rel else None
 except Exception:  # noqa: BLE001 - o verificar_e_aplicar abaixo registra o erro
-    rel = alvo = None
+    rel = None
+situacao, detalhe = atualizador.verificar_e_aplicar(rel)  # o zip do Python antes da ponte (um ponte.py corrigido)
+alvo = ponte.procurar(rel) if situacao == "em_dia" and rel else None
 if alvo:  # a ponte precisa pausar o gancho do ditado em execução: quem a roda é o próprio ditado
     situacao, detalhe = "ponte", (f"app novo v{alvo['versao']} disponível: o ditado instala na próxima verificação "
                                   "(até 6 h) ou pelo menu Procurar atualização da bandeja")
-else:
-    situacao, detalhe = atualizador.verificar_e_aplicar(rel)
 with open(ARQ_LOG, "a", encoding="utf-8") as f:
     f.write(time.strftime("%d/%m/%Y %H:%M:%S ") + f"atualização: {situacao} {detalhe} (manual)\n")
 print(json.dumps({"situacao": situacao, "detalhe": detalhe}, ensure_ascii=False), flush=True)

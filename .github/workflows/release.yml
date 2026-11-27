@@ -206,7 +206,8 @@ jobs:
   release:
     # O APK e o app em Rust não seguram Windows/Linux do Python: se o job android ou desktop falhar, o release sai sem eles.
     needs: [versao, janela, android, desktop]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.versao.result == 'success' && needs.janela.result == 'success' }}
+    # Só a main publica: um workflow_dispatch noutra branch não vira o release "latest" que as máquinas instalam.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.versao.result == 'success' && needs.janela.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -237,11 +238,23 @@ jobs:
           for chave, padrao in (("windows-x86_64", f"RenanTalk_{v}_x64-setup.exe"), ("linux-x86_64", f"RenanTalk_{v}_amd64.AppImage")):
               for f in glob.glob(padrao):
                   plataformas[chave] = {"signature": open(f + ".sig").read().strip(), "url": base + f}
-          if plataformas:
+          # O latest.json só sai com as duas plataformas, cada uma conferida com a chave pública do app
+          # (tauri.conf.json, a mesma da ponte): um secret de assinatura errado falha aqui, não nas máquinas.
+          import sys
+          sys.path.insert(0, "app")
+          import minisign
+          pub = json.load(open("apps/desktop/src-tauri/tauri.conf.json"))["plugins"]["updater"]["pubkey"]
+          for chave, p in plataformas.items():
+              nome = p["url"].rsplit("/", 1)[-1]
+              comentario = minisign.conferir(open(nome, "rb").read(), p["signature"], pub)
+              assert f"file:{nome}" in comentario.split("\t"), f"{chave}: o comentário assinado não cita {nome}: {comentario}"
+              print(f"{chave}: assinatura confere ({comentario})")
+          if len(plataformas) == 2:
               json.dump({"version": v, "notes": f"RenanTalk v{v}",
                          "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                          "platforms": plataformas}, open("latest.json", "w"), indent=2)
-          print("latest.json:", sorted(plataformas) or "não gerado")
+          else:
+              print(f"::warning::latest.json não gerado: só {sorted(plataformas)} (as máquinas ficam na versão atual)")
           PY
       - name: Publicar release
         env:

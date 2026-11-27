@@ -27,8 +27,10 @@ pub fn agendar(app: AppHandle) {
     std::thread::spawn(move || {
         std::thread::sleep(PRIMEIRA);
         loop {
-            tauri::async_runtime::block_on(procurar(&app, false));
-            std::thread::sleep(INTERVALO);
+            let r = tauri::async_runtime::block_on(procurar(&app, false));
+            // adiada pelo ditado em curso: tenta de novo em 1 min, não em 6 h
+            let adiada = r.get("situacao").and_then(Value::as_str) == Some("adiada");
+            std::thread::sleep(if adiada { PRIMEIRA } else { INTERVALO });
         }
     });
 }
@@ -108,15 +110,16 @@ fn instalar(app: &AppHandle, u: &Update, bytes: &[u8]) {
     let marca = json!({ "de": app.package_info().version.to_string(), "para": u.version, "aba": aba });
     let _ = pasta::gravar_atomico(&dir.join(MARCA), &marca.to_string());
     pasta::log(&dir, &format!("atualização: instalando v{} (janela {})", u.version, aba.as_deref().unwrap_or("fechada")));
+    // Antes do install: no Windows ele encerra o processo (exit) e o volume dos outros apps ficaria baixo.
+    if let Some(d) = app.try_state::<Arc<Ditado>>() {
+        d.encerrar();
+    }
     // Windows: o instalador NSIS assume daqui, encerra este processo e abre o app novo.
     if let Err(e) = u.install(bytes) {
         let _ = std::fs::remove_file(dir.join(MARCA));
         pasta::log(&dir, &format!("atualização: erro (instalar: {e})"));
         OCUPADO.store(false, Ordering::SeqCst);
         return;
-    }
-    if let Some(d) = app.try_state::<Arc<Ditado>>() {
-        d.encerrar();
     }
     app.restart(); // Linux: o AppImage já foi trocado no lugar
 }

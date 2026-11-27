@@ -279,26 +279,44 @@ def reiniciar() -> None:
 
 
 def migrar(alvo: dict) -> None:
-    """Versão-ponte: pausa este ditado, instala o app novo e só sai depois de ele confirmar que subiu."""
+    """Versão-ponte: baixa e confere o app novo, pausa este ditado, instala e só sai depois de ele confirmar que subiu."""
     global pausado
     if not trava_ponte.acquire(blocking=False):  # a verificação automática e o menu ao mesmo tempo
         return
-    try:
-        while gravando:  # não interrompe um ditado em andamento
-            time.sleep(1)
-        pausado = True
+
+    def pausar() -> None:  # só depois do download e da assinatura: numa rede lenta o ditado segue funcionando
+        global pausado
+        while True:
+            with trava:  # a mesma trava do comecar(): nenhum ditado começa entre a conferência e a pausa
+                if not gravando:
+                    pausado = True
+                    break
+            time.sleep(1)  # não interrompe um ditado em andamento
         log(f"ponte: ditado do Python pausado para instalar o app novo v{alvo['versao']}")
-        if ponte.executar(alvo, notificar=lambda t: bandeja.notificar(t, forcar=True)):
-            bandeja.notificar("RenanTalk agora roda no app novo.")
-            fechar_janela()
-            bandeja.remover()
-            plat.liberar_instancia()
-            log("ponte: Python encerrado")
-            sair()
-        pausado = False
-        log("ponte: ditado do Python religado")
+
+    try:
+        if ponte.executar(alvo, notificar=lambda t: bandeja.notificar(t, forcar=True), pausar=pausar):
+            encerrar_pela_ponte("RenanTalk agora roda no app novo.")
+        if pausado:
+            pausado = False
+            log("ponte: ditado do Python religado")
     finally:
         trava_ponte.release()
+
+
+def encerrar_pela_ponte(aviso: str | None = None) -> None:
+    """O app novo confirmou: o Python sai mesmo que a limpeza falhe (senão os dois ditados ficam ligados)."""
+    try:
+        if aviso:
+            bandeja.notificar(aviso)
+            time.sleep(4)  # o balão some junto com o ícone da bandeja
+        fechar_janela()
+        bandeja.remover()
+        plat.liberar_instancia()
+    except Exception as e:  # noqa: BLE001
+        log(f"ponte: erro ao fechar o Python ({e!r}); saindo assim mesmo")
+    log("ponte: Python encerrado")
+    sair()
 
 
 def atualizar(manual: bool = False) -> None:
@@ -306,12 +324,9 @@ def atualizar(manual: bool = False) -> None:
     if not atualizador.eh_dev():
         try:
             rel = atualizador.ler_release()
-            alvo = ponte.procurar(rel)
         except Exception as e:  # noqa: BLE001 - sem internet etc.: o verificar_e_aplicar abaixo registra
-            alvo = None
-            log(f"ponte: não consegui ler o release ({e!r})")
-        if alvo:
-            return migrar(alvo)
+            log(f"atualização: não consegui ler o release ({e!r})")
+    # O zip do Python vem antes da ponte: um ponte.py corrigido num release novo chega por aqui.
     situacao, detalhe = atualizador.verificar_e_aplicar(rel)
     log(f"atualização: {situacao} {detalhe}")
     if situacao == "atualizado":
@@ -320,7 +335,12 @@ def atualizar(manual: bool = False) -> None:
         bandeja.notificar(f"Atualizado para {detalhe}.")
         time.sleep(2)
         reiniciar()
-    elif manual:
+        return
+    if situacao == "em_dia" and rel:
+        alvo = ponte.procurar(rel)
+        if alvo:
+            return migrar(alvo)
+    if manual:
         bandeja.notificar({"em_dia": "Você já está na versão mais recente.",
                            "dev": "Versão de desenvolvimento: sem atualização automática."}.get(situacao,
                            "Não consegui procurar atualização agora. Veja o log."))
@@ -339,6 +359,10 @@ if __name__ == "__main__":
     atualizador.limpar_antigos()
     versao = atualizador.versao_texto()
     log(f"iniciado v{versao} ({sys.platform})")
+    if not atualizador.eh_dev() and ponte.retomar():  # a ponte foi interrompida depois de o app novo subir
+        plat.liberar_instancia()
+        log("ponte: Python encerrado (o app novo já roda)")
+        raise SystemExit
     bandeja = plat.Bandeja(ao_sair=sair, ao_atualizar=atualizar, versao=versao,
                            ao_colar=lambda: colar_ultimo(0.35))  # pelo menu: espera o foco voltar
     if not ler_chave():

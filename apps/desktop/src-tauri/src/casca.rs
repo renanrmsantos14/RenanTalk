@@ -119,13 +119,33 @@ pub fn autostart_primeira_vez(app: &AppHandle, dir: &Path) {
     if marca.exists() {
         return;
     }
-    match app.autolaunch().enable() {
+    match ligar_inicio(app) {
         Ok(()) => {
             let _ = pasta::gravar_atomico(&marca, "1");
             pasta::log(dir, "iniciar com a sessão: ligado na primeira execução");
         }
         Err(e) => pasta::log(dir, &format!("iniciar com a sessão: não foi possível ligar ({e})")),
     }
+}
+
+/// Liga o início com a sessão. No Windows grava só em HKCU e com o caminho entre aspas: o auto-launch tenta HKLM
+/// primeiro (valeria para todos os usuários se o app subir elevado) e não põe aspas (perfil com espaço no nome).
+fn ligar_inicio(app: &AppHandle) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = app;
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let s = std::process::Command::new("reg")
+            .args(["add", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "/v", "RenanTalk", "/t", "REG_SZ", "/f", "/d"])
+            .arg(format!("\"{}\"", exe.display()))
+            .creation_flags(0x0800_0000)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if s.success() { Ok(()) } else { Err(format!("reg add saiu com {s}")) }
+    }
+    #[cfg(not(windows))]
+    app.autolaunch().enable().map_err(|e| e.to_string())
 }
 
 /// Marcador da versão-ponte do Python (`app/ponte.py`): gravado a cada subida, quando o gancho de teclado já escuta.
@@ -208,7 +228,7 @@ pub fn bandeja(app: &AppHandle, ditado: Arc<Ditado>, dir: PathBuf) {
                     "inicio" => {
                         let ligar = inicio_item.is_checked().unwrap_or(false); // o clique já inverteu a marca
                         let l = app.autolaunch();
-                        let r = if ligar { l.enable() } else { l.disable() };
+                        let r = if ligar { ligar_inicio(app) } else { l.disable().map_err(|e| e.to_string()) };
                         if let Err(e) = r {
                             pasta::log(&dir, &format!("iniciar com a sessão: falhou ({e})"));
                             let _ = inicio_item.set_checked(l.is_enabled().unwrap_or(!ligar)); // volta ao estado real

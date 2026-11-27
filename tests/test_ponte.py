@@ -121,7 +121,7 @@ class Fluxo(unittest.TestCase):
 
     def setUp(self):
         self.pasta = tempfile.mkdtemp(dir=TMP)
-        self.alvo = {"versao": "0.0.9", "url": "http://x/RenanTalk_0.0.9_amd64.AppImage", "assinatura": SIG}
+        self.alvo = {"versao": "0.0.9", "url": "http://x/ponte-pacote.bin", "assinatura": SIG}
         proc = mock.Mock(pid=4321)
         proc.poll.return_value = None
         self.p = {n: mock.patch.object(ponte, n) for n in
@@ -137,7 +137,25 @@ class Fluxo(unittest.TestCase):
         self.avisos = []
 
     def rodar(self):
-        return ponte.executar(self.alvo, notificar=self.avisos.append)
+        self.pausou = []
+        return ponte.executar(self.alvo, notificar=self.avisos.append, pausar=lambda: self.pausou.append(1))
+
+    def test_assinatura_de_outro_arquivo(self):
+        self.alvo["url"] = "http://x/RenanTalk_0.0.8_amd64.AppImage"  # pacote válido, mas não o anunciado
+        self.assertFalse(self.rodar())
+        self.m["instalar"].assert_not_called()
+
+    def test_so_pausa_depois_de_conferir(self):
+        self.m["_baixar"].side_effect = OSError("sem rede")
+        self.assertFalse(self.rodar())
+        self.assertEqual(self.pausou, [])  # a rede lenta ou falha não para o ditado
+        self.m["_baixar"].side_effect = None
+        self.assertTrue(self.rodar())
+        self.assertEqual(self.pausou, [1])
+
+    def test_erro_na_remocao_ainda_sai(self):
+        self.m["remover_python"].side_effect = PermissionError("Startup\\RenanTalk.lnk")
+        self.assertTrue(self.rodar())  # o app novo já roda: o Python não pode continuar junto
 
     def test_confirmado_remove_o_python(self):
         self.assertTrue(self.rodar())
@@ -182,6 +200,41 @@ class Fluxo(unittest.TestCase):
         self.assertEqual(len(self.avisos), 1)
         self.assertIn("3 tentativas", self.avisos[0])
         self.m["remover_python"].assert_not_called()
+
+
+class Retomar(unittest.TestCase):
+    """Ponte interrompida: no boot seguinte sobem os dois ditados; o Python resolve ao iniciar."""
+
+    def setUp(self):
+        self.pasta = tempfile.mkdtemp(dir=TMP)
+        self.m = {n: mock.patch.object(ponte, n).start() for n in
+                  ("_autostart_rust_ligado", "_rust_vivo", "remover_python", "_encerrar_rust_existente",
+                   "desfazer_autostart_rust", "log")}
+        self.addCleanup(mock.patch.stopall)
+
+    def marcar(self, **extra):
+        with open(os.path.join(self.pasta, ponte.MARCADOR), "w", encoding="utf-8") as f:
+            json.dump({"versao": "0.0.9", "pid": 99, "gancho": True, "autostart": True, **extra}, f)
+
+    def test_sem_autostart_do_app_novo_segue(self):
+        self.m["_autostart_rust_ligado"].return_value = False
+        self.assertFalse(ponte.retomar(0, self.pasta))
+        self.m["desfazer_autostart_rust"].assert_not_called()
+
+    def test_app_novo_rodando_termina_a_remocao(self):
+        self.m["_autostart_rust_ligado"].return_value = True
+        self.m["_rust_vivo"].return_value = True
+        self.marcar()
+        self.assertTrue(ponte.retomar(0, self.pasta))
+        self.m["remover_python"].assert_called_once()
+
+    def test_marcador_velho_desfaz_e_segue(self):
+        self.m["_autostart_rust_ligado"].return_value = True
+        self.m["_rust_vivo"].return_value = False  # o pid do marcador não é mais o app novo
+        self.marcar()
+        self.assertFalse(ponte.retomar(0, self.pasta))
+        self.m["remover_python"].assert_not_called()
+        self.m["desfazer_autostart_rust"].assert_called_once()
 
 
 class Remocao(unittest.TestCase):

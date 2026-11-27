@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 import minisign
@@ -40,7 +41,7 @@ SEM_JANELA = 0x08000000  # CREATE_NO_WINDOW
 DESTACADO = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 
 if WINDOWS:
-    _LOCAL = os.environ.get("LOCALAPPDATA", "")
+    _LOCAL = os.environ.get("LOCALAPPDATA") or os.path.expanduser(r"~\AppData\Local")  # nunca um caminho relativo
     DIR_RUST = os.path.join(_LOCAL, "RenanTalk")  # padrão do NSIS por usuário ($LOCALAPPDATA\${PRODUCTNAME})
     APP_INSTALADOR = os.path.join(DIR_RUST, "app")  # instalar.ps1
     EXE_RUST = os.path.join(DIR_RUST, "renantalk.exe")
@@ -75,7 +76,9 @@ def procurar(rel: dict) -> dict | None:
         info = json.loads(_baixar(asset["browser_download_url"], 60))
         p = info["platforms"][PLATAFORMA]
         return {"versao": str(info["version"]).lstrip("v"), "url": p["url"], "assinatura": p["signature"]}
-    except (KeyError, TypeError, ValueError):
+    except Exception as e:  # noqa: BLE001 - rede ou latest.json inválido: conta como falha da ponte (download)
+        n = registrar_falha()
+        log(f"ponte: não consegui ler o latest.json ({e!r}); falha {n} seguida")
         return None
 
 
@@ -107,14 +110,76 @@ def deve_avisar(n: int) -> bool:
 # ---------- confirmação ----------
 def confirmado(versao: str, pasta: str | None = None) -> bool:
     """O app novo subiu de verdade: o marcador tem a versão instalada, o gancho e o início automático ligados."""
-    pasta = pasta or PASTA
+    m = _ler_marcador(pasta)
+    return str(m.get("versao", "")).lstrip("v") == versao and m.get("gancho") is True and m.get("autostart") is True
+
+
+def _ler_marcador(pasta: str | None = None) -> dict:
     try:
-        with open(os.path.join(pasta, MARCADOR), encoding="utf-8") as f:
+        with open(os.path.join(pasta or PASTA, MARCADOR), encoding="utf-8") as f:
             m = json.load(f)
     except (OSError, ValueError):
+        return {}
+    return m if isinstance(m, dict) else {}
+
+
+def _rust_vivo(pid) -> bool:
+    """O processo do marcador ainda é o app novo (um pid reaproveitado por outro programa não conta)."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
         return False
-    return (isinstance(m, dict) and str(m.get("versao", "")).lstrip("v") == versao and m.get("gancho") is True
-            and m.get("autostart") is True)
+    if pid <= 0:
+        return False
+    if WINDOWS:
+        r = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"], capture_output=True, text=True,
+                           creationflags=SEM_JANELA)
+        return '"renantalk.exe"' in r.stdout.lower()
+    try:
+        with open(f"/proc/{pid}/comm", encoding="utf-8") as f:
+            return f.read().strip() == "renantalk"
+    except OSError:
+        return False
+
+
+def _autostart_rust_ligado() -> bool:
+    if not WINDOWS:
+        return os.path.isfile(AUTOSTART_RUST)
+    import winreg
+
+    for raiz in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(raiz, r"Software\Microsoft\Windows\CurrentVersion\Run") as k:
+                winreg.QueryValueEx(k, "RenanTalk")
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def retomar(espera: float = ESPERA_S, pasta: str | None = None) -> bool:
+    """Chamado ao iniciar o Python. Uma ponte interrompida (desligou, travou) deixa o autostart do app novo ligado
+    junto com o do Python: no boot sobem os dois. Se o app novo roda e confirmou, termina a remoção e devolve True
+    (quem chama sai); senão desfaz o autostart dele e o Python segue (a ponte tenta de novo)."""
+    if not _autostart_rust_ligado():
+        return False
+    fim = time.monotonic() + espera
+    while True:
+        m = _ler_marcador(pasta)
+        if m.get("gancho") is True and m.get("autostart") is True and _rust_vivo(m.get("pid")):
+            log(f"ponte: o app novo v{m.get('versao')} já roda (ponte interrompida antes de remover o Python)")
+            try:
+                remover_python()
+            except Exception as e:  # noqa: BLE001
+                log(f"ponte: erro ao remover o Python ({e!r})")
+            return True
+        if time.monotonic() >= fim:
+            break
+        time.sleep(1)
+    log("ponte: autostart do app novo ligado sem ele confirmar; desfeito, a ponte tenta de novo")
+    _encerrar_rust_existente()
+    desfazer_autostart_rust(pasta)
+    return False
 
 
 def esperar_confirmacao(versao: str, proc, espera: float = ESPERA_S, pasta: str | None = None) -> None:
@@ -291,10 +356,10 @@ def pubkey() -> str:
     return os.environ.get("RENANTALK_TESTE_PUBKEY") or PUBKEY
 
 
-def executar(alvo: dict, notificar=lambda _t: None) -> bool:
-    """Instala, inicia e espera o app novo; True = confirmado e Python removido (quem chama sai).
+def executar(alvo: dict, notificar=lambda _t: None, pausar=lambda: None) -> bool:
+    """Baixa, confere, pausa o ditado do Python (`pausar`), instala, inicia e espera o app novo.
 
-    Quem chama já pausou o ditado do Python; com False, religa."""
+    True = confirmado e Python removido (quem chama sai). Com False, quem chama religa o ditado se pausou."""
     versao, proc = alvo["versao"], None
     try:
         log(f"ponte: baixando o app novo v{versao} ({alvo['url'].rsplit('/', 1)[-1]})")
@@ -303,10 +368,14 @@ def executar(alvo: dict, notificar=lambda _t: None) -> bool:
         except Exception as e:  # noqa: BLE001
             raise Falha("download", repr(e)) from e
         try:
-            minisign.conferir(dados, alvo["assinatura"], pubkey())
+            comentario = minisign.conferir(dados, alvo["assinatura"], pubkey())
         except minisign.AssinaturaInvalida as e:
             raise Falha("integridade", str(e)) from e
+        nome = urllib.parse.unquote(alvo["url"].rsplit("/", 1)[-1])
+        if f"file:{nome}" not in comentario.split("\t"):  # um pacote antigo ou de outra plataforma, com a mesma chave
+            raise Falha("integridade", f"a assinatura é de outro arquivo ({comentario})")
         log(f"ponte: assinatura confere ({len(dados)} bytes)")
+        pausar()
         _encerrar_rust_existente()
         try:
             os.remove(os.path.join(PASTA, MARCADOR))
@@ -332,5 +401,8 @@ def executar(alvo: dict, notificar=lambda _t: None) -> bool:
                       "O ditado continua funcionando; detalhes no log.")
         return False
     log(f"ponte: app novo confirmou v{versao}; removendo o Python")
-    remover_python()
+    try:
+        remover_python()
+    except Exception as e:  # noqa: BLE001 - o app novo já roda: o Python sai mesmo assim (o retomar termina depois)
+        log(f"ponte: erro ao remover o Python ({e!r})")
     return True

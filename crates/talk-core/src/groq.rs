@@ -2,7 +2,8 @@
 //!
 //! A chave é relida do `chave.txt` a cada chamada (trocar nas configurações vale na hora) e nunca vai a log nem a erro.
 //! Os erros devolvem só o tipo da falha. A Groq responde 403 ao User-Agent padrão: mandamos `renantalk/<versão>`.
-//! `RENANTALK_GROQ_URL` troca a base (padrão `https://api.groq.com/openai/v1`), para testar contra um servidor falso.
+//! `RENANTALK_GROQ_URL` troca a base (padrão `https://api.groq.com/openai/v1`), para testar contra um servidor falso local
+//! (só `http://127.0.0.1` ou `http://localhost`; outro valor é ignorado).
 
 use crate::{escrita, pasta};
 use serde_json::Value;
@@ -33,9 +34,22 @@ fn tipo_erro(e: ureq::Error) -> String {
     }
 }
 
+/// Base da API. `RENANTALK_GROQ_URL` só vale para um servidor local de teste: a chave vai no Bearer e não pode sair
+/// para outro host por uma variável de ambiente.
+pub fn base() -> String {
+    match std::env::var("RENANTALK_GROQ_URL") {
+        Ok(u) if base_local(&u) => u,
+        _ => BASE.into(),
+    }
+}
+
+fn base_local(u: &str) -> bool {
+    ["http://127.0.0.1:", "http://localhost:", "http://127.0.0.1/", "http://localhost/"].iter().any(|p| u.starts_with(p))
+}
+
 impl Groq {
     pub fn novo(dir: &Path, versao: &str) -> Self {
-        let base = std::env::var("RENANTALK_GROQ_URL").ok().filter(|u| !u.is_empty()).unwrap_or_else(|| BASE.into());
+        let base = base();
         Groq { dir: dir.to_path_buf(), base: base.trim_end_matches('/').to_string(), agente: format!("renantalk/{versao}") }
     }
 

@@ -376,6 +376,8 @@ impl Plataforma for Windows {
         std::thread::sleep(Duration::from_millis(300));
         if let Some(area) = Area::abrir() { // devolvido fora do histórico também, senão o item anterior aparece duplicado no Win+V
             area.gravar(&if anterior.is_empty() { vec![] } else { [anterior, sem_historico()].concat() });
+        } else {
+            self.log("colar: área de transferência ocupada; o conteúdo anterior não foi devolvido");
         }
         r
     }
