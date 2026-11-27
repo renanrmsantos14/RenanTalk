@@ -1,7 +1,7 @@
 //! Linux (X11), porta de `app/plataforma_linux.py`:
 //! - atalhos pela extensão RECORD (sem root nem grupo input), casados por `talk_core::casador::Casador`;
 //! - colar por XTest (Ctrl+V; Ctrl+Shift+V em terminais) devolvendo a área de transferência;
-//! - microfone pelo `cpal`, bipe pelo `cpal`, volume dos outros apps pelo `pactl`.
+//! - microfone e bipe pelo `cpal` (`som.rs`), volume dos outros apps pelo `pactl`.
 
 use arboard::Clipboard;
 use serde_json::Value;
@@ -9,11 +9,12 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use talk_core::casador::{Acao, Casador};
 use talk_core::ditado::{Ditado, Plataforma};
-use talk_core::{ajustes, audio, pasta};
+use super::som::{self, Captura};
+use talk_core::{ajustes, pasta};
 use x11rb::connection::Connection;
 use x11rb::protocol::record::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
@@ -156,11 +157,6 @@ struct ConexaoX {
     conn: RustConnection,
     raiz: u32,
     teclado: Teclado,
-}
-
-enum Captura {
-    Arquivo(Vec<i16>), // RENANTALK_AUDIO_TESTE: o Xvfb não tem microfone
-    Microfone { parar: mpsc::Sender<()>, fim: mpsc::Receiver<Vec<i16>> },
 }
 
 pub struct Linux {
@@ -319,28 +315,16 @@ impl Plataforma for Linux {
         if volume == 0 {
             return;
         }
-        std::thread::spawn(move || tocar(freq, ms, volume)); // sem saída de áudio não é motivo para travar o ditado
+        std::thread::spawn(move || som::tocar(freq, ms, volume)); // sem saída de áudio não é motivo para travar o ditado
     }
 
     fn iniciar_captura(&self, microfone: &str) -> Result<(), String> {
-        let nova = if let Ok(arq) = std::env::var("RENANTALK_AUDIO_TESTE") {
-            Captura::Arquivo(audio::ler_wav(&std::fs::read(&arq).map_err(|e| e.to_string())?)?)
-        } else {
-            self.abrir_microfone(microfone)?
-        };
-        *self.captura.lock().unwrap() = Some(nova);
+        *self.captura.lock().unwrap() = Some(som::iniciar(&self.dir, microfone)?);
         Ok(())
     }
 
     fn parar_captura(&self) -> Vec<i16> {
-        match self.captura.lock().unwrap().take() {
-            Some(Captura::Arquivo(a)) => a,
-            Some(Captura::Microfone { parar, fim }) => {
-                let _ = parar.send(());
-                fim.recv_timeout(Duration::from_secs(2)).unwrap_or_default()
-            }
-            None => vec![],
-        }
+        self.captura.lock().unwrap().take().map(som::parar).unwrap_or_default()
     }
 }
 
@@ -383,100 +367,6 @@ fn app_de(e: &Value) -> Option<String> {
 /// Volume atual de cada canal do fluxo.
 fn canais(e: &Value) -> Vec<i64> {
     e["volume"].as_object().into_iter().flatten().filter_map(|(_, c)| c["value"].as_i64()).collect()
-}
-
-// ---------- áudio (cpal) ----------
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-
-impl Linux {
-    /// Abre o microfone dos ajustes ("" = padrão). Nome que não existe ou não abre: cai no padrão e registra no log.
-    fn abrir_microfone(&self, microfone: &str) -> Result<Captura, String> {
-        let (parar_tx, parar_rx) = mpsc::channel::<()>();
-        let (fim_tx, fim_rx) = mpsc::channel::<Vec<i16>>();
-        let (pronto_tx, pronto_rx) = mpsc::channel::<Result<(), String>>();
-        let (dir, mic) = (self.dir.clone(), microfone.to_string());
-        // O fluxo do cpal não é Send em todos os sistemas: nasce, vive e morre numa thread só.
-        std::thread::spawn(move || {
-            let buf = Arc::new(Mutex::new(Vec::<f32>::new()));
-            match abrir_fluxo(&mic, &dir, buf.clone()) {
-                Ok((fluxo, taxa, n_canais)) => {
-                    let _ = pronto_tx.send(Ok(()));
-                    let _ = parar_rx.recv();
-                    drop(fluxo);
-                    let dados = std::mem::take(&mut *buf.lock().unwrap());
-                    let _ = fim_tx.send(audio::para_16k_mono(&dados, taxa, n_canais));
-                }
-                Err(e) => { let _ = pronto_tx.send(Err(e)); }
-            }
-        });
-        pronto_rx.recv_timeout(Duration::from_secs(5)).map_err(|_| "microfone não respondeu".to_string())??;
-        Ok(Captura::Microfone { parar: parar_tx, fim: fim_rx })
-    }
-}
-
-fn abrir_fluxo(mic: &str, dir: &Path, buf: Arc<Mutex<Vec<f32>>>) -> Result<(cpal::Stream, u32, usize), String> {
-    let host = cpal::default_host();
-    let escolhido = (!mic.is_empty()).then(|| {
-        let nomes = || host.input_devices().into_iter().flatten().map(|d| (d.name().unwrap_or_default(), d));
-        nomes().find(|(n, _)| n == mic).or_else(|| nomes().find(|(n, _)| n.to_lowercase().contains(&mic.to_lowercase()))).map(|(_, d)| d)
-    }).flatten();
-    if !mic.is_empty() && escolhido.is_none() {
-        pasta::log(dir, &format!("microfone {mic:?} não encontrado, usando o padrão do sistema"));
-    }
-    let padrao = || host.default_input_device().ok_or("nenhum microfone".to_string());
-    if let Some(d) = escolhido {
-        match ligar(&d, buf.clone()) {
-            Ok(r) => return Ok(r),
-            Err(e) => pasta::log(dir, &format!("microfone {mic:?} não abriu ({e}), usando o padrão do sistema")),
-        }
-    }
-    ligar(&padrao()?, buf)
-}
-
-/// Liga o fluxo de entrada; os quadros vão para `buf` como f32 intercalado.
-fn ligar(d: &cpal::Device, buf: Arc<Mutex<Vec<f32>>>) -> Result<(cpal::Stream, u32, usize), String> {
-    let cfg = d.default_input_config().map_err(|e| e.to_string())?;
-    let (taxa, n_canais, formato) = (cfg.sample_rate().0, cfg.channels() as usize, cfg.sample_format());
-    let erro = |e: cpal::StreamError| eprintln!("áudio: {e}");
-    let c = cfg.into();
-    let fluxo = match formato {
-        cpal::SampleFormat::F32 => d.build_input_stream(&c, move |q: &[f32], _| buf.lock().unwrap().extend_from_slice(q), erro, None),
-        cpal::SampleFormat::I16 => d.build_input_stream(&c, move |q: &[i16], _| buf.lock().unwrap().extend(q.iter().map(|s| *s as f32 / 32768.0)), erro, None),
-        cpal::SampleFormat::U16 => d.build_input_stream(&c, move |q: &[u16], _| buf.lock().unwrap().extend(q.iter().map(|s| (*s as f32 - 32768.0) / 32768.0)), erro, None),
-        f => return Err(format!("formato de áudio não suportado: {f:?}")),
-    }.map_err(|e| e.to_string())?;
-    fluxo.play().map_err(|e| e.to_string())?;
-    Ok((fluxo, taxa, n_canais))
-}
-
-/// Toca o bipe na saída padrão e espera ele terminar.
-fn tocar(freq: u32, ms: u32, volume: u8) {
-    let Some(d) = cpal::default_host().default_output_device() else { return };
-    let Ok(cfg) = d.default_output_config() else { return };
-    let (taxa, n_canais, formato) = (cfg.sample_rate().0, cfg.channels() as usize, cfg.sample_format());
-    let onda = audio::onda_bipe(freq, ms, volume, taxa);
-    let mut i = 0;
-    let c = cfg.into();
-    let erro = |_| {};
-    let fluxo = match formato {
-        cpal::SampleFormat::F32 => d.build_output_stream(&c, move |q: &mut [f32], _| {
-            for quadro in q.chunks_mut(n_canais) {
-                quadro.fill(onda.get(i).copied().unwrap_or(0.0));
-                i += 1;
-            }
-        }, erro, None),
-        cpal::SampleFormat::I16 => d.build_output_stream(&c, move |q: &mut [i16], _| {
-            for quadro in q.chunks_mut(n_canais) {
-                quadro.fill((onda.get(i).copied().unwrap_or(0.0) * 32767.0) as i16);
-                i += 1;
-            }
-        }, erro, None),
-        _ => return,
-    };
-    let Ok(fluxo) = fluxo else { return };
-    if fluxo.play().is_ok() {
-        std::thread::sleep(Duration::from_millis(ms as u64 + 80));
-    }
 }
 
 #[cfg(test)]

@@ -3080,6 +3080,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tempfile",
+ "windows 0.62.2",
  "x11rb",
 ]
 

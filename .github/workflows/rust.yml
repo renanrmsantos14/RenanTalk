@@ -1,0 +1,45 @@
+name: Rust
+
+# Compila e testa o RenanTalk em Rust (talk-core e a casca Tauri) no Linux e no Windows. Não publica nada:
+# o release continua no release.yml.
+on:
+  push:
+    branches: [rust-tauri]
+  pull_request:
+    paths: ["crates/**", "apps/**", "Cargo.*", ".github/workflows/rust.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependências do Tauri e do áudio (com cache)
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev
+          version: 1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+      - run: cargo build -p renantalk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Os testes do gancho, do SendInput e da área de transferência usam a sessão interativa do runner.
+      - run: cargo test --workspace -- --nocapture
+      - run: cargo build -p renantalk --release

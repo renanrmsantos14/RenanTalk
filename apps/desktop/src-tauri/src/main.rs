@@ -12,6 +12,11 @@ use talk_core::ditado::Ditado;
 fn main() {
     let dir = pasta::padrao();
     let versao = env!("CARGO_PKG_VERSION");
+    #[cfg(windows)]
+    if !plataforma::instancia_unica() { // mutex "RenanTalk-Rust": o Python usa "RenanTalk" e pode estar rodando junto
+        pasta::log(&dir, "outra instância do RenanTalk já está rodando: saindo");
+        return;
+    }
     pasta::log(&dir, &format!("iniciado v{versao} ({})", std::env::consts::OS));
     let groq = Arc::new(Groq::novo(&dir, versao));
     let ditado = Ditado::novo(dir.clone(), plataforma::nova(&dir), groq.clone(), groq.clone());
