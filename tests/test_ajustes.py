@@ -58,9 +58,9 @@ class Ajustes(unittest.TestCase):
             self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v", ruim)
         with open(comum.ARQ_LOG, encoding="utf-8") as f:
             self.assertIn("atalho_colar inválido ou em conflito", f.read())
-        gravar(json.dumps({"atalho_colar": "Super+Alt+Shift+H"}))
+        gravar(json.dumps({"atalho_colar": "Super+Alt+H"}))
         ajustes._cache["mtime"] = -1
-        self.assertEqual(ajustes.ler()["atalho_colar"], "alt+shift+win+h")
+        self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+h")
 
     def test_luz_tema_notificacoes_padroes(self):
         a = ajustes.ler()
@@ -91,8 +91,11 @@ class Ajustes(unittest.TestCase):
         self.assertEqual(v("Super+Ctrl"), ("ctrl", "win"))
         self.assertEqual(v("ctrl+alt+d"), ("ctrl", "alt", "d"))
         for ruim in ("ctrl", "ctrl+ctrl", "d+e", "ctrl+ç", "", None, "d+f1",
-                     "shift+a", "shift+space", "ctrl+v", "V+Ctrl", "ctrl+c", "alt+f4", "ctrl+f01"):
+                     "shift+a", "shift+space", "ctrl+v", "V+Ctrl", "ctrl+c", "alt+f4", "ctrl+f01",
+                     "alt+shift+win", "alt+shift", "win+l", "win+space", "alt+space"):  # do sistema
             self.assertIsNone(v(ruim), ruim)
+        for a in ajustes.ATALHOS:  # os padrões continuam válidos
+            self.assertIsNotNone(v(ajustes.PADROES[a]), a)
 
     def test_atalho_contido_no_outro_conflita(self):
         self.assertTrue(ajustes.atalhos_conflitam("ctrl+win", "ctrl+win+v"))

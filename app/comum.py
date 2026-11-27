@@ -126,6 +126,21 @@ def cabecalhos_groq(tipo: str) -> dict:
             "User-Agent": "groq-ditado/1.0"}  # o padrão Python-urllib leva 403
 
 
+def conferir_modelos(*modelos: str) -> None:
+    """Avisa no log se a Groq desligou algum modelo que o app usa. Sem chave ou sem rede, fica quieto."""
+    if not ler_chave():
+        return
+    try:
+        req = urllib.request.Request("https://api.groq.com/openai/v1/models", headers=cabecalhos_groq("application/json"))
+        with urllib.request.urlopen(req, timeout=10) as r:
+            ativos = {m["id"] for m in json.load(r)["data"] if m.get("active", True)}
+    except Exception:  # rede, JSON ou formato inesperado: a falha de verdade aparece no primeiro ditado
+        return
+    for m in modelos:
+        if m not in ativos:
+            log(f"modelo {m} não está ativo na Groq: atualize o app ou troque o modelo")
+
+
 def salvar_chave(chave: str) -> None:
     with open(ARQ_CHAVE, "w", encoding="utf-8") as f:
         f.write(chave)

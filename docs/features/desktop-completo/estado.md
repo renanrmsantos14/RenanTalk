@@ -1,8 +1,8 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 7 de 7 Entregar (PR 2 e PR 3 mergeados em desktop-completo em 27/11; PR 1 #6 leva tudo à main)
-- Próximo passo: Renan decide o merge do #8 e do #6 (merge na main publica release para todas as máquinas)
+- Etapa: 7 de 7 Entregar (#6 mergeado na main em 27/11: release sai pela CI; travas da retro em PR próprio)
+- Próximo passo: PR das travas da retro (branch travas-retro) para QA e merge do Renan
 - Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR 1: https://github.com/renanrmsantos14/RenanTalk/pull/6 (rascunho)
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
@@ -99,3 +99,4 @@
 ### Prova Windows final do PR 3 (27/11/2026, af9ac55)
 - gpt-oss-120b ativo; 4 modos reais 0,41–0,94 s; injeção não obedecida; Shift+Win colou inglês 5/6; notepad formal ok; chave inválida → literal + log + bipe; 76 testes OK.
 - Pendências novas: 1 execução do Shift+Win não colou (histórico certo, causa desconhecida); `pycaw`/`comtypes` não importa no Python 3.14 do notebook, então "abaixar os outros sons" provavelmente não funciona lá.
+- Travas da retro (aprovadas por Renan em 27/11, PR próprio `travas-retro`): `tests/test_ui.py` falha se uma aba ficar sem rolagem; `conferir_modelos` avisa no log ao iniciar se um modelo da Groq foi desligado; `validar_atalho` (Python e Rust) recusa Alt+Shift, Win+tecla e Alt+Space.
