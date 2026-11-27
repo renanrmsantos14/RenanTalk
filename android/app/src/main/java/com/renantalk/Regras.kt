@@ -94,4 +94,17 @@ object Regras {
         val s = (ms / 1000).coerceAtLeast(0)
         return "%d:%02d".format(s / 60, s % 60)
     }
+
+    /**
+     * Texto do campo depois de inserir o ditado no cursor (ou no lugar da seleção), com espaço
+     * antes quando o caractere anterior não for espaço. Devolve o texto novo e a posição do cursor.
+     */
+    fun inserir(atual: String, ini: Int, fim: Int, ditado: String): Pair<String, Int> {
+        val a = if (ini in 0..atual.length) ini else atual.length
+        val b = if (fim in a..atual.length) fim else a
+        val antes = atual.substring(0, a)
+        val espaco = if (antes.isNotEmpty() && !antes.last().isWhitespace()) " " else ""
+        val novo = antes + espaco + ditado + atual.substring(b)
+        return novo to (a + espaco.length + ditado.length)
+    }
 }

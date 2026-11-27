@@ -1,8 +1,16 @@
 # RenanTalk Android — estado
 
 - **Nível:** 2 (feature grande)
-- **Etapa:** 4 de 6 — app e CI implementados; falta a prova no celular
-- **Próximo passo:** Renan liga a depuração USB/sem fio; a IA instala o APK via adb e grava a prova.
+- **Etapa:** 3 de 6 — realinhado: bolha flutuante (igual Wispr Flow) no lugar do teclado; protótipo no POCO
+- **Próximo passo:** protótipo da bolha (acessibilidade + gravar + inserir no WhatsApp) provado no POCO X5 Pro (HyperOS, Android 14).
+
+## Mudança de direção (26/11/2026, decisão do Renan)
+- O RenanTalk **não é mais um teclado**: funciona como o Wispr Flow no Android — uma **bolha flutuante** que aparece acima do teclado que já estiver em uso (Gboard) quando ele abre e some quando fecha. O texto entra no campo focado pelo **serviço de acessibilidade**.
+- **Gestos:** os dois, igual Wispr — segurar e falar (soltar envia) **ou** tocar para começar e tocar de novo para parar.
+- **Teclado removido** (QWERTY, acentos, painel, Personalizar teclado). Continuam: Gravador, Groq, Cofre, Vocabulário, Atualizador, ConfigActivity e a linha de luz do PC (OndaView).
+- **Protótipo primeiro** no POCO, antes de reescrever o app: riscos a provar são o HyperOS matar o serviço/bolha, o Android 13+ bloquear acessibilidade de app instalado fora da loja ("configurações restritas") e o Android 14 barrar o microfone com o app em segundo plano.
+- Histórico do teclado (decisões e provas abaixo) fica como registro; o código sai do ramo.
+- Provas que já valem para a bolha: painel de voz/linha de luz e retorno do microfone (escala em dB, aviso "Não estou ouvindo").
 
 ## Decisões (26/11/2026)
 - Formato: **teclado (IME) com botão de microfone** — segura, fala, solta; o texto entra no campo focado. Linha azul animada no teclado (mesma identidade da luz do desktop).

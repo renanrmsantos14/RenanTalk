@@ -54,6 +54,14 @@ class RegrasTest {
         assertFalse(Regras.versaoMaior("0.0.7", "0.0.8"))
     }
 
+    @Test fun inserirNoCursor() {
+        assertEquals("" + "oi" to 2, Regras.inserir("", -1, -1, "oi"))
+        assertEquals("Olá mundo" to 9, Regras.inserir("Olá", 3, 3, "mundo"))
+        assertEquals("Olá mundo!" to 9, Regras.inserir("Olá!", 3, 3, "mundo"))
+        assertEquals("a b" to 3, Regras.inserir("a ", 2, 2, "b"))
+        assertEquals("Olá Renan" to 9, Regras.inserir("Olá XYZ", 4, 7, "Renan")) // troca a seleção
+    }
+
     @Test fun nivelDaLuz() {
         assertEquals(0f, Regras.nivel(ShortArray(4), 4))
         assertEquals(1f, Regras.nivel(ShortArray(4) { 5000 }, 4))
