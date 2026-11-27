@@ -1,14 +1,14 @@
 # RenanTalk desktop em Rust no modelo do Posta
 
 - Nível: 2 (reescrita do app desktop inteiro: núcleo, instalador, atualização e tela; não cabe numa sessão)
-- Etapa: 5 de 7 Construir
-- Próximo passo: tarefa 1 (workspace + talk-core ajustes), numa sessão nova · sozinho
-- Branch e PR: rust-tauri · ainda não
+- Etapa: 7 de 7 Entregar (6 Revisar e verificar concluída)
+- Próximo passo: Renan testa o NSIS no notebook `Betinhos-Renan` (prova nível 5) e faz o merge do PR · com você
+- Branch e PR: rust-tauri · PR único para a `main` (tarefas 1 a 10)
 - Protótipo: sem protótipo (a tela copia o visual atual do `app/ui/index.html`)
 - Spec: `docs/features/rust-tauri/spec.md`
 - Go: 27/11/2026 15:14 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 27/11/2026 19:20
+- Atualizado: 27/11/2026 20:46
 
 ## Referência
 - Posta (`~/Desktop/Projetos/Posta`, repo `renanrmsantos14/posta`): núcleo em crate Rust (`crates/mail-core`), casca Tauri 2 com comandos (`apps/client/src-tauri`), tela React + Vite (`apps/client`, com dados de exemplo fora do Tauri), pnpm workspace, atualização assinada do Tauri, release por tag.
@@ -29,6 +29,7 @@
 | 27/11/2026 | Luz igual à de hoje (cores, espessura, posição e bandeira) | A luz atual é o critério de aceite | Renan |
 | 27/11/2026 | Tela React copia o visual atual, sem protótipo | Prints de hoje são o "antes" | Renan |
 | 27/11/2026 | Ponte que falha: o Python segue, tenta de novo a cada verificação (6 h) e avisa na 3ª falha | Ninguém fica sem ditado | Renan |
+| 27/11/2026 | Um PR só para a `main` (tarefas 1 a 10), não empilhados | As correções da revisão atravessam as tarefas 1 a 10; o PR 1 sozinho publicaria um release sem a conferência das assinaturas nem a trava de só a `main` publicar | Claude (autonomia dada pelo Renan) |
 | 27/11/2026 | Assumi: NSIS por usuário sem admin; autostart pelo plugin; bandeja do Tauri; um release só com instaladores, `latest.json` e APK; numeração `v0.0.N` | Padrão do Posta e o Android lê `releases/latest` | Claude (sem objeção) |
 
 ## Perguntas abertas (alinhamento)
@@ -64,4 +65,6 @@
 - Entregas em PRs empilhados para a `main`: núcleo (1 a 6), tela (7 e 8), atualização e ponte (9 e 10), limpeza (11). A ponte só vai para a `main` com 1 a 9 provados.
 
 ## Retro
--
+- Revisão e qualidade: 3 passadas de simplificação, `vercel-react-best-practices`, revisão Opus e `/code-review high` acharam erros reais na ponte (pausa antes de conferir a assinatura, ponte interrompida sem retomar, assinatura de outro arquivo aceita) e no release (sem conferência das assinaturas, publicação fora da `main`). Viraram teste (`tests/test_ponte.py`, `Retomar`) e passo no `release.yml`.
+- Armadilhas: o plugin de autostart ignora `XDG_CONFIG_HOME` no Linux; o setup do Tauri não roda sem janela; o auto-launch no Windows grava em HKLM num processo elevado e sem aspas (trocado por `reg add` em HKCU).
+- O que fica para o notebook: ditado real, Win+V, menu Iniciar, luz, memória, NSIS, WebView2 e SmartScreen.
