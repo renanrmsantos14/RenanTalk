@@ -95,40 +95,60 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
     keyboard.wait()
 
 
+# O Windows guarda o volume por app: um app que fechou ainda baixo voltaria baixo. Fica aqui até reaparecer.
+_pendentes: dict[str, float] = {}
+_EXPIRADA = 2  # AudioSessionState: o app fechou
+
+
+def _sessoes() -> list:
+    import comtypes
+    from pycaw.pycaw import AudioUtilities
+
+    comtypes.CoInitialize()  # a thread da fila de volume não tem COM iniciado
+    # 0 = sons do Windows; o nosso = os bipes, no volume dos ajustes
+    return [s for s in AudioUtilities.GetAllSessions() if s.ProcessId not in (0, os.getpid())]
+
+
 def abaixar_outros(fator: float) -> list:
-    """Põe cada app que toca som em `fator` do volume atual. Devolve o que mudou, para restaurar_outros.
+    """Põe cada app com som em `fator` do volume atual. Devolve o que mudou, para restaurar_outros.
 
     Chamada sempre da mesma thread (a fila de volume do ditado.pyw): as sessões são objetos COM dela."""
     feitos = []
     try:
-        import comtypes
-        from pycaw.pycaw import AudioUtilities
-
-        comtypes.CoInitialize()  # a thread da fila de volume não tem COM iniciado
-        sessoes = AudioUtilities.GetAllSessions()
+        sessoes = _sessoes()
     except Exception as e:  # noqa: BLE001 - COM levanta tipos variados; o ditado não pode parar por isso
         log(f"abaixar volume: {e!r}")
         return feitos
-    for s in sessoes:  # uma sessão que sumiu não impede abaixar as outras
+    for s in sessoes:  # uma sessão com erro não impede abaixar as outras
         try:
-            if s.ProcessId in (0, os.getpid()):  # 0 = sons do Windows; o nosso = os bipes, no volume dos ajustes
-                continue
             v = s.SimpleAudioVolume
-            antes = v.GetMasterVolume()
+            antes = _pendentes.get(s.Identifier, v.GetMasterVolume())
             v.SetMasterVolume(antes * fator, None)
-            feitos.append((v, antes))
+            _pendentes.pop(s.Identifier, None)
+            feitos.append((s.Identifier, antes))
         except Exception as e:  # noqa: BLE001
             log(f"abaixar volume: {e!r}")
     return feitos
 
 
 def restaurar_outros(feitos: list) -> None:
-    """Volta sempre o volume de antes (como no Linux)."""
-    for v, antes in feitos:
+    """Volta sempre o volume de antes (como no Linux), pelas sessões de agora: o app que fechou e abriu de novo
+    tem sessão nova. O que não está aberto fica pendente para o próximo ditado."""
+    falta = dict(feitos)
+    try:
+        sessoes = _sessoes()
+    except Exception as e:  # noqa: BLE001
+        log(f"restaurar volume: {e!r}")
+        sessoes = []
+    voltaram = set()
+    for s in sessoes:
         try:
-            v.SetMasterVolume(antes, None)
-        except Exception as e:  # noqa: BLE001 - o app fechou durante o ditado
+            if s.Identifier in falta and s.State != _EXPIRADA:
+                s.SimpleAudioVolume.SetMasterVolume(falta[s.Identifier], None)
+                voltaram.add(s.Identifier)
+        except Exception as e:  # noqa: BLE001
             log(f"restaurar volume: {e!r}")
+    _pendentes.update({k: v for k, v in falta.items() if k not in voltaram})
 
 
 def instancia_unica() -> bool:
