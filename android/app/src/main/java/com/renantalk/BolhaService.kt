@@ -61,6 +61,7 @@ class BolhaService : AccessibilityService() {
     private var contornoVisivel = false
     private var legendaVisivel = false
     private val teclado = Rect()
+    private val campo = Rect()
     private var fase = Fase.OCIOSA
     private var modoToque = false
     private var tocouEm = 0L
@@ -156,10 +157,21 @@ class BolhaService : AccessibilityService() {
         return (min + (max - min) * fracao).toInt().coerceIn(min, maxOf(min, max))
     }
 
+    /** y da aba: acima do teclado; se o campo em foco ficar embaixo dela (WhatsApp), sobe para cima do campo. */
+    private fun yAba(): Int {
+        val y = teclado.top - aba.janelaA + aba.margem - px(ABA_FOLGA)
+        val no = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return y
+        no.getBoundsInScreen(campo)
+        val cobre = campo.bottom > y + aba.margem && campo.top < y + aba.janelaA - aba.margem
+        val acima = campo.top - aba.janelaA + aba.margem - px(ABA_FOLGA)
+        // campo alto demais (nota em tela cheia): não há onde subir, fica sobre o teclado
+        return if (cobre && acima >= px(ABA_TOPO_MIN)) acima else y
+    }
+
     private fun mostrarAba() {
         pAba.width = abaL
         pAba.x = xAba(prefs.getFloat(POSICAO, 0.5f))
-        pAba.y = teclado.top - aba.janelaA + aba.margem - px(ABA_FOLGA)
+        pAba.y = yAba()
         aba.ancora = 0f
         if (!abaVisivel) {
             aba.alpha = 0f
@@ -447,6 +459,7 @@ class BolhaService : AccessibilityService() {
         const val AVISO_MS = 2500L
         const val CANCELAR_DP = 72
         const val ABA_FOLGA = 6 // a pílula flutua acima do teclado
+        const val ABA_TOPO_MIN = 120 // acima do campo só se sobrar espaço abaixo da barra de status
         const val ABA_LADO = 12 // distância mínima da pílula até a lateral da tela
         const val POSICAO = "posicao" // fração 0..1 da pílula sobre o teclado (0,5 = centro)
     }
