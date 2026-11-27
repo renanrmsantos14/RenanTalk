@@ -10,6 +10,14 @@ class RegrasTest {
         amostras.forEachIndexed { i, v -> b[2 * i] = (v and 0xFF).toByte(); b[2 * i + 1] = (v shr 8).toByte() }
     }
 
+    @Test fun pontuacaoSozinhaNaoEhFala() {
+        assertTrue(Regras.semFala("."))
+        assertTrue(Regras.semFala(" … "))
+        assertTrue(Regras.semFala(""))
+        assertFalse(Regras.semFala("Ok."))
+        assertFalse(Regras.semFala("2"))
+    }
+
     @Test fun toqueCurtoEhIgnorado() =
         assertEquals(Regras.Decisao.CURTO, Regras.decidir(pcm(20000), 0.39))
 

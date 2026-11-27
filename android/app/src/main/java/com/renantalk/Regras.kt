@@ -22,6 +22,9 @@ object Regras {
     enum class Decisao { CURTO, SILENCIO, ENVIAR }
 
     /** pcm = PCM 16 bits little-endian mono. */
+    /** O Whisper devolve "." ou "…" quando só ouve ruído: sem letra nem número, não há fala. */
+    fun semFala(texto: String) = texto.none { it.isLetterOrDigit() }
+
     fun decidir(pcm: ByteArray, duracaoS: Double): Decisao {
         if (duracaoS < MINIMO_S) return Decisao.CURTO
         return if (pico(pcm) < SILENCIO) Decisao.SILENCIO else Decisao.ENVIAR // o Whisper inventa texto no silêncio

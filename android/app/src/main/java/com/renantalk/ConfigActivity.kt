@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
@@ -19,6 +20,7 @@ import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
@@ -36,7 +38,7 @@ class ConfigActivity : Activity() {
     private lateinit var vocab: Vocabulario
     private lateinit var passos: LinearLayout
     private lateinit var chaveStatus: TextView
-    private lateinit var listaVocab: LinearLayout
+    private lateinit var listaVocab: Fluxo
     private lateinit var contador: TextView
     private lateinit var atualizacaoStatus: TextView
     private lateinit var atualizacaoBotao: Button
@@ -93,13 +95,13 @@ class ConfigActivity : Activity() {
         val ligada = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
             .split(':').any { ComponentName.unflattenFromString(it) == bolha }
         val microfone = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        passo("1. Permitir o microfone", microfone, "Permitir") {
+        passo("Microfone permitido", microfone, "Permitir") {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
         }
-        passo("2. Ligar a bolha (Acessibilidade › Apps baixados › RenanTalk)", ligada, "Ligar") {
+        passo("Aba ligada", ligada, "Ligar", "Acessibilidade › Apps baixados › RenanTalk") {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        passo("3. Cadastrar a chave Groq", cofre.ler().isNotEmpty(), null) {}
+        passo("Chave Groq cadastrada", cofre.ler().isNotEmpty(), null, "Cole a chave logo abaixo") {}
     }
 
     override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
@@ -111,20 +113,28 @@ class ConfigActivity : Activity() {
         }
     }
 
-    private fun passo(rotulo: String, feito: Boolean, acao: String?, aoClicar: () -> Unit) {
+    private fun passo(rotulo: String, feito: Boolean, acao: String?, dica: String? = null, aoClicar: () -> Unit) {
         val linha = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = px(48)
         }
-        linha.addView(texto(rotulo, 15f), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        if (feito) {
-            linha.addView(texto("✓ pronto", 14f).apply { setTextColor(getColor(R.color.azul)); setTypeface(null, Typeface.BOLD) })
-        } else if (acao != null) {
-            linha.addView(botao(acao, aoClicar))
-        } else {
-            linha.addView(texto("pendente", 14f, fraco = true))
-        }
+        linha.addView(TextView(this).apply { // marca: ✓ azul quando pronto, círculo vazio quando falta
+            text = if (feito) "✓" else ""
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(getColor(R.color.fundo))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                if (feito) setColor(getColor(R.color.azul)) else setStroke(px(2), getColor(R.color.texto_fraco))
+            }
+        }, LinearLayout.LayoutParams(px(22), px(22)).apply { marginEnd = px(12) })
+        val textos = coluna()
+        textos.addView(texto(rotulo, 15f).apply { if (!feito) setTextColor(getColor(R.color.texto)) })
+        if (!feito && dica != null) textos.addView(texto(dica, 12f, fraco = true))
+        linha.addView(textos, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        if (!feito && acao != null) linha.addView(botao(acao, aoClicar))
         passos.addView(linha)
     }
 
@@ -137,6 +147,7 @@ class ConfigActivity : Activity() {
         val campo = EditText(this).apply {
             hint = "Cole a chave (gsk_…)"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            typeface = Typeface.DEFAULT // senha usa fonte monoespaçada por padrão
             setSingleLine()
         }
         val salvar = botao("Validar e salvar") {}
@@ -196,7 +207,7 @@ class ConfigActivity : Activity() {
         caixa.addView(linha)
         contador = texto("", 12f, fraco = true)
         caixa.addView(contador)
-        listaVocab = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        listaVocab = Fluxo(this, px(8))
         caixa.addView(listaVocab)
         mostrarVocabulario()
         return caixa
@@ -209,32 +220,33 @@ class ConfigActivity : Activity() {
             if (cabem < termos.size) " · ${termos.size - cabem} termo(s) riscado(s) ficam de fora" else ""
         listaVocab.removeAllViews()
         termos.forEachIndexed { i, termo ->
-            val linha = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            val rotulo = texto(termo, 15f)
-            if (i >= cabem) {
-                rotulo.paintFlags = rotulo.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
-                rotulo.alpha = 0.5f
-            }
-            linha.addView(rotulo, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            linha.addView(TextView(this).apply {
-                text = "✕"
-                textSize = 16f
-                gravity = Gravity.CENTER
-                setTextColor(getColor(R.color.texto_fraco))
+            listaVocab.addView(TextView(this).apply {
+                text = "$termo  ✕"
+                textSize = 14f
+                setTextColor(getColor(R.color.texto))
+                setPadding(px(12), px(7), px(10), px(7))
+                background = GradientDrawable().apply {
+                    cornerRadius = px(16).toFloat()
+                    setColor(0x1A3B82F6)
+                    setStroke(px(1), 0x553B82F6)
+                }
+                if (i >= cabem) { // não cabe no limite do prompt: fica de fora
+                    paintFlags = paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
+                    alpha = 0.5f
+                }
                 contentDescription = "Remover $termo"
-                minWidth = px(48)
-                minHeight = px(44)
+                minHeight = px(36)
                 setOnClickListener { vocab.remover(termo); mostrarVocabulario() }
             })
-            listaVocab.addView(linha)
         }
+        if (termos.isEmpty()) listaVocab.addView(texto("Nenhum termo ainda.", 13f, fraco = true))
     }
 
     // ---------- teste ----------
 
     private fun secaoTeste(): View {
         val caixa = coluna()
-        caixa.addView(texto("Toque no campo: a bolha aparece acima do teclado. Segure a bolha, fale e solte, ou toque para começar e toque de novo para enviar.", 13f, fraco = true))
+        caixa.addView(texto("Toque no campo: a aba azul aparece em cima do teclado. Segure, fale e solte, ou toque para começar e toque de novo para enviar.", 13f, fraco = true))
         caixa.addView(EditText(this).apply {
             hint = "Fale aqui…"
             minLines = 3
@@ -319,7 +331,7 @@ class ConfigActivity : Activity() {
         orientation = LinearLayout.VERTICAL
         setPadding(px(4), 0, px(4), px(12))
         addView(texto("RenanTalk", 26f).apply { setTypeface(null, Typeface.BOLD) })
-        addView(texto("Segure o microfone, fale e solte: o texto entra no campo.", 14f, fraco = true))
+        addView(texto("Segure a aba azul em cima do teclado, fale e solte.", 14f, fraco = true))
         addView(View(this@ConfigActivity).apply {
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 intArrayOf(0x002563EB, 0xFF93C5FD.toInt(), 0x002563EB)).apply { cornerRadius = px(2).toFloat() }
@@ -328,12 +340,23 @@ class ConfigActivity : Activity() {
 
     private fun cartao(titulo: String, conteudo: View) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(px(16), px(14), px(16), px(14))
-        background = GradientDrawable().apply { cornerRadius = px(16).toFloat(); setColor(getColor(R.color.superficie)) }
         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            .apply { bottomMargin = px(12) }
-        addView(texto(titulo, 17f).apply { setTypeface(null, Typeface.BOLD); setPadding(0, 0, 0, px(6)) })
-        addView(conteudo)
+            .apply { bottomMargin = px(18) }
+        addView(texto(titulo.uppercase(), 12f, fraco = true).apply {
+            setTypeface(null, Typeface.BOLD)
+            letterSpacing = 0.1f
+            setPadding(px(4), 0, 0, px(8))
+        })
+        addView(LinearLayout(this@ConfigActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(px(16), px(12), px(16), px(14))
+            background = GradientDrawable().apply {
+                cornerRadius = px(16).toFloat()
+                setColor(getColor(R.color.superficie))
+                setStroke(px(1), 0x14FFFFFF)
+            }
+            addView(conteudo)
+        })
     }
 
     private fun coluna() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -351,5 +374,34 @@ class ConfigActivity : Activity() {
         backgroundTintList = ColorStateList.valueOf(getColor(R.color.azul))
         setTextColor(0xFFFFFFFF.toInt())
         setOnClickListener { aoClicar() }
+    }
+}
+
+/** Quebra os filhos em linhas (chips), sem depender de bibliotecas. Só criado por código, nunca por XML. */
+@SuppressLint("ViewConstructor")
+private class Fluxo(contexto: Context, private val espaco: Int) : ViewGroup(contexto) {
+    override fun onMeasure(largura: Int, altura: Int) {
+        val max = MeasureSpec.getSize(largura) - paddingLeft - paddingRight
+        var x = 0; var y = 0; var linha = 0
+        for (i in 0 until childCount) {
+            val f = getChildAt(i)
+            f.measure(MeasureSpec.makeMeasureSpec(max, MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED)
+            if (x > 0 && x + f.measuredWidth > max) { x = 0; y += linha + espaco; linha = 0 }
+            x += f.measuredWidth + espaco
+            linha = maxOf(linha, f.measuredHeight)
+        }
+        setMeasuredDimension(MeasureSpec.getSize(largura), y + linha + paddingTop + paddingBottom + if (childCount > 0) espaco else 0)
+    }
+
+    override fun onLayout(mudou: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val max = r - l - paddingLeft - paddingRight
+        var x = 0; var y = espaco; var linha = 0
+        for (i in 0 until childCount) {
+            val f = getChildAt(i)
+            if (x > 0 && x + f.measuredWidth > max) { x = 0; y += linha + espaco; linha = 0 }
+            f.layout(paddingLeft + x, paddingTop + y, paddingLeft + x + f.measuredWidth, paddingTop + y + f.measuredHeight)
+            x += f.measuredWidth + espaco
+            linha = maxOf(linha, f.measuredHeight)
+        }
     }
 }

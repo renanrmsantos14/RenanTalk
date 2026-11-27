@@ -1,8 +1,15 @@
 # RenanTalk Android — estado
 
 - **Nível:** 2 (feature grande)
-- **Etapa:** 3 de 6 — realinhado: bolha flutuante (igual Wispr Flow) no lugar do teclado; protótipo no POCO
-- **Próximo passo:** protótipo da bolha (acessibilidade + gravar + inserir no WhatsApp) provado no POCO X5 Pro (HyperOS, Android 14).
+- **Etapa:** 4 de 6 — build, instalar e prints (v0.0.12 no POCO)
+- **Próximo passo:** Renan testar no WhatsApp (segurar/tocar, ✕, enviar) e dizer se a borda/ilha ficaram boas; depois qualidade-antes-do-pr e PR.
+
+## Visual "Contorno + Ilha" (26/11/2026, escolha do Renan no card)
+- Fonte Geist SemiBold (OFL, `android/LICENCA-FONTE-GEIST.txt`).
+- **ContornoView:** linha de luz do desktop (`app/luz.py`) em volta da tela inteira: núcleo fino na borda, brilho só para dentro, mais forte embaixo no centro. REC abre pelos dois lados; PROC pulso subindo; FIM/PARADA apagam; ERRO vermelho.
+- **IlhaView:** pílula "Ditar" pequena e centralizada sobre o teclado (posição em `prefs["posicao"]`), abre em ilha com ✕, barras da voz, relógio e ↑ (mola k=520); ESCREVENDO = anel; OK = ✓ verde.
+- OndaView removida.
+- **Provas v0.0.12:** pílula parada centralizada; ilha gravando (0:01, 0:03); ✕ cancela com "Cancelado." e volta à pílula; borda presente nas 4 bordas (núcleo 120,170,255 embaixo). Falta: envio real e teste no WhatsApp (Renan).
 
 ## Mudança de direção (26/11/2026, decisão do Renan)
 - O RenanTalk **não é mais um teclado**: funciona como o Wispr Flow no Android — uma **bolha flutuante** que aparece acima do teclado que já estiver em uso (Gboard) quando ele abre e some quando fecha. O texto entra no campo focado pelo **serviço de acessibilidade**.
