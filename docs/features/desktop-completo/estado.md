@@ -1,8 +1,8 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 6 de 7 Construir (PR 3 aberto em rascunho; falta a prova no Windows com a IA real)
-- Próximo passo: prova do PR 3 no notebook Windows (delegada); depois QA/merge dos PRs 2 e 3 por Renan
+- Etapa: 6 de 7 Construir (PR 3 pronto: prova Windows final aprovada em 27/11 sobre af9ac55)
+- Próximo passo: QA e merge do PR 2 (#9) e depois do PR 3 (#11) por Renan
 - Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR 1: https://github.com/renanrmsantos14/RenanTalk/pull/6 (rascunho)
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
@@ -92,3 +92,7 @@
 
 ## Retro
 -
+
+### Prova Windows final do PR 3 (27/11/2026, af9ac55)
+- gpt-oss-120b ativo; 4 modos reais 0,41–0,94 s; injeção não obedecida; Shift+Win colou inglês 5/6; notepad formal ok; chave inválida → literal + log + bipe; 76 testes OK.
+- Pendências novas: 1 execução do Shift+Win não colou (histórico certo, causa desconhecida); `pycaw`/`comtypes` não importa no Python 3.14 do notebook, então "abaixar os outros sons" provavelmente não funciona lá.
