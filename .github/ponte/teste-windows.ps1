@@ -105,9 +105,15 @@ Conferir (-not (Test-Path (Join-Path $rust 'renantalk.exe'))) 'nada do Rust inst
 Publicar $setup.Name
 PythonVivo | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Start-Sleep 1; IniciarPython
 $pid0 = (PythonVivo)[0].ProcessId
+# um arquivo preso dentro de app\ força o caminho de reserva (a limpeza destacada depois que o Python sai)
+$trava = [IO.File]::Open((Join-Path $app 'preso-pelo-teste.txt'), 'Create', 'ReadWrite', 'None')
 $ok = Esperar { (Log | Select-String 'ponte: Python encerrado').Count -gt 0 } 240 'ponte confirmada'
 Conferir $ok 'ponte confirmada e Python encerrado'
-Esperar { -not (Test-Path $app) } 150 'app\ removida' | Out-Null
+Conferir ((Log | Select-String 'sobrou parte da pasta do Python').Count -gt 0) 'arquivo preso: a limpeza destacada assumiu'
+Conferir (-not (Test-Path (Join-Path $app 'ditado.pyw'))) 'o resto de app\ saiu no próprio processo'
+Esperar { -not (Get-Process -Id $pid0 -ErrorAction SilentlyContinue) } 30 'Python sair' | Out-Null
+Start-Sleep 3; $trava.Close()
+Esperar { -not (Test-Path $app) } 90 'app\ removida' | Out-Null
 Start-Sleep 2
 Write-Host '--- limpeza destacada (%TEMP%\RenanTalk-ponte-limpeza.log) ---'
 Get-Content (Join-Path $env:TEMP 'RenanTalk-ponte-limpeza.log') -ErrorAction SilentlyContinue | Select-Object -Last 15

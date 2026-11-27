@@ -24,7 +24,7 @@ import time
 import urllib.request
 
 import minisign
-from comum import APP_DIR, PASTA, WINDOWS, definir_inicio_automatico, log
+from comum import APP_DIR, PASTA, WINDOWS, definir_inicio_automatico, fechar_janela, log
 
 # Chave pública do app em Rust (apps/desktop/src-tauri/tauri.conf.json, plugins.updater.pubkey); o teste
 # tests/test_ponte.py confere que é a mesma.
@@ -248,12 +248,16 @@ def remover_python(app_dir: str = APP_DIR) -> None:
     if not seguro:
         log(f"ponte: o Python roda fora da pasta do instalador ({app_dir}); a pasta não foi apagada")
         return
-    if WINDOWS:
+    fechar_janela()  # o renantalk-config.exe aberto fica dentro de app\ e prende a pasta
+    os.chdir(os.path.dirname(app_dir))  # o diretório atual também prende no Windows
+    time.sleep(0.5)
+    shutil.rmtree(app_dir, ignore_errors=True)  # o Python já leu o código: os .py e o ditado.pyw não ficam presos
+    if not os.path.exists(app_dir):
+        log(f"ponte: pasta do Python removida ({app_dir})")
+    elif WINDOWS:
         _apagar_depois_de_sair(app_dir)
     else:
-        shutil.rmtree(app_dir, ignore_errors=True)
-        log(f"ponte: pasta do Python removida ({app_dir})" if not os.path.exists(app_dir)
-            else f"ponte: não consegui remover {app_dir}")
+        log(f"ponte: não consegui remover {app_dir}")
 
 
 def _apagar_depois_de_sair(app_dir: str) -> None:
@@ -276,11 +280,10 @@ $m
 Add-Content -LiteralPath {q(os.path.join(PASTA, 'ditado.log'))} -Encoding utf8 -Value ((Get-Date -Format 'dd/MM/yyyy HH:mm:ss') + ' ' + $m)
 Stop-Transcript | Out-Null
 """)
-    p = subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle",
-                          "Hidden", "-File", roteiro], cwd=temp, creationflags=DESTACADO | SEM_JANELA,
+    p = subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", roteiro],
+                         cwd=temp, creationflags=SEM_JANELA | 0x00000200,  # console oculto + grupo próprio
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
-    os.chdir(temp)  # este processo deixa de prender a pasta
-    log(f"ponte: a pasta do Python ({app_dir}) sai quando este processo fechar (limpeza pid {p.pid}, {registro})")
+    log(f"ponte: sobrou parte da pasta do Python ({app_dir}); sai quando este processo fechar (limpeza pid {p.pid}, {registro})")
 
 
 # ---------- fluxo ----------
