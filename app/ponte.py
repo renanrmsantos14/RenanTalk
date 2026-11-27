@@ -198,12 +198,14 @@ def desfazer_autostart_rust(pasta: str | None = None) -> None:
     if WINDOWS:
         import winreg
 
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0,
-                                winreg.KEY_SET_VALUE) as k:
-                winreg.DeleteValue(k, "RenanTalk")
-        except OSError:
-            pass
+        # o auto-launch tenta HKLM primeiro (processo elevado) e cai para HKCU (o normal, sem elevação)
+        for raiz in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                with winreg.OpenKey(raiz, r"Software\Microsoft\Windows\CurrentVersion\Run", 0,
+                                    winreg.KEY_SET_VALUE) as k:
+                    winreg.DeleteValue(k, "RenanTalk")
+            except OSError:
+                pass
     else:
         try:
             os.remove(AUTOSTART_RUST)
@@ -256,20 +258,29 @@ def remover_python(app_dir: str = APP_DIR) -> None:
 
 def _apagar_depois_de_sair(app_dir: str) -> None:
     """No Windows a pasta em uso (diretório atual, janela antiga) não sai: um PowerShell destacado espera este
-    processo terminar e apaga."""
+    processo terminar e apaga. O roteiro e o registro dele ficam em %TEMP% (RenanTalk-ponte-limpeza.*)."""
     q = lambda s: "'" + s.replace("'", "''") + "'"  # noqa: E731
-    ps = (f"$ErrorActionPreference='SilentlyContinue'; Wait-Process -Id {os.getpid()} -Timeout 120; "
-          f"for($i=0;$i -lt 20;$i++){{ Remove-Item -LiteralPath {q(app_dir)} -Recurse -Force; "
-          f"if(-not (Test-Path -LiteralPath {q(app_dir)})){{break}}; Start-Sleep 1 }}; "
-          f"$m = if(Test-Path -LiteralPath {q(app_dir)}){{'ponte: não consegui remover {app_dir.replace(chr(39), '')}'}}"
-          f"else{{'ponte: pasta do Python removida ({app_dir.replace(chr(39), '')})'}}; "
-          f"Add-Content -LiteralPath {q(os.path.join(PASTA, 'ditado.log'))} -Encoding utf8 -Value ((Get-Date -Format "
-          f"'dd/MM/yyyy HH:mm:ss') + ' ' + $m)")
-    subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps],
-                     cwd=os.environ.get("TEMP") or "C:\\", creationflags=DESTACADO | SEM_JANELA,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
-    os.chdir(os.environ.get("TEMP") or "C:\\")  # este processo deixa de prender a pasta
-    log(f"ponte: a pasta do Python ({app_dir}) sai quando este processo fechar")
+    temp = os.environ.get("TEMP") or tempfile.gettempdir()
+    roteiro, registro = (os.path.join(temp, f"RenanTalk-ponte-limpeza.{x}") for x in ("ps1", "log"))
+    with open(roteiro, "w", encoding="utf-8-sig") as f:  # com BOM: o PowerShell 5.1 lê os acentos certos
+        f.write(f"""$ErrorActionPreference = 'SilentlyContinue'
+Start-Transcript -LiteralPath {q(registro)} -Force | Out-Null
+Wait-Process -Id {os.getpid()} -Timeout 120
+for ($i = 0; $i -lt 30; $i++) {{
+    Remove-Item -LiteralPath {q(app_dir)} -Recurse -Force
+    if (-not (Test-Path -LiteralPath {q(app_dir)})) {{ break }}
+    Start-Sleep 1
+}}
+$m = if (Test-Path -LiteralPath {q(app_dir)}) {{ 'ponte: não consegui remover ' + {q(app_dir)} }} else {{ 'ponte: pasta do Python removida (' + {q(app_dir)} + ')' }}
+$m
+Add-Content -LiteralPath {q(os.path.join(PASTA, 'ditado.log'))} -Encoding utf8 -Value ((Get-Date -Format 'dd/MM/yyyy HH:mm:ss') + ' ' + $m)
+Stop-Transcript | Out-Null
+""")
+    p = subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle",
+                          "Hidden", "-File", roteiro], cwd=temp, creationflags=DESTACADO | SEM_JANELA,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
+    os.chdir(temp)  # este processo deixa de prender a pasta
+    log(f"ponte: a pasta do Python ({app_dir}) sai quando este processo fechar (limpeza pid {p.pid}, {registro})")
 
 
 # ---------- fluxo ----------

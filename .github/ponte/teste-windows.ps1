@@ -107,8 +107,13 @@ PythonVivo | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Start-Slee
 $pid0 = (PythonVivo)[0].ProcessId
 $ok = Esperar { (Log | Select-String 'ponte: Python encerrado').Count -gt 0 } 240 'ponte confirmada'
 Conferir $ok 'ponte confirmada e Python encerrado'
-Esperar { -not (Test-Path $app) } 60 'app\ removida' | Out-Null
+Esperar { -not (Test-Path $app) } 150 'app\ removida' | Out-Null
 Start-Sleep 2
+Write-Host '--- limpeza destacada (%TEMP%\RenanTalk-ponte-limpeza.log) ---'
+Get-Content (Join-Path $env:TEMP 'RenanTalk-ponte-limpeza.log') -ErrorAction SilentlyContinue | Select-Object -Last 15
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | ForEach-Object { "powershell vivo: $($_.ProcessId) $($_.CommandLine)" }
+Write-Host '--- Run (HKCU e HKLM) ---'
+foreach ($r in 'HKCU', 'HKLM') { "$r Run:"; Get-ItemProperty "${r}:\Software\Microsoft\Windows\CurrentVersion\Run" | Format-List }
 Write-Host '--- log (sucesso) ---'; Log | Select-Object -Last 22
 $m = Get-Content (Join-Path $dados '.app-subiu.json') -Raw | ConvertFrom-Json
 Write-Host "marcador: $($m | ConvertTo-Json -Compress)"
@@ -118,8 +123,11 @@ Conferir (-not (Get-Process -Id $pid0 -ErrorAction SilentlyContinue)) 'Python en
 Conferir (-not (Test-Path $lnk)) 'Startup\RenanTalk.lnk removido'
 Conferir (-not (Test-Path $app)) "$app removida"
 Conferir (Test-Path (Join-Path $rust 'renantalk.exe')) 'renantalk.exe do NSIS intacto na pasta-mãe'
-$run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name RenanTalk -ErrorAction SilentlyContinue
-Conferir ($null -ne $run) "autostart do Rust (HKCU Run: $($run.RenanTalk))"
+# o auto-launch grava em HKLM quando o processo é elevado (o runner é admin sem UAC); sem elevação, em HKCU
+$run = foreach ($r in 'HKCU', 'HKLM') {
+    $x = Get-ItemProperty "${r}:\Software\Microsoft\Windows\CurrentVersion\Run" -Name RenanTalk -ErrorAction SilentlyContinue
+    if ($x) { "$r = $($x.RenanTalk)" } }
+Conferir ($null -ne $run) "autostart do Rust (Run: $run)"
 foreach ($f in $antes.Keys) {
     $igual = (Get-FileHash (Join-Path $dados $f)).Hash -eq $antes[$f]
     if ($f -eq 'ajustes.json') { $igual = $igual -or ((Get-Content (Join-Path $dados $f) -Raw | ConvertFrom-Json).volume -eq 37) }
