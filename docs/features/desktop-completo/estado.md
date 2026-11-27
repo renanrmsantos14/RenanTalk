@@ -7,7 +7,8 @@
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 26/11/2026 23:10
+- Atualizado: 26/11/2026 23:18
+- PR do abaixar volume: branch desktop-abaixar-volume, base desktop-completo (rascunho até provar no Windows)
 
 ## Contexto levantado (código)
 - Python (bandeja, ditado, luz) + janela de configurações em Tauri/Rust (`config/src/main.rs`, `app/ui/index.html`), com fallback Python+Edge (`app/configuracoes.py`).
@@ -28,6 +29,7 @@
 | 26/11/2026 | Entram também: idioma (pt fixo, automático, inglês), atalho configurável, luz configurável (cor, espessura, posição, desligada), tema da janela, notificações liga/desliga | segunda rodada de ideias | Renan |
 | 26/11/2026 | IA no texto (modelo de texto da Groq): modos de escrita (literal, revisado, formal/e-mail, WhatsApp), modo automático por aplicativo ativo, traduzir para inglês | segunda rodada de ideias; aceita reenviar o texto à Groq | Renan |
 | 26/11/2026 | Fora: mãos livres, pausar música, ajustes de colagem, exportar/importar, sincronizar máquinas, pausar histórico, Whisper offline | não escolhidos | Renan |
+| 26/11/2026 | Abaixar os outros sons enquanto fala: desligado por padrão; ligado, os outros apps vão a 30% do volume de cada um (0–100, passo 5) e voltam ao soltar; restauração sempre ao valor de antes (o Spotify reage à mudança externa). PR próprio empilhado sobre o PR 1 | pedido direto do Renan em 26/11 | Renan (pedido) + Claude (padrões assumidos) |
 | 26/11/2026 | Assumi: 3 PRs. PR 1 base (histórico, re-colar, volume, microfone, idioma, atalho, luz, tema, notificações); PR 2 inteligência local (termos, substituições, estatísticas); PR 3 IA no texto | o escopo cresceu; a IA é independente e tem custo próprio | Claude (assumido) |
 
 ## Tarefas e provas

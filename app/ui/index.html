@@ -63,7 +63,7 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
 .stat b{display:block;font-size:20px;margin-top:2px;font-weight:600}
 .sel{background:var(--bg);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 10px;font:inherit;max-width:100%}
 .sel:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
-input[type=range]{padding:0;accent-color:var(--ac2);flex:1;min-width:120px;box-shadow:none;border:0;background:none}
+input[type=range]{padding:0;accent-color:var(--ac2);flex:1;min-width:120px;box-shadow:none;border:0;background:none}input[type=range]:disabled{opacity:.4}
 .vol{display:flex;align-items:center;gap:12px;margin-top:10px}.vol b{min-width:44px;text-align:right}
 .mods{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .mod{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:7px 12px;color:var(--mut)}
@@ -135,6 +135,8 @@ textarea:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
     <p class="sub">Vale no próximo ditado, sem reiniciar. Salva sozinho.</p>
     <div class="card"><div class="row"><div><div>Volume dos bipes</div><div class="k">0% deixa tudo mudo.</div></div><span class="saved" id="salvo2">✓ Salvo</span></div>
       <div class="vol"><input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume dos bipes"><b id="volv">60%</b><button class="btn sec" id="ouvir">Ouvir</button></div></div>
+    <div class="card"><label class="chk"><input type="checkbox" id="abaixar"><span><div>Abaixar os outros sons enquanto fala</div><div class="k">Música, vídeos e chamadas baixam quando você segura o atalho e voltam quando solta.</div></span></label>
+      <div class="vol"><span class="k">Ficam em</span><input type="range" id="volo" min="0" max="100" step="5" aria-label="Volume dos outros apps durante o ditado"><b id="volov">30%</b><span class="k">do volume de cada um</span></div></div>
     <div class="card"><div class="row"><div><div>Microfone</div><div class="k">A lista é atualizada quando a janela abre.</div></div><select class="sel" id="mic" aria-label="Microfone"></select></div></div>
     <div class="card"><div class="row"><div><div>Idioma do ditado</div><div class="k">Automático deixa o Whisper detectar.</div></div>
       <select class="sel" id="idi" aria-label="Idioma"><option value="pt">Português</option><option value="auto">Automático</option><option value="en">Inglês</option></select></div></div>
@@ -323,6 +325,11 @@ async function iniciarSom() {
   $('vol').oninput = () => { $('volv').textContent = $('vol').value + '%'; };
   $('vol').onchange = () => { bipePrevia(+$('vol').value); salvarSom({volume: +$('vol').value}); };
   $('ouvir').onclick = () => bipePrevia(+$('vol').value);
+  $('abaixar').checked = aj.abaixar_outros; $('volo').disabled = !aj.abaixar_outros;
+  $('volo').value = aj.volume_outros; $('volov').textContent = aj.volume_outros + '%';
+  $('abaixar').onchange = () => { $('volo').disabled = !$('abaixar').checked; salvarSom({abaixar_outros: $('abaixar').checked}); };
+  $('volo').oninput = () => { $('volov').textContent = $('volo').value + '%'; };
+  $('volo').onchange = () => salvarSom({volume_outros: +$('volo').value});
   mic.onchange = () => salvarSom({microfone: mic.value});
   $('idi').onchange = () => salvarSom({idioma: $('idi').value});
 }

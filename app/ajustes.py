@@ -16,7 +16,7 @@ ARQ_AJUSTES = os.path.join(PASTA, "ajustes.json")
 ARQ_DISPOSITIVOS = os.path.join(PASTA, "dispositivos.json")
 PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+win", "atalho_colar": "alt+win+v",
            "luz": {"ligada": True, "cor": "azul", "espessura": "media", "posicao": "embaixo"},
-           "tema": "sistema", "notificacoes": True}
+           "tema": "sistema", "notificacoes": True, "abaixar_outros": False, "volume_outros": 30}
 IDIOMAS = ("pt", "auto", "en")
 MODIFICADORES = ("ctrl", "alt", "shift", "win")
 TECLAS = tuple("abcdefghijklmnopqrstuvwxyz0123456789") + tuple(f"f{i}" for i in range(1, 13)) + ("space",)
@@ -134,9 +134,10 @@ def normalizar(bruto) -> dict:
     dados = dict(bruto) if isinstance(bruto, dict) else {}
     for chave, padrao in PADROES.items():
         dados.setdefault(chave, dict(padrao) if isinstance(padrao, dict) else padrao)
-    v = dados["volume"]
-    ok = isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)  # json aceita NaN e Infinity
-    dados["volume"] = max(0, min(100, int(v))) if ok else PADROES["volume"]
+    for chave in ("volume", "volume_outros"):
+        v = dados[chave]
+        ok = isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)  # json aceita NaN e Infinity
+        dados[chave] = max(0, min(100, int(v))) if ok else PADROES[chave]
     if not isinstance(dados["microfone"], str):
         dados["microfone"] = ""
     if dados["idioma"] not in IDIOMAS:
@@ -151,8 +152,9 @@ def normalizar(bruto) -> dict:
     dados["luz"] = _normalizar_luz(dados["luz"])
     if dados["tema"] not in TEMAS:
         dados["tema"] = PADROES["tema"]
-    if not isinstance(dados["notificacoes"], bool):
-        dados["notificacoes"] = PADROES["notificacoes"]
+    for chave in ("notificacoes", "abaixar_outros"):
+        if not isinstance(dados[chave], bool):
+            dados[chave] = PADROES[chave]
     return dados
 
 

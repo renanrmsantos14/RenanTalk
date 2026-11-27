@@ -28,7 +28,7 @@ description: "Verifica a janela de configurações do RenanTalk desktop (Tauri +
 3. Com a confirmação armada, `c 378 133` (busca) e `xdotool type "van"` → só "Mandar o orçamento…" na lista e o botão volta a "Excluir" (a confirmação não passa para outro item).
 4. Editar o texto no detalhe e clicar "Salvar correção" → `sqlite3 $S/RenanTalk/historico.db "select editado, original from ditados"` mostra `editado=1` e o original preservado.
 5. Excluir em 2 cliques → a linha some do banco.
-6. Aba Ditado e som: gravar atalho ctrl+alt → `ajustes.json` muda; atalho proibido (Ctrl+C) ou contido no outro → aviso e o cartão volta ao atalho gravado, o volume do mesmo lote é gravado.
+6. Aba Ditado e som: gravar atalho ctrl+alt → `ajustes.json` muda; atalho proibido (Ctrl+C) ou contido no outro → aviso e o cartão volta ao atalho gravado, o volume do mesmo lote é gravado. Marcar "Abaixar os outros sons enquanto fala" libera o controle "Ficam em" (desabilitado com a caixa desmarcada); mover para 20% → `abaixar_outros: true, volume_outros: 20` no `ajustes.json`.
 7. Aba Aparência: Escuro / Verde / Topo / Grossa → gravados em `ajustes.json` (`luz`, `tema`).
 
 ## Casos de borda

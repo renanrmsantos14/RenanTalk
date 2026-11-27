@@ -9,6 +9,7 @@ import os
 for _v in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ[_v] = "1"  # numpy com 1 thread: sem isso reserva ~350 MB para 10 núcleos
 
+import concurrent.futures
 import contextlib
 import io
 import json
@@ -46,6 +47,30 @@ quadros: list[bytes] = []
 inicio = 0.0
 outra_tecla = False
 trava = threading.Lock()
+# Uma thread só para abaixar e restaurar o volume dos outros apps: mantém a ordem, não segura o hook do teclado
+# e, no Windows, as sessões de áudio (COM) são usadas na mesma thread em que foram lidas.
+fila_volume = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+abaixados: list = []
+
+
+def abaixar_volume() -> None:
+    global abaixados
+    a = ajustes.ler()
+    if a["abaixar_outros"]:
+        abaixados = plat.abaixar_outros(a["volume_outros"] / 100)
+
+
+def restaurar_volume() -> None:
+    global abaixados
+    feitos, abaixados = abaixados, []
+    if feitos:
+        plat.restaurar_outros(feitos)
+
+
+def sair() -> None:
+    with contextlib.suppress(Exception):  # sair no meio do ditado não deixa os outros apps baixos
+        fila_volume.submit(restaurar_volume).result(timeout=3)
+    os._exit(0)
 
 
 def ao_audio(dados, _frames, _tempo, _status) -> None:
@@ -110,6 +135,7 @@ def comecar() -> None:
             plat.bipe(300, 250)
             return
         gravando = True
+        fila_volume.submit(abaixar_volume)  # dentro da trava: o parar() não enfileira a restauração antes
     LUZ.definir("rec")
     plat.bipe(880, 60)
 
@@ -128,6 +154,7 @@ def parar() -> None:
             return
         gravando = False
         fluxo.stop()
+        fila_volume.submit(restaurar_volume)
     duracao = time.time() - inicio
     log(f"gravou {duracao:.1f}s, outra_tecla={outra_tecla}")
     if outra_tecla or duracao < MINIMO_S:
@@ -231,7 +258,7 @@ def reiniciar() -> None:
     subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=os.path.dirname(os.path.abspath(__file__)),
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=sys.platform != "win32")  # não herda o terminal de quem chamou
-    os._exit(0)
+    sair()
 
 
 def atualizar(manual: bool = False) -> None:
@@ -262,7 +289,7 @@ if __name__ == "__main__":
     atualizador.limpar_antigos()
     versao = atualizador.versao_texto()
     log(f"iniciado v{versao} ({sys.platform})")
-    bandeja = plat.Bandeja(ao_sair=lambda: os._exit(0), ao_atualizar=atualizar, versao=versao,
+    bandeja = plat.Bandeja(ao_sair=sair, ao_atualizar=atualizar, versao=versao,
                            ao_colar=lambda: colar_ultimo(0.35))  # pelo menu: espera o foco voltar
     if not ler_chave():
         bandeja.abrir_configuracoes("key")
