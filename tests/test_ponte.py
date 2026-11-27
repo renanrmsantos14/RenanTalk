@@ -211,6 +211,7 @@ class Retomar(unittest.TestCase):
                   ("_autostart_rust_ligado", "_rust_vivo", "remover_python", "_encerrar_rust_existente",
                    "desfazer_autostart_rust", "log")}
         self.addCleanup(mock.patch.stopall)
+        open(os.path.join(self.pasta, ponte.EM_CURSO), "w").close()
 
     def marcar(self, **extra):
         with open(os.path.join(self.pasta, ponte.MARCADOR), "w", encoding="utf-8") as f:
@@ -227,6 +228,15 @@ class Retomar(unittest.TestCase):
         self.marcar()
         self.assertTrue(ponte.retomar(0, self.pasta))
         self.m["remover_python"].assert_called_once()
+
+    def test_sem_ponte_em_curso_nao_age(self):  # app Rust de desenvolvimento com o perfil real
+        os.remove(os.path.join(self.pasta, ponte.EM_CURSO))
+        self.m["_autostart_rust_ligado"].return_value = True
+        self.m["_rust_vivo"].return_value = True
+        self.marcar()
+        self.assertFalse(ponte.retomar(0, self.pasta))
+        self.m["remover_python"].assert_not_called()
+        self.m["desfazer_autostart_rust"].assert_not_called()
 
     def test_marcador_velho_desfaz_e_segue(self):
         self.m["_autostart_rust_ligado"].return_value = True

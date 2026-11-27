@@ -44,7 +44,10 @@ pub fn base() -> String {
 }
 
 fn base_local(u: &str) -> bool {
-    ["http://127.0.0.1:", "http://localhost:", "http://127.0.0.1/", "http://localhost/"].iter().any(|p| u.starts_with(p))
+    let Some(resto) = u.strip_prefix("http://") else { return false };
+    let autoridade = resto.split('/').next().unwrap_or("");
+    let host = autoridade.split(':').next().unwrap_or("");
+    !autoridade.contains('@') && (host == "127.0.0.1" || host == "localhost")
 }
 
 impl Groq {
@@ -117,6 +120,16 @@ impl Transcritor for Groq {
 
 #[cfg(test)]
 mod testes {
+    #[test]
+    fn base_de_teste_so_local() {
+        for ok in ["http://127.0.0.1:8080/v1", "http://localhost:9/", "http://localhost/v1"] {
+            assert!(super::base_local(ok), "{ok}");
+        }
+        for ruim in ["https://evil.com", "http://127.0.0.1.evil.com/", "http://127.0.0.1:1@evil.com/", "http://localhostx/"] {
+            assert!(!super::base_local(ruim), "{ruim}");
+        }
+    }
+
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;

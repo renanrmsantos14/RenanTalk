@@ -142,7 +142,15 @@ fn ligar_inicio(app: &AppHandle) -> Result<(), String> {
             .creation_flags(0x0800_0000)
             .status()
             .map_err(|e| e.to_string())?;
-        if s.success() { Ok(()) } else { Err(format!("reg add saiu com {s}")) }
+        if !s.success() {
+            return Err(format!("reg add saiu com {s}"));
+        }
+        // Desligado antes no Gerenciador de Tarefas: sem apagar esta marca o Windows não inicia o app.
+        let _ = std::process::Command::new("reg")
+            .args(["delete", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", "/v", "RenanTalk", "/f"])
+            .creation_flags(0x0800_0000)
+            .status();
+        Ok(())
     }
     #[cfg(not(windows))]
     app.autolaunch().enable().map_err(|e| e.to_string())

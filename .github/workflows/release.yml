@@ -243,11 +243,16 @@ jobs:
           sys.path.insert(0, "app")
           import minisign
           pub = json.load(open("apps/desktop/src-tauri/tauri.conf.json"))["plugins"]["updater"]["pubkey"]
-          for chave, p in plataformas.items():
+          # Falha aqui não segura o zip do Python: só o latest.json deixa de sair.
+          for chave, p in list(plataformas.items()):
               nome = p["url"].rsplit("/", 1)[-1]
-              comentario = minisign.conferir(open(nome, "rb").read(), p["signature"], pub)
-              assert f"file:{nome}" in comentario.split("\t"), f"{chave}: o comentário assinado não cita {nome}: {comentario}"
-              print(f"{chave}: assinatura confere ({comentario})")
+              try:
+                  comentario = minisign.conferir(open(nome, "rb").read(), p["signature"], pub)
+                  assert f"file:{nome}" in comentario.split("\t"), f"o comentário assinado não cita {nome}: {comentario}"
+                  print(f"{chave}: assinatura confere ({comentario})")
+              except Exception as e:
+                  print(f"::error::{chave}: assinatura não confere com a pubkey do app ({e}); confira o secret TAURI_SIGNING_PRIVATE_KEY")
+                  del plataformas[chave]
           if len(plataformas) == 2:
               json.dump({"version": v, "notes": f"RenanTalk v{v}",
                          "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

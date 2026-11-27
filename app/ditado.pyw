@@ -336,7 +336,12 @@ def atualizar(manual: bool = False) -> None:
         time.sleep(2)
         reiniciar()
         return
-    if situacao == "em_dia" and rel:
+    if situacao == "em_dia":
+        if not rel:  # a 1ª leitura falhou e a do verificar_e_aplicar deu certo
+            try:
+                rel = atualizador.ler_release()
+            except Exception:  # noqa: BLE001
+                return
         alvo = ponte.procurar(rel)
         if alvo:
             return migrar(alvo)
@@ -359,7 +364,12 @@ if __name__ == "__main__":
     atualizador.limpar_antigos()
     versao = atualizador.versao_texto()
     log(f"iniciado v{versao} ({sys.platform})")
-    if not atualizador.eh_dev() and ponte.retomar():  # a ponte foi interrompida depois de o app novo subir
+    try:
+        retomou = not atualizador.eh_dev() and ponte.retomar()  # a ponte foi interrompida no meio
+    except Exception as e:  # noqa: BLE001 - nunca impede o ditado de subir
+        retomou = False
+        log(f"ponte: erro ao retomar ({e!r})")
+    if retomou:
         plat.liberar_instancia()
         log("ponte: Python encerrado (o app novo já roda)")
         raise SystemExit

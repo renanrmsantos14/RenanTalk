@@ -33,6 +33,7 @@ PUBKEY = ("dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJBMDQ3NUQ1RjM2M
 PLATAFORMA = "windows-x86_64" if WINDOWS else "linux-x86_64"
 MARCADOR = ".app-subiu.json"  # gravado pelo app Rust (casca::marcar_subiu)
 FALHAS = ".ponte-falhas"
+EM_CURSO = ".ponte-em-curso"  # da instalação até remover o Python ou desfazer: só com ele o retomar age
 MARCA_AUTOSTART_RUST = ".autostart-feito"  # casca::autostart_primeira_vez: sem ela o app novo liga o autostart de novo
 ESPERA_S = 60
 AVISAR_A_CADA = 3
@@ -75,9 +76,8 @@ def procurar(rel: dict) -> dict | None:
         info = json.loads(_baixar(asset["browser_download_url"], 60))
         p = info["platforms"][PLATAFORMA]
         return {"versao": str(info["version"]).lstrip("v"), "url": p["url"], "assinatura": p["signature"]}
-    except Exception as e:  # noqa: BLE001 - rede ou latest.json inválido: conta como falha da ponte (download)
-        n = registrar_falha()
-        log(f"ponte: não consegui ler o latest.json ({e!r}); falha {n} seguida")
+    except Exception as e:  # noqa: BLE001 - rede ou latest.json inválido: tenta na próxima verificação
+        log(f"ponte: não consegui ler o latest.json ({e!r})")
         return None
 
 
@@ -132,7 +132,7 @@ def _rust_vivo(pid) -> bool:
         return False
     if WINDOWS:
         r = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"], capture_output=True, text=True,
-                           creationflags=SEM_JANELA)
+                           errors="replace", creationflags=SEM_JANELA)  # saída no code page OEM
         return '"renantalk.exe"' in r.stdout.lower()
     try:
         with open(f"/proc/{pid}/comm", encoding="utf-8") as f:
@@ -160,8 +160,9 @@ def retomar(espera: float = ESPERA_S, pasta: str | None = None) -> bool:
     """Chamado ao iniciar o Python. Uma ponte interrompida (desligou, travou) deixa o autostart do app novo ligado
     junto com o do Python: no boot sobem os dois. Se o app novo roda e confirmou, termina a remoção e devolve True
     (quem chama sai); senão desfaz o autostart dele e o Python segue (a ponte tenta de novo)."""
-    if not _autostart_rust_ligado():
-        return False
+    pasta = pasta or PASTA
+    if not os.path.exists(os.path.join(pasta, EM_CURSO)) or not _autostart_rust_ligado():
+        return False  # sem ponte em curso: um app Rust de desenvolvimento com o perfil real não conta
     fim = time.monotonic() + espera
     while True:
         m = _ler_marcador(pasta)
@@ -171,6 +172,7 @@ def retomar(espera: float = ESPERA_S, pasta: str | None = None) -> bool:
                 remover_python()
             except Exception as e:  # noqa: BLE001
                 log(f"ponte: erro ao remover o Python ({e!r})")
+            _apagar(pasta, EM_CURSO)
             return True
         if time.monotonic() >= fim:
             break
@@ -275,11 +277,15 @@ def desfazer_autostart_rust(pasta: str | None = None) -> None:
             os.remove(AUTOSTART_RUST)
         except OSError:
             pass
-    for nome in (MARCA_AUTOSTART_RUST, MARCADOR):
-        try:
-            os.remove(os.path.join(pasta, nome))
-        except OSError:
-            pass
+    for nome in (MARCA_AUTOSTART_RUST, MARCADOR, EM_CURSO):
+        _apagar(pasta, nome)
+
+
+def _apagar(pasta: str, nome: str) -> None:
+    try:
+        os.remove(os.path.join(pasta, nome))
+    except OSError:
+        pass
 
 
 # ---------- remoção do Python ----------
@@ -380,6 +386,8 @@ def executar(alvo: dict, notificar=lambda _t: None, pausar=lambda: None) -> bool
             os.remove(os.path.join(PASTA, MARCADOR))
         except OSError:
             pass
+        with open(os.path.join(PASTA, EM_CURSO), "w", encoding="utf-8") as f:
+            f.write(versao)
         exe = instalar(dados)
         log(f"ponte: instalado em {exe}")
         try:
@@ -404,4 +412,6 @@ def executar(alvo: dict, notificar=lambda _t: None, pausar=lambda: None) -> bool
         remover_python()
     except Exception as e:  # noqa: BLE001 - o app novo já roda: o Python sai mesmo assim (o retomar termina depois)
         log(f"ponte: erro ao remover o Python ({e!r})")
+        return True
+    _apagar(PASTA, EM_CURSO)
     return True
