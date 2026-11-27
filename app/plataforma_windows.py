@@ -25,6 +25,31 @@ def colar(texto: str) -> None:
     pyperclip.copy(anterior)  # devolve o que estava na área de transferência
 
 
+def app_ativo() -> str:
+    """Nome do executável da janela em primeiro plano (ex.: 'code'); vazio se não der para saber."""
+    try:
+        from ctypes import wintypes
+
+        u, k = ctypes.windll.user32, ctypes.windll.kernel32
+        k.OpenProcess.restype = wintypes.HANDLE
+        pid = wintypes.DWORD()
+        u.GetWindowThreadProcessId(u.GetForegroundWindow(), ctypes.byref(pid))
+        h = k.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(1024)
+            n = wintypes.DWORD(len(buf))
+            if not k.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)):
+                return ""
+            nome = buf.value.replace("/", "\\").rsplit("\\", 1)[-1]
+            return nome[:-4] if nome.lower().endswith(".exe") else nome
+        finally:
+            k.CloseHandle(h)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _mascarar_win() -> None:
     # Toque numa tecla sem função (VK 0xE8) para o Windows não abrir o menu Iniciar ao soltar o Win.
     ctypes.windll.user32.keybd_event(0xE8, 0, 0, 0)

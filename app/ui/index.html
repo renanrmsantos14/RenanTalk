@@ -71,12 +71,34 @@ input[type=range]{padding:0;accent-color:var(--ac2);flex:1;min-width:120px;box-s
 .links button{all:unset;color:var(--ac2);cursor:pointer}
 @media (prefers-color-scheme:dark){.links button{color:#7fb0ff}}
 .links button:hover{text-decoration:underline}
+.hist{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:16px;flex:1;min-height:0}
+#hbusca{flex:none}
+.hl{display:flex;flex-direction:column;min-height:0;gap:10px}
+.lista{flex:1;overflow:auto;min-height:0;margin:0 -4px;padding:0 4px}
+.dia{color:var(--mut);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:12px 4px 4px}
+.dia:first-child{margin-top:0}
+.it{all:unset;display:block;box-sizing:border-box;width:100%;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.it:hover{background:var(--hov)}.it.on{background:var(--on);border-color:var(--chipb)}
+.it:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.it{color:var(--tx);font-weight:400}
+.it small{display:block;color:var(--mut);font-size:11.5px}
+.it span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.hd{display:flex;flex-direction:column;min-height:0;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{background:var(--chip);border:1px solid var(--chipb);color:var(--chiptx);border-radius:99px;padding:2px 9px;font-size:11.5px}
+textarea{flex:1;min-height:120px;resize:none;background:var(--bg);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:10px 12px;font:inherit;line-height:1.5;outline:none;user-select:text}
+textarea:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+.acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn.perigo{color:var(--err)}
+.btn.conf{background:var(--err);color:#fff;border-color:var(--err)}
+.hhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 </style>
 </head>
 <body>
 <aside>
   <div class="brand"><div class="logo"><svg width="34" height="34" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"> <defs> <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"> <stop offset="0" stop-color="#1e3a8a"/> <stop offset="1" stop-color="#0b1530"/> </linearGradient> <linearGradient id="luz" x1="0" x2="1"> <stop offset="0" stop-color="#3b82f6" stop-opacity="0"/> <stop offset=".5" stop-color="#dbeafe"/> <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/> </linearGradient> </defs> <rect width="64" height="64" rx="15" fill="url(#fundo)"/> <rect x="24" y="9" width="16" height="28" rx="8" fill="#fff"/> <path d="M16.5 29.5a15.5 15.5 0 0 0 31 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/> <rect x="29.5" y="44" width="5" height="6" fill="#fff"/> <rect x="6" y="52" width="52" height="5.5" rx="2.75" fill="url(#luz)"/> </svg></div><div><b>RenanTalk</b><small id="ver">…</small></div></div>
   <nav>
+    <button data-p="hist" id="nhist" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Histórico</button>
     <button data-p="voc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Vocabulário</button>
     <button data-p="som" id="nsom" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4zM17 8.5a5 5 0 0 1 0 7"/></svg>Ditado e som</button>
     <button data-p="key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg>Chave Groq</button>
@@ -86,6 +108,14 @@ input[type=range]{padding:0;accent-color:var(--ac2);flex:1;min-width:120px;box-s
   <div class="glow"></div>
 </aside>
 <main>
+  <section class="pane" id="hist">
+    <div class="hhead"><div><h1>Histórico</h1><p class="sub">Seus ditados ficam só neste computador, por 30 dias. O áudio não é guardado.</p></div>
+      <button class="btn sec perigo" id="hlimpar">Apagar tudo</button></div>
+    <div class="hist">
+      <div class="hl"><input id="hbusca" placeholder="Buscar nos ditados" aria-label="Buscar nos ditados"><div class="lista" id="hlista"></div></div>
+      <div class="hd" id="hdet"></div>
+    </div>
+  </section>
   <section class="pane" id="voc">
     <h1>Vocabulário</h1>
     <p class="sub">Nomes, siglas e termos para o ditado escrever certo. Salva sozinho.</p>
@@ -128,7 +158,7 @@ input[type=range]{padding:0;accent-color:var(--ac2);flex:1;min-width:120px;box-s
 <script>
 // Na janela Tauri (Rust) chama os comandos direto; no modo antigo (Python + navegador) usa HTTP.
 const TAURI = window.__TAURI__?.core;
-const COMANDOS = {estado: 'estado', vocab: 'salvar_vocab', chave: 'salvar_chave', atualizar: 'atualizar', abrir: 'abrir', ajustes: 'ajustes', salvarAjustes: 'salvar_ajustes'};
+const COMANDOS = {estado: 'estado', vocab: 'salvar_vocab', chave: 'salvar_chave', atualizar: 'atualizar', abrir: 'abrir', ajustes: 'ajustes', salvarAjustes: 'salvar_ajustes', hListar: 'historico_listar', hEditar: 'historico_editar', hExcluir: 'historico_excluir', hApagar: 'historico_apagar_tudo'};
 const api = (r, corpo) => TAURI
   ? TAURI.invoke(COMANDOS[r], corpo || {})
   : fetch('api/' + r, corpo === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(x => x.json());
@@ -250,6 +280,86 @@ async function iniciarSom() {
   $('idi').onchange = () => salvarSom({idioma: $('idi').value});
 }
 if (TAURI) iniciarSom().catch(() => { $('nsom').hidden = true; });
+
+// ---------- Histórico (só na janela Tauri) ----------
+let hItens = [], hSel = null, tBusca, hConfirma = false;
+const pad = n => String(n).padStart(2, '0');
+const chaveDia = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dataDe = iso => new Date(iso);  // ISO local sem fuso: o JS interpreta como hora local
+function nomeDia(iso) {
+  const d = dataDe(iso), hoje = new Date(), ontem = new Date(hoje.getTime() - 864e5);
+  return chaveDia(d) === chaveDia(hoje) ? 'Hoje' : chaveDia(d) === chaveDia(ontem) ? 'Ontem' : `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+const hora = iso => { const d = dataDe(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const NOME_IDIOMA = {pt: 'Português', en: 'Inglês', auto: 'Automático'}, NOME_MODO = {literal: 'Literal'};
+function avisoHist(msg, erro) { const m = $('hmsg'); if (m) { m.className = 'msg ' + (erro ? 'err' : 'ok'); m.textContent = msg; if (!erro) setTimeout(() => { if (m.textContent === msg) m.textContent = ''; }, 2500); } }
+function desenharLista() {
+  const l = $('hlista'); l.innerHTML = '';
+  if (!hItens.length) {
+    l.innerHTML = '<div class="vazio">' + ($('hbusca').value ? 'Nenhum ditado com essa busca.' : 'Nenhum ditado ainda.<br>Segure o atalho, fale e solte: ele aparece aqui.') + '</div>';
+    return;
+  }
+  let dia = '';
+  hItens.forEach(it => {
+    const nd = nomeDia(it.criado_em);
+    if (nd !== dia) { dia = nd; const h = document.createElement('div'); h.className = 'dia'; h.textContent = nd; l.appendChild(h); }
+    const b = document.createElement('button'); b.className = 'it' + (hSel === it.id ? ' on' : '');
+    const g = document.createElement('small'); g.textContent = hora(it.criado_em) + (it.app ? ' · ' + it.app : '') + (it.editado ? ' · editado' : '');
+    const t = document.createElement('span'); t.textContent = it.texto.split('\n')[0];
+    b.append(g, t); b.onclick = () => { hSel = it.id; hConfirma = false; desenharLista(); desenharDetalhe(); }; l.appendChild(b);
+  });
+}
+function desenharDetalhe() {
+  const d = $('hdet'), it = hItens.find(x => x.id === hSel);
+  if (!it) { d.innerHTML = '<div class="vazio">' + (hItens.length ? 'Escolha um ditado na lista.' : 'Quando você ditar, o texto aparece aqui para corrigir e copiar.') + '</div>'; return; }
+  d.innerHTML = '';
+  const topo = document.createElement('div'); topo.className = 'k';
+  const dt = dataDe(it.criado_em); topo.textContent = `${nomeDia(it.criado_em)}, ${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()} às ${hora(it.criado_em)}`;
+  const tags = document.createElement('div'); tags.className = 'tags';
+  [it.app && 'App: ' + it.app, 'Modo: ' + (NOME_MODO[it.modo] || it.modo), it.idioma && 'Idioma: ' + (NOME_IDIOMA[it.idioma] || it.idioma), it.duracao_s ? 'Duração: ' + it.duracao_s.toFixed(1).replace('.', ',') + ' s' : '', it.palavras + ' palavras', it.editado && 'Editado'].filter(Boolean)
+    .forEach(t => { const e = document.createElement('span'); e.className = 'tag'; e.textContent = t; tags.appendChild(e); });
+  const ta = document.createElement('textarea'); ta.id = 'htexto'; ta.value = it.texto; ta.setAttribute('aria-label', 'Texto do ditado');
+  const ac = document.createElement('div'); ac.className = 'acoes';
+  const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = txt; b.onclick = fn; return b; };
+  const salvarB = mk('Salvar correção', '', async () => {
+    const r = await api('hEditar', {id: it.id, texto: ta.value});
+    if (r.ok) { await carregarHist(); avisoHist('Correção salva.'); } else avisoHist(r.erro || 'Não consegui salvar.', true);
+  });
+  salvarB.disabled = true; ta.oninput = () => { salvarB.disabled = ta.value === it.texto || !ta.value.trim(); };
+  const copiarB = mk('Copiar', 'sec', async () => {
+    try { await navigator.clipboard.writeText(ta.value); }
+    catch (_) { ta.select(); document.execCommand('copy'); }
+    avisoHist('Copiado.');
+  });
+  const excB = mk(hConfirma ? 'Confirmar exclusão' : 'Excluir', 'sec ' + (hConfirma ? 'conf' : 'perigo'), async () => {
+    if (!hConfirma) { hConfirma = true; desenharDetalhe(); return; }
+    const r = await api('hExcluir', {id: it.id}); hSel = null; hConfirma = false; await carregarHist(); if (!r.ok) avisoHist(r.erro || 'Não consegui excluir.', true);
+  });
+  const msg = document.createElement('span'); msg.id = 'hmsg'; msg.className = 'msg'; msg.style.margin = '0';
+  ac.append(salvarB, copiarB, excB, msg);
+  d.append(topo, tags, ta, ac);
+}
+async function carregarHist() {
+  const r = await api('hListar', {busca: $('hbusca').value});
+  if (!r.ok) { $('hlista').innerHTML = '<div class="vazio">' + r.erro + '</div>'; return; }
+  hItens = r.itens;
+  if (hSel !== null && !hItens.some(x => x.id === hSel)) hSel = null;
+  if (hSel === null && hItens.length) hSel = hItens[0].id;
+  desenharLista(); desenharDetalhe();
+}
+function iniciarHist() {
+  $('nhist').hidden = false;
+  $('hbusca').oninput = () => { clearTimeout(tBusca); tBusca = setTimeout(() => { hSel = null; carregarHist(); }, 200); };
+  $('hlimpar').onclick = async () => {
+    const b = $('hlimpar');
+    if (!hConfirmaTudo) { hConfirmaTudo = true; b.textContent = 'Confirmar: apagar todos'; b.classList.add('conf'); setTimeout(() => { hConfirmaTudo = false; b.textContent = 'Apagar tudo'; b.classList.remove('conf'); }, 4000); return; }
+    hConfirmaTudo = false; b.textContent = 'Apagar tudo'; b.classList.remove('conf');
+    await api('hApagar', {}); hSel = null; await carregarHist();
+  };
+  carregarHist();
+}
+let hConfirmaTudo = false;
+if (TAURI) { iniciarHist(); document.getElementById('nhist').addEventListener('click', carregarHist); }
 
 api('estado').then(e => {
   termos = e.vocab; limite = e.limite; desenhar();

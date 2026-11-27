@@ -66,6 +66,11 @@ def _classe_janela_ativa() -> str:
         return ""
 
 
+def app_ativo() -> str:
+    """Nome do aplicativo em primeiro plano (classe WM, ex.: 'code'); vazio se não der para saber."""
+    return (_classe_janela_ativa().split() or [""])[-1]
+
+
 def _teclar(*keysyms: int) -> None:
     codigos = [_xd.keysym_to_keycode(k) for k in keysyms]
     for c in codigos:

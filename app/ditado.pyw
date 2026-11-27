@@ -23,6 +23,7 @@ import sounddevice as sd
 
 import ajustes
 import atualizador
+import historico
 from comum import ARQ_LOG, WINDOWS, ler_chave, prompt_vocabulario
 
 if WINDOWS:
@@ -121,7 +122,7 @@ def parar() -> None:
         return
     LUZ.definir("proc")
     plat.bipe(660, 60)
-    threading.Thread(target=transcrever_e_colar, args=(audio,), daemon=True).start()
+    threading.Thread(target=transcrever_e_colar, args=(audio, duracao), daemon=True).start()
 
 
 def wav(audio: bytes) -> bytes:
@@ -164,11 +165,20 @@ def transcrever(audio: bytes) -> str:
         return json.load(r)["text"].strip()
 
 
-def transcrever_e_colar(audio: bytes) -> None:
+def guardar_no_historico(texto: str, duracao: float) -> None:
+    """Guarda o ditado no histórico local. Qualquer falha é ignorada: o texto precisa ser colado."""
+    try:
+        historico.gravar(texto, app=plat.app_ativo(), idioma=ajustes.ler()["idioma"], duracao_s=duracao)
+    except Exception as e:  # noqa: BLE001
+        log(f"histórico: falhou ({type(e).__name__})")
+
+
+def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
     try:
         texto = transcrever(audio)
         log(f"transcrito {len(texto)} caracteres")
         if texto:
+            guardar_no_historico(texto, duracao)
             plat.colar(texto + " ")
         LUZ.definir("done")
     except Exception as e:  # noqa: BLE001 - qualquer falha vira log, luz vermelha e bipe grave
@@ -222,4 +232,5 @@ if __name__ == "__main__":
         bandeja.abrir_configuracoes("key")
     threading.Thread(target=ciclo_atualizacao, daemon=True).start()
     threading.Thread(target=ajustes.escrever_dispositivos, daemon=True).start()
+    threading.Thread(target=historico.ciclo_retencao, daemon=True).start()  # apaga > 30 dias ao iniciar e 1x por dia
     plat.rodar(comecar, parar, marcar_outra_tecla, lambda: gravando)

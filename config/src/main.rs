@@ -243,6 +243,86 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
     json!({ "ok": ok })
 }
 
+// ---------- Histórico (historico.db; o Python grava, esta janela lê e edita) ----------
+fn abrir_historico() -> Result<rusqlite::Connection, String> {
+    let arq = pasta().join("historico.db");
+    if !arq.exists() {
+        return Err("vazio".into()); // ainda não houve ditado: lista vazia, sem criar banco
+    }
+    let con = rusqlite::Connection::open(arq).map_err(|e| e.to_string())?;
+    con.busy_timeout(std::time::Duration::from_secs(2)).map_err(|e| e.to_string())?;
+    Ok(con)
+}
+
+fn erro_historico(e: impl ToString) -> Value {
+    json!({ "ok": false, "erro": "Não consegui acessar o histórico agora. Tente de novo.", "detalhe": e.to_string() })
+}
+
+/// Ditados do mais novo ao mais antigo; `busca` vazia lista tudo. LIKE simples (sem curingas do usuário).
+#[tauri::command]
+fn historico_listar(busca: String) -> Value {
+    let con = match abrir_historico() {
+        Ok(c) => c,
+        Err(e) if e == "vazio" => return json!({ "ok": true, "itens": [] }),
+        Err(e) => return erro_historico(e),
+    };
+    let like = format!("%{}%", busca.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
+    let r = (|| -> rusqlite::Result<Vec<Value>> {
+        let mut st = con.prepare(
+            "SELECT id, criado_em, texto, original, app, modo, idioma, duracao_s, palavras, editado FROM ditado \
+             WHERE texto LIKE ?1 ESCAPE '\\' ORDER BY criado_em DESC, id DESC LIMIT 500",
+        )?;
+        let linhas = st.query_map([&like], |l| {
+            Ok(json!({
+                "id": l.get::<_, i64>(0)?, "criado_em": l.get::<_, String>(1)?, "texto": l.get::<_, String>(2)?,
+                "original": l.get::<_, String>(3)?, "app": l.get::<_, String>(4)?, "modo": l.get::<_, String>(5)?,
+                "idioma": l.get::<_, String>(6)?, "duracao_s": l.get::<_, f64>(7)?, "palavras": l.get::<_, i64>(8)?,
+                "editado": l.get::<_, i64>(9)? != 0,
+            }))
+        })?;
+        linhas.collect()
+    })();
+    match r {
+        Ok(itens) => json!({ "ok": true, "itens": itens }),
+        Err(e) => erro_historico(e),
+    }
+}
+
+/// Corrige o texto: marca editado e deixa `original` como está.
+#[tauri::command]
+fn historico_editar(id: i64, texto: String) -> Value {
+    if texto.trim().is_empty() {
+        return json!({ "ok": false, "erro": "O texto não pode ficar vazio." });
+    }
+    let palavras = texto.split_whitespace().count() as i64;
+    match abrir_historico().and_then(|c| {
+        c.execute("UPDATE ditado SET texto=?1, palavras=?2, editado=1 WHERE id=?3", rusqlite::params![texto, palavras, id])
+            .map_err(|e| e.to_string())
+    }) {
+        Ok(n) => json!({ "ok": n > 0 }),
+        Err(e) => erro_historico(e),
+    }
+}
+
+#[tauri::command]
+fn historico_excluir(id: i64) -> Value {
+    match abrir_historico().and_then(|c| c.execute("DELETE FROM ditado WHERE id=?1", [id]).map_err(|e| e.to_string())) {
+        Ok(n) => json!({ "ok": n > 0 }),
+        Err(e) => erro_historico(e),
+    }
+}
+
+#[tauri::command]
+fn historico_apagar_tudo() -> Value {
+    match abrir_historico() {
+        Err(e) if e == "vazio" => json!({ "ok": true }),
+        r => match r.and_then(|c| c.execute("DELETE FROM ditado", []).map_err(|e| e.to_string())) {
+            Ok(_) => json!({ "ok": true }),
+            Err(e) => erro_historico(e),
+        },
+    }
+}
+
 #[tauri::command]
 fn salvar_vocab(termos: Vec<String>) -> Value {
     let termos: Vec<String> = termos.into_iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect();
@@ -337,7 +417,7 @@ fn main() {
         app: app_dir,
     });
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![estado, ajustes, salvar_ajustes, salvar_vocab, salvar_chave, atualizar, abrir, mostrar, fechar])
+        .invoke_handler(tauri::generate_handler![estado, ajustes, salvar_ajustes, historico_listar, historico_editar, historico_excluir, historico_apagar_tudo, salvar_vocab, salvar_chave, atualizar, abrir, mostrar, fechar])
         .setup(|app| {
             // rede de segurança: se a página não pedir para aparecer, mostra assim mesmo
             let j = app.get_webview_window("main").expect("janela");

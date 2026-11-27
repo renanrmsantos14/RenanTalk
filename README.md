@@ -52,6 +52,7 @@ O app instalado procura releases 1 minuto depois de iniciar e depois a cada 6 ho
 | Programa | `%LOCALAPPDATA%\RenanTalk\app` |
 | Chave da Groq | `%APPDATA%\RenanTalk\chave.txt` (nunca vai para o repositório) |
 | Vocabulário | `%APPDATA%\RenanTalk\vocabulario.txt` (um termo por linha; `#` comenta) |
+| Histórico de ditados | `%APPDATA%\RenanTalk\historico.db` (SQLite; textos dos últimos 30 dias, só neste computador) |
 | Log | `%APPDATA%\RenanTalk\ditado.log` |
 | Início automático | `shell:startup\RenanTalk.lnk` |
 
@@ -74,7 +75,7 @@ Para rodar do código-fonte: `py -3 -m pip install --user -r requirements.txt` e
 
 ## Privacidade
 
-O áudio de cada ditado é enviado à API da Groq para transcrição. Nada é gravado em disco. O log registra só duração e tamanho do texto, nunca o conteúdo.
+O áudio de cada ditado é enviado à API da Groq para transcrição. O áudio nunca é gravado em disco. O texto de cada ditado fica guardado só neste computador, em `historico.db`, por 30 dias (depois é apagado sozinho); você pode ver, corrigir, excluir um item ou apagar tudo na aba Histórico. O log registra só duração e tamanho do texto, nunca o conteúdo.
 
 ## Problemas comuns
 
