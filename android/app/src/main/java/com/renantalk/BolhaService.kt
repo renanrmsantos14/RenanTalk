@@ -337,7 +337,8 @@ class BolhaService : AccessibilityService() {
     private fun comecar() {
         alvo = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         runCatching { gravador.comecar() }.onFailure {
-            avisar("Sem acesso ao microfone. Abra o RenanTalk e permita o microfone.", erro = true)
+            avisar(if (it is IllegalStateException) it.message ?: "Microfone indisponível."
+                else "Sem acesso ao microfone. Abra o RenanTalk e permita o microfone.", erro = true)
             return
         }
         fase = Fase.GRAVANDO

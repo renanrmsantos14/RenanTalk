@@ -1,8 +1,14 @@
 # RenanTalk Android — estado
 
 - **Nível:** 2 (feature grande)
-- **Etapa:** 4 de 6 — build, instalar e prints (v0.0.13 no POCO)
-- **Próximo passo:** Renan testar no WhatsApp (segurar/tocar, ✕, enviar) e dizer se a borda/ilha ficaram boas; depois qualidade-antes-do-pr e PR.
+- **Etapa:** 6 de 6 — concluída (27/11/2026)
+- **Próximo passo:** nenhum; ajustes novos viram PR próprio a partir da `main`.
+
+## Entrega (26–27/11/2026)
+- Entrega por PR + release do GitHub (adb só para teste). v0.0.14 (PR #4) publicou o app; tag v0.0.13 criada à mão na main para o release sair maior que a versão instalada pelo cabo.
+- v0.0.16 (PR #10): a pílula sobe para cima do campo em foco quando ficaria sobre ele (WhatsApp); campo em tela cheia mantém a pílula sobre o teclado.
+- **Prova:** Renan atualizou pelo app e testou no WhatsApp (ditado e posição da pílula): aprovado em 27/11/2026.
+- v0.0.17: microfone ocupado por outro app não deixa mais o app preso em "gravando" (aviso "Microfone ocupado por outro app."). Sem prova no aparelho (adb desconectado).
 
 ## Visual "Contorno + Ilha" (26/11/2026, escolha do Renan no card)
 - Fonte Geist SemiBold (OFL, `android/LICENCA-FONTE-GEIST.txt`).
