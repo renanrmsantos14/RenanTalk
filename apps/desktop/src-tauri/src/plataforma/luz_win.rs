@@ -38,7 +38,6 @@ impl JanelaWin {
             let inst = HINSTANCE(GetModuleHandleW(None).map_err(|e| e.to_string())?.0);
             let classe = WNDCLASSW { lpfnWndProc: Some(proc_janela), hInstance: inst, lpszClassName: w!("LuzDitadoRust"), ..Default::default() };
             RegisterClassW(&classe);
-            // LAYERED | TRANSPARENT | TOOLWINDOW | TOPMOST | NOACTIVATE
             let ex = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE;
             let hwnd = CreateWindowExW(ex, w!("LuzDitadoRust"), PCWSTR::null(), WS_POPUP, 0, 0, 1, 1, None, None, Some(inst), None)
                 .map_err(|e| e.to_string())?;

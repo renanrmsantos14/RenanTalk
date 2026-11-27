@@ -39,8 +39,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TranslateMessage, UnhookWindowsHookEx, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
-/// Mutex da instância única. Não pode ser "RenanTalk": a versão em Python usa esse nome e a ponte (tarefa 10)
-/// precisa das duas rodando juntas por instantes, até o Python sair.
 /// Marca (dwExtraInfo) das teclas que nós mesmos enviamos: o gancho as ignora.
 const MARCA: usize = 0x5254_4B52;
 /// Tecla sem função (VK 0xE8): tocada ao parar, para o Windows não abrir o menu Iniciar ao soltar o Win.

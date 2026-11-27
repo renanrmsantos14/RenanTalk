@@ -1,5 +1,5 @@
 //! Implementações da trait `talk_core::ditado::Plataforma`, uma por sistema.
-//! Cada módulo expõe `nova(dir)` (a plataforma) e `iniciar_gancho(ditado, dir)` (o gancho de teclado).
+//! Cada módulo expõe `nova(dir)` (a plataforma) e `iniciar_gancho(ditado, dir, pronto)` (o gancho de teclado; `pronto` roda quando ele já escuta).
 
 #[cfg(any(target_os = "linux", windows))]
 mod som; // microfone e bipe (cpal), iguais nos dois sistemas

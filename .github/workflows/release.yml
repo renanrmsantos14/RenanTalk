@@ -231,7 +231,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
-          import datetime, glob, json, os
+          import datetime, glob, json, os, sys
           v = os.environ["VERSAO"]
           base = f"https://github.com/{os.environ['REPO']}/releases/download/v{v}/"
           plataformas = {}
@@ -240,7 +240,6 @@ jobs:
                   plataformas[chave] = {"signature": open(f + ".sig").read().strip(), "url": base + f}
           # O latest.json só sai com as duas plataformas, cada uma conferida com a chave pública do app
           # (tauri.conf.json, a mesma da ponte): um secret de assinatura errado falha aqui, não nas máquinas.
-          import sys
           sys.path.insert(0, "app")
           import minisign
           pub = json.load(open("apps/desktop/src-tauri/tauri.conf.json"))["plugins"]["updater"]["pubkey"]
