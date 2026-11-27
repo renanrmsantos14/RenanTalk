@@ -3,10 +3,13 @@
 //! Toda função recebe a pasta (`&Path`) para poder ser testada em diretório temporário; `pasta::padrao()` dá a real.
 
 pub mod ajustes;
+pub mod audio;
 pub mod casador;
 pub mod pasta;
 pub mod comandos;
+pub mod ditado;
 pub mod escrita;
+pub mod groq;
 pub mod historico;
 pub mod substituicoes;
 pub mod sugestoes;

@@ -2,7 +2,7 @@
 name = "talk-core"
 version = "0.0.0"
 edition = "2021"
-description = "Núcleo do RenanTalk: ajustes, histórico, substituições, sugestões e escrita com IA"
+description = "Núcleo do RenanTalk: ajustes, histórico, substituições, sugestões, escrita com IA e ditado"
 publish = false
 
 [dependencies]
@@ -12,6 +12,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 fancy-regex = "0.14"
+# HTTP da Groq: síncrono, sem runtime assíncrono
+ureq = { version = "2", features = ["json"] }
 
 [dev-dependencies]
 tempfile = "3"

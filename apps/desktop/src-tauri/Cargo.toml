@@ -1,0 +1,28 @@
+[package]
+name = "renantalk"
+version = "0.0.0"
+edition = "2021"
+description = "RenanTalk: ditado por voz com a Groq (casca Tauri sobre o talk-core)"
+publish = false
+
+[[bin]]
+name = "renantalk"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+talk-core = { path = "../../../crates/talk-core" }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Gancho de teclado (RECORD) e colar (XTest): sem root e sem o grupo input.
+x11rb = { version = "0.13", features = ["record", "xtest"] }
+cpal = "0.15"
+# Área de transferência: o X11 exige que o dono atenda os pedidos; a arboard mantém uma thread para isso.
+arboard = "3"
+
+[dev-dependencies]
+tempfile = "3"

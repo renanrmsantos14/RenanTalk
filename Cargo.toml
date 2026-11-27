@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/talk-core"]
+members = ["crates/talk-core", "apps/desktop/src-tauri"]
 default-members = ["crates/talk-core"]
 # A janela Tauri atual continua uma crate solta (com Cargo.lock próprio) até a tarefa 11.
 exclude = ["config"]

@@ -8,3 +8,4 @@ chave.txt
 .verificacao/
 target/
 node_modules/
+apps/desktop/src-tauri/gen/
