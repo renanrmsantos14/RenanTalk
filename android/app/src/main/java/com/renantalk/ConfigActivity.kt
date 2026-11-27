@@ -20,7 +20,6 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -59,10 +58,6 @@ class ConfigActivity : Activity() {
         coluna.addView(cartao("Chave Groq", secaoChave()))
         coluna.addView(cartao("Vocabulário", secaoVocabulario()))
         coluna.addView(cartao("Testar", secaoTeste()))
-        coluna.addView(cartao("Teclado", coluna().apply {
-            addView(texto("Tema, cores, altura, vibração, som, números e atalhos, como no Gboard.", 13f, fraco = true))
-            addView(botao("Personalizar teclado") { startActivity(Intent(this@ConfigActivity, AjustesActivity::class.java)) })
-        }))
         coluna.addView(cartao("Atualização", secaoAtualizacao()))
         coluna.addView(texto("O áudio de cada ditado vai só para a Groq transcrever; nada é gravado no aparelho. " +
             "A chave fica cifrada pelo Android Keystore e não sai do celular.", 12f, fraco = true))
@@ -77,7 +72,7 @@ class ConfigActivity : Activity() {
 
     override fun onWindowFocusChanged(temFoco: Boolean) {
         super.onWindowFocusChanged(temFoco)
-        if (temFoco) atualizarPassos() // volta do seletor de teclado
+        if (temFoco) atualizarPassos() // volta das configurações de acessibilidade
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -94,20 +89,17 @@ class ConfigActivity : Activity() {
 
     private fun atualizarPassos() {
         passos.removeAllViews()
-        val id = ComponentName(this, TecladoService::class.java).flattenToShortString()
-        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-        val ativado = imm.enabledInputMethodList.any { it.packageName == packageName }
-        val emUso = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-            ?.let { ComponentName.unflattenFromString(it)?.flattenToShortString() } == id
+        val bolha = ComponentName(this, BolhaService::class.java)
+        val ligada = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+            .split(':').any { ComponentName.unflattenFromString(it) == bolha }
         val microfone = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         passo("1. Permitir o microfone", microfone, "Permitir") {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
         }
-        passo("2. Ativar o teclado RenanTalk", ativado, "Ativar") {
-            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        passo("2. Ligar a bolha (Acessibilidade › Apps baixados › RenanTalk)", ligada, "Ligar") {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        passo("3. Usar o RenanTalk agora", emUso, "Escolher") { imm.showInputMethodPicker() }
-        passo("4. Cadastrar a chave Groq", cofre.ler().isNotEmpty(), null) {}
+        passo("3. Cadastrar a chave Groq", cofre.ler().isNotEmpty(), null) {}
     }
 
     override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
@@ -242,7 +234,7 @@ class ConfigActivity : Activity() {
 
     private fun secaoTeste(): View {
         val caixa = coluna()
-        caixa.addView(texto("Toque no campo e segure o microfone ou o espaço para falar; arraste para cima para cancelar. Segure a vírgula para personalizar e o enter para trocar de teclado.", 13f, fraco = true))
+        caixa.addView(texto("Toque no campo: a bolha aparece acima do teclado. Segure a bolha, fale e solte, ou toque para começar e toque de novo para enviar.", 13f, fraco = true))
         caixa.addView(EditText(this).apply {
             hint = "Fale aqui…"
             minLines = 3
