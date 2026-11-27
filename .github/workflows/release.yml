@@ -1,7 +1,8 @@
 name: Release
 
 # PR para a main: compila e checa (não publica).
-# Merge/push na main que mexe no app, na janela ou no Android: release novo (PATCH + 1) com Windows, Linux e o APK.
+# Merge/push na main que mexe no app, na janela ou no Android: release novo (PATCH + 1) com Windows, Linux e o APK,
+# 10 min depois do último merge (merges mais próximos que isso viram um release só).
 # O RenanTalk instalado procura releases a cada 6 h (ou pelo menu) e se atualiza sozinho.
 # A janela em Rust só é recompilada quando config/ ou app/ui/ mudam; senão, reaproveita os
 # executáveis do último release (release em ~1 min em vez de vários).
@@ -17,9 +18,11 @@ on:
 permissions:
   contents: write
 
+# Merges seguidos na main: o push novo cancela o run anterior, que ainda está na espera ou compilando,
+# e sai um release só com tudo. A versão e o "recompilar" vêm da última tag, então nada se perde.
 concurrency:
   group: release-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   versao:
@@ -29,6 +32,9 @@ jobs:
       data: ${{ steps.v.outputs.data }}
       recompilar: ${{ steps.v.outputs.recompilar }}
     steps:
+      - name: Esperar outros merges (10 min)
+        if: github.event_name == 'push'
+        run: sleep 600
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
