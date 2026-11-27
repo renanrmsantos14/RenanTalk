@@ -14,10 +14,19 @@ APP = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, APP)
 
 import atualizador  # noqa: E402
+import ponte  # noqa: E402
 from comum import ARQ_LOG  # noqa: E402
 
 pid = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
-situacao, detalhe = atualizador.verificar_e_aplicar()
+try:
+    rel = atualizador.ler_release() if not atualizador.eh_dev() else None
+except Exception:  # noqa: BLE001 - o verificar_e_aplicar abaixo registra o erro
+    rel = None
+situacao, detalhe = atualizador.verificar_e_aplicar(rel)  # o zip do Python antes da ponte (um ponte.py corrigido)
+alvo = ponte.procurar(rel) if situacao == "em_dia" and rel else None
+if alvo:  # a ponte precisa pausar o gancho do ditado em execução: quem a roda é o próprio ditado
+    situacao, detalhe = "ponte", (f"app novo v{alvo['versao']} disponível: o ditado instala na próxima verificação "
+                                  "(até 6 h) ou pelo menu Procurar atualização da bandeja")
 with open(ARQ_LOG, "a", encoding="utf-8") as f:
     f.write(time.strftime("%d/%m/%Y %H:%M:%S ") + f"atualização: {situacao} {detalhe} (manual)\n")
 print(json.dumps({"situacao": situacao, "detalhe": detalhe}, ensure_ascii=False), flush=True)

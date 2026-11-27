@@ -37,6 +37,17 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 - `tests/test_escrita.py` cobre modo por app, fallback e o atalho de traduzir. Fluxo: no mesmo esquema acima, `mock.patch("urllib.request.urlopen", return_value=<BytesIO com {"choices":[{"message":{"content":"..."}}]}>)` e `d.plat.app_ativo` → `"OUTLOOK.EXE"` → colado o texto da IA e `historico.gravar(..., modo="formal")`; `d.transcrever_e_colar(b"", 1.0, True)` → modo `ingles` em qualquer app; `urlopen` com `side_effect=OSError` → colado o texto cru, modo `literal` e o log diz "IA (…) falhou" sem o conteúdo.
 - Atalho de traduzir (padrão `shift+win`): `xdotool keydown shift super`, falar, `keyup` → mesmo ciclo do ditar com `em_ingles=True`.
 
+## Luz (versão Rust)
+- Desenho puro: `cargo test -p talk-core luz` (pixels-chave, bandeira de 7 listras, topo/embaixo, `luz.ligada:false`).
+- Print no Xvfb `:99` (nunca na tela real) com `XDG_CONFIG_HOME` próprio e `luz.cor/posicao` no `ajustes.json`: sobe `renantalk` com `RENANTALK_AUDIO_TESTE=<wav>`, `xdotool keydown ctrl super`, `import -window root -crop 1280x60+0+740 +repage`; Shift+Win mostra a bandeira. Sem compositor o transparente sai preto.
+
+## Casca residente (versão Rust)
+- Tudo no Xvfb próprio (nunca na tela real), com `HOME` e `XDG_CONFIG_HOME` no scratchpad: o plugin de autostart grava em `$HOME/.config/autostart/RenanTalk.desktop` e ignora `XDG_CONFIG_HOME`. Confira que o `~/.config/autostart` real não ganhou arquivo.
+- Precisa de `metacity` (fechar a janela com `wmctrl -ic <id>`; `xdotool windowclose` destrói a janela X e não é teste de fechar) e de um barramento D-Bus de sessão sem serviços ativáveis (`dbus-daemon` com config mínima). Com `dbus-run-session` o GTK ativa o `xdg-desktop-portal` real e o laço de eventos demora 25 s+ para despachar.
+- Não use o `setup` do Tauri para subir o ditado: sem janela o laço só o despacha quando algo o acorda. A subida fica no `main`, depois do `build()`; confira que `iniciado` aparece no `ditado.log` na hora.
+- Roteiro: parado (VmRSS/RssAnon/RssFile de `/proc/<pid>/status`); 2ª execução (`renantalk` e `renantalk --aba=vocabulario`: continua 1 processo, janela aparece); fechar com `wmctrl -ic` (processo vivo, sem filhos WebKit); reabrir; ditado com Ctrl+Super (editor GTK + Groq falso) depois de fechar a janela.
+- Não dá para provar no Xvfb: o ícone e o menu da bandeja (sem painel), a instância única e o RSS no Windows.
+
 ## Não dá para provar aqui
 - IA real (modelo `openai/gpt-oss-120b` em `/openai/v1/models` (o llama-3.3-70b foi desligado em 16/08/2026; teste só com mock não pega modelo removido), cada modo, chave inválida → literal): não há chave no Linux; provar no Windows.
 - Ditado real (microfone + Groq): Xvfb não tem áudio. Provar numa máquina com microfone e chave.

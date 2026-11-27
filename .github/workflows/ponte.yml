@@ -1,0 +1,67 @@
+name: Ponte
+
+# Só teste, sem publicar nada: a versão-ponte do Python (app/ponte.py) num Windows limpo. Gera o NSIS do app em Rust
+# assinado com uma chave de teste criada aqui, instala o Python atual pelo instalar.ps1 apontado para um release falso
+# local e roda a ponte com falha (instalador corrompido, 3 vezes) e com sucesso. Roteiro: .claude/skills/verificar-ponte.
+on:
+  push:
+    branches: [rust-tauri]
+    paths: ["app/**", "apps/**", "crates/**", "Cargo.*", "instalar.ps1", "requirements.txt", ".github/ponte/**", ".github/workflows/ponte.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ponte-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      VERSAO_RUST: 0.0.910
+      RENANTALK_VERSAO: 0.0.910 # o pnpm build que o tauri build roda regrava a mesma versão
+      RENANTALK_TESTE_API: http://127.0.0.1:38910/releases/latest
+      RENANTALK_TESTE_ATRASO: "3"
+      RENANTALK_UPDATE_URL: http://127.0.0.1:38910/sem-latest.json # o app Rust não procura o GitHub real
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm install --frozen-lockfile
+      - name: Testes da ponte
+        run: python -m unittest discover -s tests -p test_ponte.py # a suíte toda tem 2 testes presos ao Linux
+      - name: Chave de assinatura de teste (nunca a real)
+        shell: bash
+        run: |
+          pnpm --filter desktop exec tauri signer generate --ci -w "$RUNNER_TEMP/teste.key" -p ""
+          echo "RENANTALK_TESTE_PUBKEY=$(cat "$RUNNER_TEMP/teste.key.pub")" >> "$GITHUB_ENV"
+      - name: NSIS do app em Rust, assinado com a chave de teste
+        shell: bash
+        run: |
+          node apps/desktop/scripts/bump-version.mjs
+          cd apps/desktop
+          export TAURI_SIGNING_PRIVATE_KEY="$(cat "$RUNNER_TEMP/teste.key")" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+          printf '{"plugins":{"updater":{"pubkey":"%s","dangerousInsecureTransportProtocol":true}}}' "$RENANTALK_TESTE_PUBKEY" > "$RUNNER_TEMP/teste.json"
+          pnpm tauri build --bundles nsis --config "$RUNNER_TEMP/teste.json"
+          ls -l ../../target/release/bundle/nsis/
+          echo "PACOTES=$(cygpath -w "$GITHUB_WORKSPACE/target/release/bundle/nsis")" >> "$GITHUB_ENV"
+      - name: Ponte (falha e sucesso)
+        shell: pwsh
+        run: ./.github/ponte/teste-windows.ps1
+      - name: Log e pastas (sempre)
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Content "$env:APPDATA\RenanTalk\ditado.log" -ErrorAction SilentlyContinue | Select-Object -Last 60
+          Get-ChildItem -Force "$env:APPDATA\RenanTalk", "$env:LOCALAPPDATA\RenanTalk" -ErrorAction SilentlyContinue | Format-Table Mode, Length, FullName -AutoSize

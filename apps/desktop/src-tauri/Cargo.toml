@@ -1,0 +1,44 @@
+[package]
+name = "renantalk"
+version = "0.0.4"
+edition = "2021"
+description = "RenanTalk: ditado por voz com a Groq (casca Tauri sobre o talk-core)"
+publish = false
+
+[[bin]]
+name = "renantalk"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+# Instância única (D-Bus no Linux, mutex e mensagem de janela no Windows) e início com o sistema (.desktop no autostart, chave Run no Windows)
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+talk-core = { path = "../../../crates/talk-core" }
+serde_json = { version = "1", features = ["preserve_order"] }
+# Microfone e bipe (ALSA/Pulse no Linux, WASAPI no Windows)
+cpal = "0.15"
+# Atualização assinada pelo latest.json do release (atualizar.rs)
+tauri-plugin-updater = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Gancho de teclado (RECORD), colar (XTest) e a luz (janela ARGB sem entrada via SHAPE, monitores via RANDR): sem root e sem o grupo input.
+x11rb = { version = "0.13", features = ["record", "xtest", "shape", "randr"] }
+# Área de transferência: o X11 exige que o dono atenda os pedidos; a arboard mantém uma thread para isso.
+arboard = "3"
+# malloc_trim: devolve ao sistema a memória do webview depois que a janela fecha
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# Luz (janela em camadas + GDI), gancho de teclado, SendInput, área de transferência, mutex, janela ativa e volume por sessão (WASAPI)
+windows = { version = "0.62", features = [
+    "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Threading",
+    "Win32_System_ProcessStatus", "Win32_System_Variant", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,3 +1,6 @@
 # Índice das skills de verificação
 - verificar-janela | app/ui/**, config/**, app/configuracoes.py | janela de configurações (Tauri): abas Início, Histórico, Vocabulário, Substituições, Escrita com IA, Ditado e som, Aparência, Chave Groq
 - verificar-ditado | app/*.py, app/*.pyw, app/VERSION, tests/**, .github/** | app da bandeja: atalhos (ditar, colar, traduzir), colar último, histórico gravado, ajustes, IA no texto, luz, testes
+- verificar-tela | apps/desktop/src/**, apps/desktop/src-tauri/**, crates/talk-core/src/comandos.rs | tela React da janela (Tauri 2): 9 abas, mock no navegador, Tauri no Xvfb, efeito em historico.db, ajustes.json e chave
+- verificar-atualizacao | apps/desktop/src-tauri/src/atualizar.rs, apps/desktop/src-tauri/tauri.conf.json, apps/desktop/scripts/**, .github/workflows/release.yml | atualização assinada do app em Rust: N → N+1 no Xvfb, janela reaberta na mesma aba, assinatura adulterada recusada, jobs desktop do release
+- verificar-ponte | app/ponte.py, app/minisign.py, app/atualizador.py, app/ditado.pyw (atualizar/migrar), apps/desktop/src-tauri/src/casca.rs (marcar_subiu, ligar_inicio), instalar.sh, instalar.ps1, .github/ponte/**, .github/workflows/ponte.yml | versão-ponte: assinatura, instalação do app em Rust, marcador .app-subiu.json, remoção do Python só com confirmação, falha com contador e aviso na 3ª

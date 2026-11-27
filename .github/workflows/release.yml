@@ -1,17 +1,18 @@
 name: Release
 
 # PR para a main: compila e checa (não publica).
-# Merge/push na main que mexe no app, na janela ou no Android: release novo (PATCH + 1) com Windows, Linux e o APK.
+# Merge/push na main que mexe no app, na janela, no Android ou no app em Rust: release novo (PATCH + 1) com Windows,
+# Linux, o APK e o app em Rust (apps/desktop: instalador NSIS, AppImage e o latest.json assinado do updater).
 # O RenanTalk instalado procura releases a cada 6 h (ou pelo menu) e se atualiza sozinho.
 # A janela em Rust só é recompilada quando config/ ou app/ui/ mudam; senão, reaproveita os
 # executáveis do último release (release em ~1 min em vez de vários).
 on:
   push:
     branches: [main]
-    paths: ["app/**", "config/**", "android/**", "requirements.txt", ".github/workflows/release.yml"]
+    paths: ["app/**", "config/**", "android/**", "requirements.txt", "apps/**", "crates/**", "Cargo.*", "package.json", "pnpm-*", ".github/workflows/release.yml"]
   pull_request:
     branches: [main]
-    paths: ["app/**", "config/**", "android/**", "requirements.txt", ".github/workflows/release.yml"]
+    paths: ["app/**", "config/**", "android/**", "requirements.txt", "apps/**", "crates/**", "Cargo.*", "package.json", "pnpm-*", ".github/workflows/release.yml"]
   workflow_dispatch:
 
 permissions:
@@ -138,10 +139,77 @@ jobs:
           name: android
           path: RenanTalk.apk
 
+  desktop:
+    # App em Rust (apps/desktop) com a versão da tag. PR: só compila, sem assinar e sem secrets.
+    # Main: assina os pacotes do updater (TAURI_SIGNING_PRIVATE_KEY*) e entrega ao job release.
+    needs: versao
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            pacote: nsis
+            nome: windows
+          - os: ubuntu-22.04
+            pacote: appimage
+            nome: linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      RENANTALK_VERSAO: ${{ needs.versao.outputs.versao }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependências do Tauri e do áudio (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev libayatana-appindicator3-dev patchelf
+      - uses: pnpm/action-setup@v4 # a versão vem do packageManager do package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'pull_request' }}
+      - run: pnpm install --frozen-lockfile
+      # package.json, version.json, tauri.conf.json e a crate com a versão da tag (o app mostra a mesma do release).
+      - name: Versão da tag
+        run: node apps/desktop/scripts/bump-version.mjs
+      - name: Compilar (PR, sem assinar)
+        if: github.event_name == 'pull_request'
+        working-directory: apps/desktop
+        run: |
+          echo '{"bundle":{"createUpdaterArtifacts":false}}' > "$RUNNER_TEMP/sem-assinatura.json"
+          pnpm tauri build --bundles ${{ matrix.pacote }} --config "$RUNNER_TEMP/sem-assinatura.json"
+      - name: Compilar e assinar
+        if: github.event_name != 'pull_request'
+        working-directory: apps/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build --bundles ${{ matrix.pacote }}
+      - name: Separar instalador e assinatura
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir pacote
+          cp target/release/bundle/${{ matrix.pacote }}/RenanTalk_${RENANTALK_VERSAO}_*.{exe,AppImage}{,.sig} pacote/ 2>/dev/null || true
+          ls -l pacote
+          [ "$(ls pacote/*.sig | wc -l)" = 1 ]
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: desktop-${{ matrix.nome }}
+          path: pacote/
+
   release:
-    # O APK não segura Windows/Linux: se o job android falhar, o release sai sem RenanTalk.apk.
-    needs: [versao, janela, android]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.versao.result == 'success' && needs.janela.result == 'success' }}
+    # O APK e o app em Rust não seguram Windows/Linux do Python: se o job android ou desktop falhar, o release sai sem eles.
+    needs: [versao, janela, android, desktop]
+    # Só a main publica: um workflow_dispatch noutra branch não vira o release "latest" que as máquinas instalam.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.versao.result == 'success' && needs.janela.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -158,11 +226,47 @@ jobs:
           (cd pacote-windows && zip -qr ../RenanTalk.zip .)
           (cd pacote-linux && zip -qr ../RenanTalk-linux.zip .)
           [ -f dist/android/RenanTalk.apk ] && cp dist/android/RenanTalk.apk . || echo "::warning::Release sem RenanTalk.apk (job android falhou)"
+          cp dist/desktop-*/* . 2>/dev/null || echo "::warning::Release sem o app em Rust (job desktop falhou)"
+      - name: latest.json do updater (app em Rust)
+        env:
+          VERSAO: ${{ needs.versao.outputs.versao }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime, glob, json, os, sys
+          v = os.environ["VERSAO"]
+          base = f"https://github.com/{os.environ['REPO']}/releases/download/v{v}/"
+          plataformas = {}
+          for chave, padrao in (("windows-x86_64", f"RenanTalk_{v}_x64-setup.exe"), ("linux-x86_64", f"RenanTalk_{v}_amd64.AppImage")):
+              for f in glob.glob(padrao):
+                  plataformas[chave] = {"signature": open(f + ".sig").read().strip(), "url": base + f}
+          # O latest.json só sai com as duas plataformas, cada uma conferida com a chave pública do app
+          # (tauri.conf.json, a mesma da ponte): um secret de assinatura errado falha aqui, não nas máquinas.
+          sys.path.insert(0, "app")
+          import minisign
+          pub = json.load(open("apps/desktop/src-tauri/tauri.conf.json"))["plugins"]["updater"]["pubkey"]
+          # Falha aqui não segura o zip do Python: só o latest.json deixa de sair.
+          for chave, p in list(plataformas.items()):
+              nome = p["url"].rsplit("/", 1)[-1]
+              try:
+                  comentario = minisign.conferir(open(nome, "rb").read(), p["signature"], pub)
+                  assert f"file:{nome}" in comentario.split("\t"), f"o comentário assinado não cita {nome}: {comentario}"
+                  print(f"{chave}: assinatura confere ({comentario})")
+              except Exception as e:
+                  print(f"::error::{chave}: assinatura não confere com a pubkey do app ({e}); confira o secret TAURI_SIGNING_PRIVATE_KEY")
+                  del plataformas[chave]
+          if len(plataformas) == 2:
+              json.dump({"version": v, "notes": f"RenanTalk v{v}",
+                         "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                         "platforms": plataformas}, open("latest.json", "w"), indent=2)
+          else:
+              print(f"::warning::latest.json não gerado: só {sorted(plataformas)} (as máquinas ficam na versão atual)")
+          PY
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ needs.versao.outputs.versao }}" RenanTalk.zip RenanTalk-linux.zip $(ls RenanTalk.apk 2>/dev/null) \
+          gh release create "v${{ needs.versao.outputs.versao }}" RenanTalk.zip RenanTalk-linux.zip $(ls RenanTalk.apk RenanTalk_* latest.json 2>/dev/null) \
             --title "RenanTalk v${{ needs.versao.outputs.versao }}" \
-            --notes "Publicado em ${{ needs.versao.outputs.data }} (America/Sao_Paulo). RenanTalk.zip = Windows; RenanTalk-linux.zip = Linux; RenanTalk.apk = app Android (bolha de ditado). O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
+            --notes "Publicado em ${{ needs.versao.outputs.data }} (America/Sao_Paulo). RenanTalk.zip = Windows; RenanTalk-linux.zip = Linux; RenanTalk.apk = app Android (bolha de ditado). RenanTalk_*_x64-setup.exe e RenanTalk_*_amd64.AppImage = app novo em Rust (em teste; se atualiza pelo latest.json). O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
             --target "${{ github.sha }}"

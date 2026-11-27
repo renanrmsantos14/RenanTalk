@@ -27,6 +27,7 @@ import ajustes
 import atualizador
 import escrita
 import historico
+import ponte
 import substituicoes
 from comum import WINDOWS, cabecalhos_groq, conferir_modelos, fechar_janela, ler_chave, log, prompt_vocabulario
 
@@ -49,7 +50,9 @@ quadros: list[bytes] = []
 inicio = 0.0
 outra_tecla = False
 traduzir = False  # o ditado em andamento veio do atalho de traduzir
+pausado = False  # a ponte (ponte.py) está trocando este ditado pelo app novo: os atalhos não fazem nada
 trava = threading.Lock()
+trava_ponte = threading.Lock()
 # Uma thread só para abaixar e restaurar o volume dos outros apps: mantém a ordem, não segura o hook do teclado
 # e, no Windows, as sessões de áudio (COM) são usadas na mesma thread em que foram lidas.
 fila_volume = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -125,7 +128,7 @@ def iniciar_fluxo() -> None:
 def comecar(em_ingles: bool = False) -> None:
     global gravando, inicio, outra_tecla, traduzir
     with trava:
-        if gravando:
+        if gravando or pausado:
             return
         quadros.clear()
         outra_tecla, traduzir = False, em_ingles
@@ -240,6 +243,8 @@ def colar_ultimo(atraso: float = 0.0) -> None:
     """Cola o texto do ditado mais recente (já corrigido). Histórico vazio: bipe grave e nada colado.
 
     `atraso` deixa o menu da bandeja fechar e o foco voltar para a janela anterior antes do Ctrl+V."""
+    if pausado:
+        return
     def fazer() -> None:
         try:
             if gravando:
@@ -273,8 +278,56 @@ def reiniciar() -> None:
     sair()
 
 
+def migrar(alvo: dict) -> None:
+    """Versão-ponte: baixa e confere o app novo, pausa este ditado, instala e só sai depois de ele confirmar que subiu."""
+    global pausado
+    if not trava_ponte.acquire(blocking=False):  # a verificação automática e o menu ao mesmo tempo
+        return
+
+    def pausar() -> None:  # só depois do download e da assinatura: numa rede lenta o ditado segue funcionando
+        global pausado
+        while True:
+            with trava:  # a mesma trava do comecar(): nenhum ditado começa entre a conferência e a pausa
+                if not gravando:
+                    pausado = True
+                    break
+            time.sleep(1)  # não interrompe um ditado em andamento
+        log(f"ponte: ditado do Python pausado para instalar o app novo v{alvo['versao']}")
+
+    try:
+        if ponte.executar(alvo, notificar=lambda t: bandeja.notificar(t, forcar=True), pausar=pausar):
+            encerrar_pela_ponte("RenanTalk agora roda no app novo.")
+        if pausado:
+            pausado = False
+            log("ponte: ditado do Python religado")
+    finally:
+        trava_ponte.release()
+
+
+def encerrar_pela_ponte(aviso: str | None = None) -> None:
+    """O app novo confirmou: o Python sai mesmo que a limpeza falhe (senão os dois ditados ficam ligados)."""
+    try:
+        if aviso:
+            bandeja.notificar(aviso)
+            time.sleep(4)  # o balão some junto com o ícone da bandeja
+        fechar_janela()
+        bandeja.remover()
+        plat.liberar_instancia()
+    except Exception as e:  # noqa: BLE001
+        log(f"ponte: erro ao fechar o Python ({e!r}); saindo assim mesmo")
+    log("ponte: Python encerrado")
+    sair()
+
+
 def atualizar(manual: bool = False) -> None:
-    situacao, detalhe = atualizador.verificar_e_aplicar()
+    rel = None
+    if not atualizador.eh_dev():
+        try:
+            rel = atualizador.ler_release()
+        except Exception as e:  # noqa: BLE001 - sem internet etc.: o verificar_e_aplicar abaixo registra
+            log(f"atualização: não consegui ler o release ({e!r})")
+    # O zip do Python vem antes da ponte: um ponte.py corrigido num release novo chega por aqui.
+    situacao, detalhe = atualizador.verificar_e_aplicar(rel)
     log(f"atualização: {situacao} {detalhe}")
     if situacao == "atualizado":
         while gravando:  # não interrompe um ditado em andamento
@@ -282,14 +335,24 @@ def atualizar(manual: bool = False) -> None:
         bandeja.notificar(f"Atualizado para {detalhe}.")
         time.sleep(2)
         reiniciar()
-    elif manual:
+        return
+    if situacao == "em_dia":
+        if not rel:  # a 1ª leitura falhou e a do verificar_e_aplicar deu certo
+            try:
+                rel = atualizador.ler_release()
+            except Exception:  # noqa: BLE001
+                return
+        alvo = ponte.procurar(rel)
+        if alvo:
+            return migrar(alvo)
+    if manual:
         bandeja.notificar({"em_dia": "Você já está na versão mais recente.",
                            "dev": "Versão de desenvolvimento: sem atualização automática."}.get(situacao,
                            "Não consegui procurar atualização agora. Veja o log."))
 
 
 def ciclo_atualizacao() -> None:
-    time.sleep(60)  # deixa o sistema terminar de iniciar
+    time.sleep(float(os.environ.get("RENANTALK_TESTE_ATRASO") or 60))  # deixa o sistema terminar de iniciar
     while True:
         atualizar()
         time.sleep(INTERVALO_ATUALIZACAO)
@@ -301,6 +364,15 @@ if __name__ == "__main__":
     atualizador.limpar_antigos()
     versao = atualizador.versao_texto()
     log(f"iniciado v{versao} ({sys.platform})")
+    try:
+        retomou = not atualizador.eh_dev() and ponte.retomar()  # a ponte foi interrompida no meio
+    except Exception as e:  # noqa: BLE001 - nunca impede o ditado de subir
+        retomou = False
+        log(f"ponte: erro ao retomar ({e!r})")
+    if retomou:
+        plat.liberar_instancia()
+        log("ponte: Python encerrado (o app novo já roda)")
+        raise SystemExit
     bandeja = plat.Bandeja(ao_sair=sair, ao_atualizar=atualizar, versao=versao,
                            ao_colar=lambda: colar_ultimo(0.35))  # pelo menu: espera o foco voltar
     if not ler_chave():

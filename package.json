@@ -1,0 +1,8 @@
+{
+  "name": "renantalk",
+  "private": true,
+  "packageManager": "pnpm@12.23.0",
+  "scripts": {
+    "test": "cargo test -p talk-core"
+  }
+}

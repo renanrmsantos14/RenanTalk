@@ -31,6 +31,14 @@ def eh_dev() -> bool:
     return "dev" in versao_texto()
 
 
+# Só para teste (verificar-ponte): um releases/latest falso servido localmente.
+API = os.environ.get("RENANTALK_TESTE_API") or f"https://api.github.com/repos/{REPO}/releases/latest"
+
+
+def ler_release() -> dict:
+    return json.loads(_baixar(API))
+
+
 def _tupla(v: str) -> tuple[int, ...]:
     return tuple(int(p) for p in v.lstrip("v").split("·")[0].strip().split("."))
 
@@ -74,12 +82,14 @@ def limpar_antigos() -> None:
                 pass
 
 
-def verificar_e_aplicar() -> tuple[str, str]:
-    """Retorna (situação, detalhe). Situação: 'atualizado', 'em_dia', 'dev' ou 'erro'."""
+def verificar_e_aplicar(rel: dict | None = None) -> tuple[str, str]:
+    """Retorna (situação, detalhe). Situação: 'atualizado', 'em_dia', 'dev' ou 'erro'.
+
+    Quem chama já pode ter lido o release (`ler_release`) para ver a ponte (ponte.py) antes."""
     if eh_dev():
         return "dev", "versão de desenvolvimento: atualização automática desligada"
     try:
-        rel = json.loads(_baixar(f"https://api.github.com/repos/{REPO}/releases/latest"))
+        rel = rel or ler_release()
         nova = rel["tag_name"].lstrip("v")
         if _tupla(nova) <= _tupla(versao_texto()):
             return "em_dia", f"já está na versão mais recente (v{nova})"
