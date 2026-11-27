@@ -31,17 +31,23 @@ class Gravador(private val aoNivel: (Float) -> Unit) {
             rec.release()
             throw IllegalStateException("Microfone indisponível.")
         }
+        // outro app com o microfone (ligação, gravador): startRecording falha ou não entra em gravação
+        val comecou = runCatching { rec.startRecording() }.isSuccess && rec.recordingState == AudioRecord.RECORDSTATE_RECORDING
+        if (!comecou) {
+            rec.release()
+            throw IllegalStateException("Microfone ocupado por outro app.")
+        }
         buffer = ByteArrayOutputStream(Regras.TAXA * 2 * 10)
         gravando = true
         inicio = SystemClock.elapsedRealtime()
-        rec.startRecording()
         thread = Thread {
             val amostras = ShortArray(Regras.TAXA / 20) // 50 ms
             val bytes = ByteArray(amostras.size * 2)
             try {
                 while (gravando) {
                     val n = rec.read(amostras, 0, amostras.size)
-                    if (n <= 0) continue
+                    if (n < 0) break // microfone tomado no meio da gravação: para de ler em vez de girar em falso
+                    if (n == 0) continue
                     for (i in 0 until n) {
                         bytes[2 * i] = (amostras[i].toInt() and 0xFF).toByte()
                         bytes[2 * i + 1] = (amostras[i].toInt() shr 8).toByte()
