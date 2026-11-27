@@ -1,9 +1,9 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 6 de 7 Revisar e verificar
-- Próximo passo: abrir o PR 1 (desktop-completo → main) · sozinho
-- Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR ainda não
+- Etapa: 7 de 7 Entregar (PR 1 em rascunho)
+- Próximo passo: Renan faz o QA do PR 1 no Windows (checklist "Falta de você") e o merge · com Renan
+- Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR 1: https://github.com/renanrmsantos14/RenanTalk/pull/6 (rascunho)
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
 - PROD: ainda não
