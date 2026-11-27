@@ -1,14 +1,15 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 7 de 7 Entregar (PR 1 em rascunho)
-- Próximo passo: Renan faz o QA do PR 1 no Windows (checklist "Falta de você") e o merge · com Renan
+- Etapa: 6 de 7 Construir (PR 2 aberto; PR 3 a fazer)
+- Próximo passo: prova do PR 2 no Windows (delegada) e QA/merge do PR 2 por Renan; depois PR 3 (IA no texto)
 - Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR 1: https://github.com/renanrmsantos14/RenanTalk/pull/6 (rascunho)
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 26/11/2026 23:18
-- PR do abaixar volume: branch desktop-abaixar-volume, base desktop-completo (rascunho até provar no Windows)
+- Atualizado: 26/11/2026 23:53
+- PR do abaixar volume: #7 (merged). App que fecha durante o ditado: #8 (pronto, Windows provado).
+- PR 2: branch desktop-inteligencia, base desktop-completo
 
 ## Contexto levantado (código)
 - Python (bandeja, ditado, luz) + janela de configurações em Tauri/Rust (`config/src/main.rs`, `app/ui/index.html`), com fallback Python+Edge (`app/configuracoes.py`).
@@ -39,9 +40,9 @@
 | 2 | PR 1 · `historico.db` + aba Histórico (layout C): gravar, buscar, editar, copiar, colar, excluir, retenção · Sonnet | 1 | 1, 2, 3, 10 | ditar de verdade e print do item; consulta SQLite antes e depois | 4 | passou (local): 22 testes; na janela Tauri real (Xvfb) editar gravou editado=1 com original preservado, excluir em 2 passos apagou a linha; retenção tirou o item de 40 dias (print). Corrigido: botão Confirmar exclusão ilegível no hover. Falta: ditado real gravando e Windows; Colar fica para a tarefa 3 |
 | 3 | PR 1 · Colar último: menu da bandeja (Windows e Linux) + atalho · Sonnet | 1, 2 | 4 | atalho num editor de texto, print | 4 | passou (local): Alt+Win+V real colou o último ditado com acentos num editor (Xvfb, print). Falta: item do menu e Windows (conflito do Alt+Win+V) |
 | 4 | PR 1 · Aparência: luz, tema, notificações · Sonnet | 1 | 9 | print da luz em cada posição e do tema | 4 | passou (local): cliques reais em Escuro/Verde/Topo/Grossa gravaram no ajustes.json; luz verde no topo (Xvfb, sem compositor). Falta: Windows |
-| 5 | PR 2 · Tela Início (layout B) + estatísticas · Sonnet | 2 | 11 | print com dados reais do banco | — | pendente |
-| 6 | PR 2 · Sugestões de termos (correção + frequência), aceitar/ignorar · Sonnet | 2, 5 | 12, 13 | teste com histórico de exemplo + print | — | pendente |
-| 7 | PR 2 · Substituições (comandos + atalhos próprios) · Sonnet | 2 | 14 | teste unitário da função + ditado real | — | pendente |
+| 5 | PR 2 · Tela Início (layout B) + estatísticas · Sonnet | 2 | 11 | print com dados reais do banco | 4 | passou (local): janela Tauri real (Xvfb) com histórico semeado mostra palavras hoje/semana, tempo poupado, gráfico de 7 dias e último ditado (print pr2-inicio). Falta: Windows |
+| 6 | PR 2 · Sugestões de termos (correção + frequência), aceitar/ignorar · Sonnet | 2, 5 | 12, 13 | teste com histórico de exemplo + print | 4 | passou (local): nome repetido 5+ vezes vira sugestão; Aceitar gravou no vocabulario.txt e `aceita`; Ignorar gravou `ignorada`; troca na correção do Histórico oferece "Adicionar ao vocabulário" (prints). Corrigido: nome composto virava dois termos; caixa da troca saía do painel. Falta: motivo `correcao` na tabela (a troca só aparece ao salvar a correção) e Windows |
+| 7 | PR 2 · Substituições (comandos + atalhos próprios) · Sonnet | 2 | 14 | teste unitário da função + ditado real | 3 | passou (local): 63 testes; fluxo `transcrever_e_colar` com transcrição simulada colou regra própria, vírgula desligada e "ponto final, nova linha" com maiúscula; histórico guarda colado e original; aba Substituições gravou comando e regra pelo clique. Falta: ditado real com microfone e Windows |
 | 8 | PR 3 · IA no texto: modos, modo por aplicativo, traduzir, fallback literal · Sonnet | 1, 2 | 15, 16, 17, 18 | ditado real em cada modo + teste de timeout | — | pendente |
 | 9 | Cada PR · README, `verificar-ditado`/`verificar-janela`, versão na janela | cada PR | — | `verificacao-manter` | — | pendente |
 
@@ -75,6 +76,12 @@
 - Prova de janela: Xvfb em :99 + xdotool (não usar a tela real). Disco raiz em 95% (scratchpads de outras sessões).
 - App aparece como classe/exe (`code`, `outlook`), sem nome amigável.
 - Rótulo "Segure Ctrl + Super" no menu da bandeja Linux ainda fixo.
+- PR 2: Início sem botão Colar (só Copiar + dica do atalho); a janela não tem comando para colar no programa em uso.
+- PR 2: sugestões por correção não vão para a tabela (só a caixa no Histórico ao salvar).
+- PR 2: salvar Substituições recusa tudo se o arquivo editado à mão tiver regra duplicada; comentários do arquivo se perdem ao salvar pela janela.
+- PR 2: limpeza de espaços dos comandos vale para o texto todo quando algum comando dispara.
+- PR 2: aba padrão `inicio` exige Python e exe de configurações da mesma versão (atualização parcial abriria a janela sem painel).
+- PR 8: no Windows, dois processos do mesmo app com volumes diferentes voltam ambos ao volume de um deles.
 
 ## Retro
 -

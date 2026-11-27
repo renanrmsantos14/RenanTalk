@@ -5,7 +5,7 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 # Verificar ditado (app da bandeja)
 
 ## Cobre
-- Código: `app/ditado.pyw`, `app/ajustes.py`, `app/historico.py`, `app/comum.py`, `app/luz.py`, `app/bandeja.py` (Windows), `app/plataforma_linux.py`, `app/plataforma_windows.py`.
+- Código: `app/ditado.pyw`, `app/ajustes.py`, `app/historico.py`, `app/comum.py`, `app/luz.py`, `app/bandeja.py` (Windows), `app/plataforma_linux.py`, `app/plataforma_windows.py`, `app/substituicoes.py`, `app/sugestoes.py`.
 
 ## Preparar ambiente
 - Testes: `python3 -m unittest discover -s tests` → `OK` (39+ testes; isolam `XDG_CONFIG_HOME`/`APPDATA`).
@@ -24,6 +24,12 @@ description: "Verifica o app da bandeja do RenanTalk desktop (Python): atalhos, 
 3. Trocar `atalho_ditar` no `ajustes.json` com o app aberto → o listener passa a usar o novo atalho sem reiniciar (cache por mtime).
 4. `ajustes.json` corrompido (`{`, `"volume": NaN`, atalho `["alt","win"]`) → o app segue com os padrões e registra no log.
 5. Abaixar os outros sons (Linux): `abaixar_outros: true, volume_outros: 30` no `ajustes.json`; um fluxo de teste em laço (`while true; do paplay --client-name=TesteRenanTalk silencio.wav; done &`, wav de silêncio gerado com `sox -n -r 16000 silencio.wav trim 0 2` ou numpy+wave); `xdotool keydown ctrl super`, 2 s, `pactl -f json list sink-inputs` → os outros fluxos a 30% (65536 → 19661) e o `PipeWire ALSA [python3.x]` do próprio app intacto; `xdotool keyup super ctrl`, 2 s → todos de volta ao valor de antes e estáveis 3 s depois. Com o ajuste desligado nada muda. Anote o volume do Spotify antes e confira depois (ele reage à mudança externa).
+
+## Substituições e sugestões (sem microfone)
+- Fluxo inteiro com a transcrição simulada: carregar `app/ditado.pyw` com `importlib.machinery.SourceFileLoader`, trocar `d.transcrever` por uma função que devolve `"Mande para meu email vírgula ok ponto final nova linha obrigado"`, `d.plat.colar` por uma lista e `d.plat.app_ativo` por `lambda: "teste"`; chamar `d.transcrever_e_colar(b"x", 2.0)`.
+- Com `substituicoes.txt` = `meu email => contato@exemplo.com` e `comandos.virgula: false` no `ajustes.json` → colado `"Mande para contato@exemplo.com vírgula ok.\nObrigado "`; `historico.listar(limite=1)[0]` tem `texto` = colado e `original` = o texto cru.
+- Sugestões: gravar o mesmo nome 5 vezes (`historico.gravar("Buscar no Santos Dumont …")`) → tabela `sugestao` com `('Santos Dumont', 'frequencia', 5, 'nova')`; 4 vezes não sugere; nome composto vira um termo só; o que já está no vocabulário não entra.
+- Defeito numa regra não perde o ditado: o texto cru é colado e o log diz "substituições falharam".
 
 ## Não dá para provar aqui
 - Ditado real (microfone + Groq): Xvfb não tem áudio. Provar numa máquina com microfone e chave.

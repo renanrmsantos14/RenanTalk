@@ -424,5 +424,5 @@ class Bandeja:
         except Exception:  # noqa: BLE001
             pass
 
-    def abrir_configuracoes(self, aba: str = "voc") -> None:
+    def abrir_configuracoes(self, aba: str = "inicio") -> None:
         abrir_configuracoes(aba)

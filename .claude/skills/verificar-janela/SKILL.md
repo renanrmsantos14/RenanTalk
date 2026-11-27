@@ -6,7 +6,7 @@ description: "Verifica a janela de configurações do RenanTalk desktop (Tauri +
 
 ## Cobre
 - Código: `config/src/main.rs` (comandos Rust, SQLite, ajustes.json), `app/ui/index.html` (UI embutida no binário).
-- Abas: Histórico, Vocabulário, Ditado e som, Aparência, Chave Groq, Sobre.
+- Abas: Início, Histórico, Vocabulário, Substituições, Ditado e som, Aparência, Chave Groq, Sobre.
 
 ## Preparar ambiente
 - **Nunca na tela real.** Use o Xvfb em `:99` (`pgrep -a Xvfb`; se não houver: `Xvfb :99 -screen 0 1024x768x24 &`).
@@ -19,7 +19,7 @@ description: "Verifica a janela de configurações do RenanTalk desktop (Tauri +
   historico.gravar('Mandar o orçamento da van executiva', app='code')
   historico.gravar('Ligar para o motorista do aeroporto', app='whatsapp')"
   ```
-- Abrir: `pkill -x renantalk-confi; (timeout 60 config/target/release/renantalk-config $$ hist python3 app &); sleep 6` (3º argumento = aba inicial: `hist`, `som`, `apar`…).
+- Abrir: `pkill -x renantalk-confi; (timeout 60 config/target/release/renantalk-config $$ hist python3 app &); sleep 6` (3º argumento = aba inicial: `inicio` (padrão), `hist`, `sub`, `som`, `apar`…). Para gerar sugestões, semeie um nome 5+ vezes (ex.: `for i in range(6): historico.gravar(f'Buscar o cliente no Santos Dumont às {i+8}h', app='whatsapp', duracao_s=4)`). Tire o mouse de cima antes do print (`xdotool mousemove 1000 10`): o tooltip das barras sai como retângulo preto no Xvfb.
 - Janela: `w=$(xdotool search --name '^RenanTalk$' | tail -1); eval $(xdotool getwindowgeometry --shell $w)`; clique relativo: `c(){ xdotool mousemove $((X+$1)) $((Y+$2)) click 1; sleep .8; }`; print: `import -window $w <arquivo>.png`. Janela 800x580.
 
 ## Roteiro
@@ -30,6 +30,10 @@ description: "Verifica a janela de configurações do RenanTalk desktop (Tauri +
 5. Excluir em 2 cliques → a linha some do banco.
 6. Aba Ditado e som: gravar atalho ctrl+alt → `ajustes.json` muda; atalho proibido (Ctrl+C) ou contido no outro → aviso e o cartão volta ao atalho gravado, o volume do mesmo lote é gravado. Marcar "Abaixar os outros sons enquanto fala" libera o controle "Ficam em" (desabilitado com a caixa desmarcada); mover para 20% → `abaixar_outros: true, volume_outros: 20` no `ajustes.json`.
 7. Aba Aparência: Escuro / Verde / Topo / Grossa → gravados em `ajustes.json` (`luz`, `tema`).
+
+8. Aba Início (abre por padrão): cartões Palavras hoje / na semana / Tempo poupado, gráfico de 7 dias com "hoje" em destaque, Último ditado com Copiar. Rolar (`xdotool click 5` sobre o painel) → "Termos que você repete" com "Santos Dumont · Apareceu 6 vezes". Aceitar → o termo vai ao fim do `vocabulario.txt` e `sugestao.estado = 'aceita'`; Ignorar → `ignorada` e some da lista. Sem ditados → mensagem de vazio.
+9. Aba Substituições: desmarcar "Vírgula" → `ajustes.json` `comandos.virgula: false`. Em "Suas regras", digitar "meu email" e "contato@exemplo.com" e Adicionar → linha `meu email => contato@exemplo.com` em `substituicoes.txt`; regra com `\n` aparece como `\n` literal na lista. O arquivo é lido ao abrir a janela.
+10. Histórico: editar um ditado trocando uma palavra (ex.: "van" → "Sprinter") e Salvar correção → caixa "Troca: “van” → “Sprinter”" visível sem rolar, botões dentro da caixa; "Adicionar ao vocabulário" grava o termo. Apagar tudo também zera a tabela `sugestao`.
 
 ## Casos de borda
 - Busca não ignora acento ("agua" não acha "água") — conhecido, pendente.

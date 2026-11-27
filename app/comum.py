@@ -51,7 +51,7 @@ def abrir(alvo: str) -> None:
         subprocess.Popen(["xdg-open", alvo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def abrir_configuracoes(aba: str = "voc") -> None:
+def abrir_configuracoes(aba: str = "inicio") -> None:
     """Abre a janela de configurações: o executável Rust/Tauri se existir; senão, a versão Python + navegador."""
     import subprocess
 
@@ -65,7 +65,8 @@ def abrir_configuracoes(aba: str = "voc") -> None:
         python = os.path.join(os.path.dirname(sys.executable), "python.exe") if WINDOWS else sys.executable
         subprocess.Popen([exe, str(os.getpid()), aba, python, app], cwd=app)
     else:
-        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba], cwd=app)
+        aba_antiga = "voc" if aba == "inicio" else aba  # a janela antiga não tem Início
+        subprocess.Popen([sys.executable, os.path.join(app, "configuracoes.py"), str(os.getpid()), aba_antiga], cwd=app)
 
 
 def gerar_icone() -> None:

@@ -152,7 +152,7 @@ class Bandeja:
             self.remover()
             self.ao_sair()
 
-    def abrir_configuracoes(self, aba: str = "voc") -> None:
+    def abrir_configuracoes(self, aba: str = "inicio") -> None:
         abrir_configuracoes(aba)  # processo à parte: só consome memória enquanto a janela está aberta
 
     def _proc_janela(self, h, msg, wp, lp):
