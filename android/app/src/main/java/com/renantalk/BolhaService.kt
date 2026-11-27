@@ -174,6 +174,7 @@ class BolhaService : AccessibilityService() {
     }
 
     private fun esconderAba() {
+        principal.removeCallbacks(iniciar) // teclado fechou nos 120 ms de espera: não começa a gravar sem a aba
         recolhendo = false
         if (!abaVisivel) return
         abaVisivel = false
