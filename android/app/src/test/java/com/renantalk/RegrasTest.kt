@@ -76,4 +76,13 @@ class RegrasTest {
         assertEquals(0f, Regras.nivel(ShortArray(4) { 30 }, 4)) // ruído de fundo não acende
         assertEquals(0.65f, Regras.nivel(ShortArray(4) { 1000 }, 4), 0.03f) // voz normal já acende bem
     }
+
+    @Test fun dicaDoCampoNaoEntraNoTexto() {
+        assertEquals("", Regras.textoDoCampo("Message", "Message", mostrandoDica = false))
+        assertEquals("", Regras.textoDoCampo("Mensagem", "Mensagem", mostrandoDica = true))
+        assertEquals("", Regras.textoDoCampo(null, "Message", mostrandoDica = false))
+        assertEquals("oi", Regras.textoDoCampo("oi", "Message", mostrandoDica = false))
+        assertEquals("oi", Regras.textoDoCampo("oi", null, mostrandoDica = false))
+        assertEquals("ok" to 2, Regras.inserir(Regras.textoDoCampo("Message", "Message", false), 7, 7, "ok"))
+    }
 }
