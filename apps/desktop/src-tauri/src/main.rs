@@ -50,10 +50,11 @@ fn main() {
         historico::limpar_antigos(&d, historico::RETENCAO_DIAS);
         std::thread::sleep(Duration::from_secs(24 * 3600));
     });
-    plataforma::iniciar_gancho(ditado.clone(), dir.clone());
-
     let h = app.handle();
-    casca::autostart_primeira_vez(h, &dir);
+    casca::autostart_primeira_vez(h, &dir); // antes do gancho: o marcador da ponte diz se o autostart ficou ligado
+    let (a, d) = (h.clone(), dir.clone());
+    plataforma::iniciar_gancho(ditado.clone(), dir.clone(), move || casca::marcar_subiu(&a, &d, versao));
+
     casca::bandeja(h, ditado.clone(), dir);
     app.manage(ditado);
     atualizar::ao_iniciar(h);

@@ -156,11 +156,13 @@ fn apertada(modificador: &str) -> bool {
 }
 
 /// Escuta os atalhos (ditar, traduzir e colar o último). Os ajustes são relidos a cada tecla: valem sem reiniciar.
-pub fn iniciar_gancho(ditado: Arc<Ditado>, dir: PathBuf) {
+/// `pronto` roda uma vez, depois de o `SetWindowsHookEx` instalar o gancho.
+pub fn iniciar_gancho(ditado: Arc<Ditado>, dir: PathBuf, pronto: impl FnOnce() + Send + 'static) {
     let (tx, rx) = mpsc::channel();
     if let Err(e) = instalar_gancho(tx) {
         return pasta::log(&dir, &format!("gancho do teclado falhou: {e}"));
     }
+    pronto();
     std::thread::spawn(move || escutar(rx, &ditado, &dir));
 }
 

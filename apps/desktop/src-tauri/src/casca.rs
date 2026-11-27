@@ -128,6 +128,21 @@ pub fn autostart_primeira_vez(app: &AppHandle, dir: &Path) {
     }
 }
 
+/// Marcador da versão-ponte do Python (`app/ponte.py`): gravado a cada subida, quando o gancho de teclado já escuta.
+/// A ponte só remove o Python depois de ler este arquivo com a versão que instalou, `gancho` e `autostart` ligados.
+/// O app Rust nunca remove nada do Python sozinho.
+pub const MARCA_SUBIU: &str = ".app-subiu.json";
+
+pub fn marcar_subiu(app: &AppHandle, dir: &Path, versao: &str) {
+    let autostart = app.autolaunch().is_enabled().unwrap_or(false);
+    let texto = serde_json::json!({
+        "versao": versao, "pid": std::process::id(), "gancho": true, "autostart": autostart });
+    match pasta::gravar_atomico(&dir.join(MARCA_SUBIU), &texto.to_string()) {
+        Ok(()) => pasta::log(dir, &format!("pronto: gancho de teclado ligado (autostart {})", if autostart { "ligado" } else { "desligado" })),
+        Err(e) => pasta::log(dir, &format!("pronto: não gravei {MARCA_SUBIU} ({e})")),
+    }
+}
+
 /// Abre um arquivo ou endereço no programa padrão do sistema.
 pub fn abrir_externo(destino: &str) -> std::io::Result<()> {
     #[cfg(windows)]

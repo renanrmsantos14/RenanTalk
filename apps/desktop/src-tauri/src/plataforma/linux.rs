@@ -78,15 +78,16 @@ fn codigos(t: &Teclado, alvos: &[&[String]]) -> HashMap<u8, String> {
 
 // ---------- gancho de teclado ----------
 /// Escuta os atalhos (ditar, traduzir e colar o último) numa thread. Os ajustes são relidos a cada tecla: valem sem reiniciar.
-pub fn iniciar_gancho(ditado: Arc<Ditado>, dir: PathBuf) {
+/// `pronto` roda uma vez, quando o X11 confirma o RECORD ligado (o gancho está de fato escutando).
+pub fn iniciar_gancho(ditado: Arc<Ditado>, dir: PathBuf, pronto: impl FnOnce() + Send + 'static) {
     std::thread::spawn(move || {
-        if let Err(e) = escutar(&ditado, &dir) {
+        if let Err(e) = escutar(&ditado, &dir, pronto) {
             pasta::log(&dir, &format!("gancho do teclado falhou: {e}"));
         }
     });
 }
 
-fn escutar(ditado: &Arc<Ditado>, dir: &Path) -> Result<(), String> {
+fn escutar(ditado: &Arc<Ditado>, dir: &Path, pronto: impl FnOnce()) -> Result<(), String> {
     let e = |e: &dyn std::fmt::Display| e.to_string();
     let (local, _) = RustConnection::connect(None).map_err(|x| e(&x))?;
     let (rec, _) = RustConnection::connect(None).map_err(|x| e(&x))?;
@@ -104,8 +105,12 @@ fn escutar(ditado: &Arc<Ditado>, dir: &Path) -> Result<(), String> {
     let mut cache = ajustes::Cache::default();
     let casador = Arc::new(Mutex::new(Casador::default()));
     let mut vigente: Option<([Option<Vec<String>>; 3], HashMap<u8, String>)> = None;
+    let mut pronto = Some(pronto);
     for resposta in rec.record_enable_context(ctx).map_err(|x| e(&x))? {
         let r = resposta.map_err(|x| e(&x))?;
+        if let Some(p) = pronto.take() { // 1ª resposta (StartOfData): o servidor já está mandando as teclas
+            p();
+        }
         if r.category != 0 || r.client_swapped { // 0 = FromServer
             continue;
         }
