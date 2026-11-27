@@ -37,11 +37,11 @@ class Ajustes(unittest.TestCase):
             self.assertIn("ilegível", f.read())
 
     def test_chave_desconhecida_preservada(self):
-        gravar(json.dumps({"volume": 10, "luz": {"cor": "azul"}}))
+        gravar(json.dumps({"volume": 10, "modos": {"app": "formal"}}))
         ajustes.salvar({"volume": 30})
         with open(ajustes.ARQ_AJUSTES, encoding="utf-8") as f:
             dados = json.load(f)
-        self.assertEqual(dados["luz"], {"cor": "azul"})
+        self.assertEqual(dados["modos"], {"app": "formal"})
         self.assertEqual(dados["volume"], 30)
         self.assertFalse(os.path.exists(ajustes.ARQ_AJUSTES + ".tmp"))
 
@@ -60,6 +60,30 @@ class Ajustes(unittest.TestCase):
         gravar(json.dumps({"atalho_colar": "Super+Ctrl+Shift+H"}))
         ajustes._cache["mtime"] = -1
         self.assertEqual(ajustes.ler()["atalho_colar"], "ctrl+shift+win+h")
+
+    def test_luz_tema_notificacoes_padroes(self):
+        a = ajustes.ler()
+        self.assertEqual(a["luz"], {"ligada": True, "cor": "azul", "espessura": "media", "posicao": "embaixo"})
+        self.assertEqual((a["tema"], a["notificacoes"]), ("sistema", True))
+
+    def test_luz_tema_notificacoes_validos_e_invalidos(self):
+        gravar(json.dumps({"luz": {"ligada": False, "cor": "roxo", "espessura": "grossa", "posicao": "topo"},
+                           "tema": "escuro", "notificacoes": False}))
+        a = ajustes.ler()
+        self.assertEqual(a["luz"], {"ligada": False, "cor": "roxo", "espessura": "grossa", "posicao": "topo"})
+        self.assertEqual((a["tema"], a["notificacoes"]), ("escuro", False))
+        # inválidos voltam ao padrão, campo a campo (o que estava certo fica)
+        gravar(json.dumps({"luz": {"ligada": "sim", "cor": "rosa", "espessura": "grossa", "posicao": 3, "extra": 1},
+                           "tema": "azul", "notificacoes": "não"}))
+        a = ajustes.ler()
+        self.assertEqual(a["luz"], {"ligada": True, "cor": "azul", "espessura": "grossa", "posicao": "embaixo", "extra": 1})
+        self.assertEqual((a["tema"], a["notificacoes"]), ("sistema", True))
+        gravar(json.dumps({"luz": "verde"}))  # tipo errado inteiro
+        self.assertEqual(ajustes.ler()["luz"], ajustes.PADROES["luz"])
+
+    def test_padroes_da_luz_nao_sao_alterados_por_quem_le(self):
+        ajustes.ler()["luz"]["cor"] = "verde"  # mutação do chamador não pode vazar para os padrões
+        self.assertEqual(ajustes.PADROES["luz"]["cor"], "azul")
 
     def test_validar_atalho(self):
         v = ajustes.validar_atalho
@@ -218,6 +242,32 @@ class Ditado(unittest.TestCase):
     def test_colar_ultimo_ignorado_gravando(self):
         colar, bipe = self.colar_ultimo([{"texto": "x"}], gravando=True)
         colar.assert_not_called()
+
+    def test_notificar_desligado_nao_chama_o_sistema(self):
+        d = self.d
+        bandeja = d.plat.Bandeja.__new__(d.plat.Bandeja)
+        for ligada, chamadas in ((False, 0), (True, 1)):
+            with mock.patch.object(d.ajustes, "ler", return_value={"notificacoes": ligada}), \
+                    mock.patch.object(d.plat.subprocess, "Popen") as popen:
+                bandeja.notificar("oi")
+            self.assertEqual(popen.call_count, chamadas)
+
+    def test_luz_le_ajustes_a_cada_ditado(self):
+        luz = self.d.LUZ
+        cfg = {"ligada": True, "cor": "verde", "espessura": "grossa", "posicao": "topo"}
+        with mock.patch.object(self.d.ajustes, "ler", return_value={"luz": cfg}):
+            luz._configurar()
+        self.assertEqual((luz.topo, luz.altura, luz.k), (True, 72, 2.0))
+        self.assertEqual(luz.cores["centro"], tuple(c / 255 for c in ajustes.CORES_LUZ["verde"]["centro"]))
+        with mock.patch.object(self.d.ajustes, "ler", return_value={"luz": dict(cfg, ligada=False)}), \
+                mock.patch.object(luz, "jan") as jan:
+            luz._definir("rec")
+            luz._definir("proc")
+        jan.show.assert_not_called()
+        self.assertIsNone(luz.timer)
+        with mock.patch.object(self.d.ajustes, "ler", return_value={"luz": ajustes.PADROES["luz"]}):
+            luz._configurar()  # devolve ao padrão para os outros testes
+        self.assertEqual((luz.topo, luz.altura), (False, 36))
 
     def test_microfone_inexistente_abre_padrao_e_loga(self):
         d = self.d

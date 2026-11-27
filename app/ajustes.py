@@ -1,6 +1,6 @@
 """Ajustes do RenanTalk (`ajustes.json` em PASTA): lidos pelo Python a cada ditado, gravados pela janela.
 
-Chaves desconhecidas são preservadas ao salvar (luz, tema, notificações, atalhos extras, modos virão depois).
+Chaves desconhecidas são preservadas ao salvar (atalhos extras e modos virão depois).
 """
 import json
 import os
@@ -13,11 +13,23 @@ from comum import ARQ_LOG, PASTA
 
 ARQ_AJUSTES = os.path.join(PASTA, "ajustes.json")
 ARQ_DISPOSITIVOS = os.path.join(PASTA, "dispositivos.json")
-PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+win", "atalho_colar": "alt+win+v"}
+PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+win", "atalho_colar": "alt+win+v",
+           "luz": {"ligada": True, "cor": "azul", "espessura": "media", "posicao": "embaixo"},
+           "tema": "sistema", "notificacoes": True}
 IDIOMAS = ("pt", "auto", "en")
 MODIFICADORES = ("ctrl", "alt", "shift", "win")
 TECLAS = tuple("abcdefghijklmnopqrstuvwxyz0123456789") + tuple(f"f{i}" for i in range(1, 13)) + ("space",)
 FREQ_BIPE_TAXA = 44100
+TEMAS = ("sistema", "claro", "escuro")
+POSICOES = ("embaixo", "topo")
+ESPESSURAS = {"fina": 0.5, "media": 1.0, "grossa": 2.0}  # multiplica a altura, o núcleo e o brilho da luz
+# RGB 0-255: centro e ponta do núcleo, brilho e névoa (o azul é o original; os outros seguem o mesmo degradê)
+CORES_LUZ = {
+    "azul": {"centro": (120, 170, 255), "ponta": (37, 99, 235), "brilho": (45, 110, 255), "nevoa": (30, 64, 200)},
+    "verde": {"centro": (134, 239, 172), "ponta": (22, 163, 74), "brilho": (34, 197, 94), "nevoa": (21, 128, 61)},
+    "roxo": {"centro": (196, 167, 255), "ponta": (124, 58, 237), "brilho": (139, 92, 246), "nevoa": (91, 33, 182)},
+    "ambar": {"centro": (253, 224, 130), "ponta": (217, 119, 6), "brilho": (245, 158, 11), "nevoa": (180, 83, 9)},
+}
 
 _cache: dict = {"mtime": None, "dados": dict(PADROES)}
 
@@ -100,11 +112,26 @@ def colar_ao_soltar(casador: Casador, ao_colar) -> None:
 
 
 # ---------- leitura e gravação ----------
+def _normalizar_luz(bruto) -> dict:
+    """Luz com os quatro campos válidos; o que faltar ou for inválido volta ao padrão (chaves extras ficam)."""
+    luz = dict(bruto) if isinstance(bruto, dict) else {}
+    padrao = PADROES["luz"]
+    if not isinstance(luz.get("ligada"), bool):
+        luz["ligada"] = padrao["ligada"]
+    if luz.get("cor") not in CORES_LUZ:
+        luz["cor"] = padrao["cor"]
+    if luz.get("espessura") not in ESPESSURAS:
+        luz["espessura"] = padrao["espessura"]
+    if luz.get("posicao") not in POSICOES:
+        luz["posicao"] = padrao["posicao"]
+    return luz
+
+
 def normalizar(bruto) -> dict:
     """Mescla com os padrões e troca valor inválido pelo padrão (a chave desconhecida segue junto)."""
     dados = dict(bruto) if isinstance(bruto, dict) else {}
     for chave, padrao in PADROES.items():
-        dados.setdefault(chave, padrao)
+        dados.setdefault(chave, dict(padrao) if isinstance(padrao, dict) else padrao)
     v = dados["volume"]
     dados["volume"] = max(0, min(100, int(v))) if isinstance(v, (int, float)) and not isinstance(v, bool) else PADROES["volume"]
     if not isinstance(dados["microfone"], str):
@@ -122,6 +149,11 @@ def normalizar(bruto) -> dict:
         dados["atalho_colar"] = PADROES["atalho_colar"]
     else:
         dados["atalho_colar"] = "+".join(colar)
+    dados["luz"] = _normalizar_luz(dados["luz"])
+    if dados["tema"] not in TEMAS:
+        dados["tema"] = PADROES["tema"]
+    if not isinstance(dados["notificacoes"], bool):
+        dados["notificacoes"] = PADROES["notificacoes"]
     return dados
 
 

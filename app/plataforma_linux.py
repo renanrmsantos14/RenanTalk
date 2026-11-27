@@ -166,16 +166,18 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
 
 # ---------- luz ----------
 ALTURA = 36
-CENTRO, PONTA = (120 / 255, 170 / 255, 1.0), (37 / 255, 99 / 255, 235 / 255)
-BRILHO, NEVOA = (45 / 255, 110 / 255, 1.0), (30 / 255, 64 / 255, 200 / 255)
 ERRO = ((254 / 255, 202 / 255, 202 / 255), (248 / 255, 113 / 255, 113 / 255), (220 / 255, 38 / 255, 38 / 255))
 
 
 class Luz:
-    """Mesma linha de luz do Windows: nasce no centro, forte no meio, apaga nas pontas."""
+    """Mesma linha de luz do Windows: nasce no centro, forte no meio, apaga nas pontas.
+
+    Cor, espessura, posição (embaixo/topo) e liga/desliga vêm de ajustes.json, lidos a cada ditado."""
 
     def __init__(self) -> None:
         self.estado, self.t0, self.alvo, self.nivel, self.timer = "idle", time.time(), 0.0, 0.0, None
+        self.ligada, self.k, self.topo, self.altura = True, 1.0, False, ALTURA
+        self.cores = {n: tuple(c / 255 for c in rgb) for n, rgb in ajustes.CORES_LUZ["azul"].items()}
         self.jan = Gtk.Window(type=Gtk.WindowType.POPUP)  # override-redirect: sem foco e sem barra de tarefas
         self.jan.set_app_paintable(True)
         visual = self.jan.get_screen().get_rgba_visual()
@@ -191,7 +193,19 @@ class Luz:
     def audio(self, v: float) -> None:
         self.alvo = v
 
+    def _configurar(self) -> None:
+        """Lê os ajustes da luz; vale a partir deste ditado."""
+        cfg = ajustes.ler()["luz"]
+        self.ligada, self.topo = cfg["ligada"], cfg["posicao"] == "topo"
+        self.k = ajustes.ESPESSURAS[cfg["espessura"]]
+        self.altura = round(ALTURA * self.k)
+        self.cores = {n: tuple(c / 255 for c in rgb) for n, rgb in ajustes.CORES_LUZ[cfg["cor"]].items()}
+
     def _definir(self, estado: str) -> bool:
+        if estado == "rec":
+            self._configurar()
+        if not self.ligada:  # luz desligada: não mostra a janela (o bipe e o resto do ditado seguem normais)
+            return False
         if estado == "rec":
             self.nivel = 0.0
             self._posicionar()
@@ -209,9 +223,12 @@ class Luz:
             _, x, y = tela.get_default_seat().get_pointer().get_position()[0:3]
             mon = tela.get_monitor_at_point(x, y)
         g, area = mon.get_geometry(), mon.get_workarea()
-        base = area.y + area.height if area.y + area.height < g.y + g.height else g.y + g.height  # acima do painel
-        self.jan.move(g.x, base - ALTURA)
-        self.jan.resize(g.width, ALTURA)
+        if self.topo:  # abaixo do painel, se ele estiver no alto
+            self.jan.move(g.x, max(area.y, g.y))
+        else:
+            base = area.y + area.height if area.y + area.height < g.y + g.height else g.y + g.height  # acima do painel
+            self.jan.move(g.x, base - self.altura)
+        self.jan.resize(g.width, self.altura)
 
     def _tique(self) -> bool:
         self.nivel += (self.alvo - self.nivel) * (0.5 if self.alvo > self.nivel else 0.12)
@@ -230,6 +247,10 @@ class Luz:
         cr.paint()
         cr.set_operator(cairo.OPERATOR_OVER)
         w, h = self.jan.get_size()
+        k, cor = self.k, self.cores
+        if self.topo:  # desenha como se fosse embaixo, de ponta-cabeça
+            cr.translate(0, h)
+            cr.scale(1, -1)
         t, e = time.time() - self.t0, self.estado
         ganho, n, p = 1.0, self.nivel, 1.0
         if e == "rec":
@@ -238,7 +259,7 @@ class Luz:
             n = 0.25
         elif e in ("done", "erro"):
             ganho, n = max(0.0, 1 - t / 0.5), (0.3 if e == "done" else 0.8)
-        c_nuc, c_bri, c_nev = ERRO if e == "erro" else (None, BRILHO, NEVOA)
+        c_nuc, c_bri, c_nev = ERRO if e == "erro" else (None, cor["brilho"], cor["nevoa"])
         meia = w / 2 * p
 
         def horizontal(cor_centro, cor_ponta, alfa: float):
@@ -261,18 +282,18 @@ class Luz:
         cr.set_source(horizontal(c_nev, c_nev, 0.25 * n))
         cr.mask(vertical(h))
         cr.set_source(horizontal(c_bri, c_bri, 0.45 + 0.45 * n))
-        cr.mask(vertical(4 + n * 16))
-        cr.set_source(horizontal(c_nuc or CENTRO, c_nuc or PONTA, 1.0))
-        cr.rectangle(w / 2 - meia, h - 2, meia * 2, 2)
+        cr.mask(vertical((4 + n * 16) * k))
+        cr.set_source(horizontal(c_nuc or cor["centro"], c_nuc or cor["ponta"], 1.0))
+        cr.rectangle(w / 2 - meia, h - 2 * k, meia * 2, 2 * k)
         cr.fill()
         if e == "proc":  # pulso saindo do centro para as pontas
             onda = (t % 1.0) * w / 2
             for x in (w / 2 - onda, w / 2 + onda):
                 g = cairo.RadialGradient(x, h, 0, x, h, 60)
-                g.add_color_stop_rgba(0, *CENTRO, 0.9 * (1 - abs(x - w / 2) / (w / 2)))
-                g.add_color_stop_rgba(1, *CENTRO, 0)
+                g.add_color_stop_rgba(0, *cor["centro"], 0.9 * (1 - abs(x - w / 2) / (w / 2)))
+                g.add_color_stop_rgba(1, *cor["centro"], 0)
                 cr.set_source(g)
-                cr.rectangle(x - 60, h - 6, 120, 6)
+                cr.rectangle(x - 60, h - 6 * k, 120, 6 * k)
                 cr.fill()
         return False
 
@@ -344,6 +365,8 @@ class Bandeja:
         self.ao_sair()
 
     def notificar(self, texto: str) -> None:
+        if not ajustes.ler()["notificacoes"]:  # desligadas: erro continua no bipe grave e no log
+            return
         subprocess.Popen(["notify-send", "-i", ICONE_PNG, "-a", NOME, NOME, texto],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

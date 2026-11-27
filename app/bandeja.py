@@ -4,6 +4,7 @@ import os
 import threading
 from ctypes import wintypes as W
 
+import ajustes
 from comum import (ARQ_LOG, ICONE, ICONES, NOME, abrir_configuracoes, definir_inicio_automatico,
                    inicio_automatico)
 from luz import WNDCLASSW, WNDPROC, k32, u32
@@ -81,6 +82,8 @@ class Bandeja:
         return d
 
     def notificar(self, texto: str) -> None:
+        if not ajustes.ler()["notificacoes"]:  # desligadas: erro continua no bipe grave e no log
+            return
         d = self._dados()
         d.uFlags = 0x10  # NIF_INFO: balão do Windows
         d.szInfoTitle = NOME

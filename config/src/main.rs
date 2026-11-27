@@ -190,6 +190,25 @@ fn ler_ajustes_arquivo() -> serde_json::Map<String, Value> {
         .unwrap_or_default()
 }
 
+const CORES_LUZ: [&str; 4] = ["azul", "verde", "roxo", "ambar"];
+const ESPESSURAS: [&str; 3] = ["fina", "media", "grossa"];
+const POSICOES: [&str; 2] = ["embaixo", "topo"];
+const TEMAS: [&str; 3] = ["sistema", "claro", "escuro"];
+
+/// Luz com os quatro campos válidos (o que faltar ou for inválido volta ao padrão); chaves extras ficam.
+fn luz_normalizada(bruto: Option<&Value>) -> serde_json::Map<String, Value> {
+    let mut luz = bruto.and_then(Value::as_object).cloned().unwrap_or_default();
+    if !luz.get("ligada").map_or(false, Value::is_boolean) {
+        luz.insert("ligada".into(), json!(true));
+    }
+    for (chave, validos, padrao) in [("cor", &CORES_LUZ[..], "azul"), ("espessura", &ESPESSURAS[..], "media"), ("posicao", &POSICOES[..], "embaixo")] {
+        if !luz.get(chave).and_then(Value::as_str).map_or(false, |v| validos.contains(&v)) {
+            luz.insert(chave.into(), json!(padrao));
+        }
+    }
+    luz
+}
+
 /// Ajustes (padrões onde faltar ou for inválido) e a lista de microfones gravada pelo Python.
 #[tauri::command]
 fn ajustes() -> Value {
@@ -206,6 +225,14 @@ fn ajustes() -> Value {
     let colar = a.get("atalho_colar").and_then(Value::as_str).and_then(validar_atalho).filter(|c| *c != atalho);
     a.insert("atalho_ditar".into(), json!(atalho));
     a.insert("atalho_colar".into(), json!(colar.unwrap_or_else(|| "alt+win+v".into())));
+    let luz = luz_normalizada(a.get("luz"));
+    a.insert("luz".into(), Value::Object(luz));
+    if !a.get("tema").and_then(Value::as_str).map_or(false, |t| TEMAS.contains(&t)) {
+        a.insert("tema".into(), json!("sistema"));
+    }
+    if !a.get("notificacoes").map_or(false, Value::is_boolean) {
+        a.insert("notificacoes".into(), json!(true));
+    }
     let dispositivos = fs::read_to_string(pasta().join("dispositivos.json"))
         .ok()
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
@@ -214,7 +241,7 @@ fn ajustes() -> Value {
     json!({ "ajustes": a, "dispositivos": dispositivos })
 }
 
-/// Grava só volume, microfone, idioma e os atalhos de ditar e de colar; as outras chaves do arquivo ficam como estão.
+/// Grava só volume, microfone, idioma, atalhos, luz, tema e notificações; as outras chaves do arquivo ficam como estão.
 /// Escrita atômica: arquivo temporário e rename.
 #[tauri::command]
 fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
@@ -230,6 +257,33 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
             return json!({ "ok": false, "erro": "Idioma inválido." });
         }
         a.insert("idioma".into(), json!(i));
+    }
+    if let Some(l) = valores.get("luz") {
+        let Some(novo) = l.as_object() else { return json!({ "ok": false, "erro": "Ajuste da luz inválido." }) };
+        let mut luz = luz_normalizada(a.get("luz"));
+        for (chave, v) in novo {
+            let valido = match chave.as_str() {
+                "ligada" => v.is_boolean(),
+                "cor" => v.as_str().map_or(false, |x| CORES_LUZ.contains(&x)),
+                "espessura" => v.as_str().map_or(false, |x| ESPESSURAS.contains(&x)),
+                "posicao" => v.as_str().map_or(false, |x| POSICOES.contains(&x)),
+                _ => false,
+            };
+            if !valido {
+                return json!({ "ok": false, "erro": "Ajuste da luz inválido." });
+            }
+            luz.insert(chave.clone(), v.clone());
+        }
+        a.insert("luz".into(), Value::Object(luz));
+    }
+    if let Some(t) = valores.get("tema").and_then(Value::as_str) {
+        if !TEMAS.contains(&t) {
+            return json!({ "ok": false, "erro": "Tema inválido." });
+        }
+        a.insert("tema".into(), json!(t));
+    }
+    if let Some(n) = valores.get("notificacoes").and_then(Value::as_bool) {
+        a.insert("notificacoes".into(), json!(n));
     }
     // (chave, a outra chave, padrão da outra, o que a outra faz): um atalho não pode repetir o outro
     for (chave, outra, padrao_outra, para_que) in [
