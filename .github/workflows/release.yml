@@ -1,17 +1,17 @@
 name: Release
 
 # PR para a main: compila e checa (não publica).
-# Merge/push na main que mexe no app ou na janela: release novo (PATCH + 1) com Windows e Linux.
+# Merge/push na main que mexe no app, na janela ou no Android: release novo (PATCH + 1) com Windows, Linux e o APK.
 # O RenanTalk instalado procura releases a cada 6 h (ou pelo menu) e se atualiza sozinho.
 # A janela em Rust só é recompilada quando config/ ou app/ui/ mudam; senão, reaproveita os
 # executáveis do último release (release em ~1 min em vez de vários).
 on:
   push:
     branches: [main]
-    paths: ["app/**", "config/**", "requirements.txt", ".github/workflows/release.yml"]
+    paths: ["app/**", "config/**", "android/**", "requirements.txt", ".github/workflows/release.yml"]
   pull_request:
     branches: [main]
-    paths: ["app/**", "config/**", "requirements.txt", ".github/workflows/release.yml"]
+    paths: ["app/**", "config/**", "android/**", "requirements.txt", ".github/workflows/release.yml"]
   workflow_dispatch:
 
 permissions:
@@ -97,9 +97,49 @@ jobs:
           name: janela-${{ matrix.nome }}
           path: config/target/release/${{ matrix.bin }}
 
+  android:
+    # App Android (bolha de ditado, em android/). PR: testes + APK de depuração. Main: APK assinado com a mesma versão.
+    needs: versao
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Testar e compilar (PR)
+        if: github.event_name == 'pull_request'
+        working-directory: android
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - name: Testar e compilar APK assinado
+        if: github.event_name != 'pull_request'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_SENHA: ${{ secrets.ANDROID_KEYSTORE_SENHA }}
+          ANDROID_CHAVE_ALIAS: ${{ secrets.ANDROID_CHAVE_ALIAS }}
+          ANDROID_CHAVE_SENHA: ${{ secrets.ANDROID_CHAVE_SENHA }}
+        run: |
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/renantalk.jks"
+          export ANDROID_KEYSTORE="$RUNNER_TEMP/renantalk.jks"
+          ./gradlew --no-daemon testReleaseUnitTest assembleRelease \
+            -PversaoNome="${{ needs.versao.outputs.versao }}" -PversaoData="${{ needs.versao.outputs.data }}"
+          rm -f "$RUNNER_TEMP/renantalk.jks"
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n1)/apksigner" verify app/build/outputs/apk/release/app-release.apk
+          cp app/build/outputs/apk/release/app-release.apk ../RenanTalk.apk
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: android
+          path: RenanTalk.apk
+
   release:
-    needs: [versao, janela]
-    if: github.event_name != 'pull_request'
+    # O APK não segura Windows/Linux: se o job android falhar, o release sai sem RenanTalk.apk.
+    needs: [versao, janela, android]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.versao.result == 'success' && needs.janela.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,11 +155,12 @@ jobs:
           cp -r app pacote-linux && cp dist/janela-linux/renantalk-config pacote-linux/ && chmod +x pacote-linux/renantalk-config
           (cd pacote-windows && zip -qr ../RenanTalk.zip .)
           (cd pacote-linux && zip -qr ../RenanTalk-linux.zip .)
+          [ -f dist/android/RenanTalk.apk ] && cp dist/android/RenanTalk.apk . || echo "::warning::Release sem RenanTalk.apk (job android falhou)"
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ needs.versao.outputs.versao }}" RenanTalk.zip RenanTalk-linux.zip \
+          gh release create "v${{ needs.versao.outputs.versao }}" RenanTalk.zip RenanTalk-linux.zip $(ls RenanTalk.apk 2>/dev/null) \
             --title "RenanTalk v${{ needs.versao.outputs.versao }}" \
-            --notes "Publicado em ${{ needs.versao.outputs.data }} (America/Sao_Paulo). RenanTalk.zip = Windows; RenanTalk-linux.zip = Linux. O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
+            --notes "Publicado em ${{ needs.versao.outputs.data }} (America/Sao_Paulo). RenanTalk.zip = Windows; RenanTalk-linux.zip = Linux; RenanTalk.apk = app Android (bolha de ditado). O app instalado se atualiza sozinho em até 6 h, ou pelo menu **Procurar atualização**." \
             --target "${{ github.sha }}"
