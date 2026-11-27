@@ -6,3 +6,5 @@ chave.txt
 *.log
 .env
 .verificacao/
+target/
+node_modules/

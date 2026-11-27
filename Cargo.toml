@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/talk-core"]
+default-members = ["crates/talk-core"]
+# A janela Tauri atual continua uma crate solta (com Cargo.lock próprio) até a tarefa 11.
+exclude = ["config"]
+
+# Compila e linka mais rápido em `cargo test`/dev: só tabelas de linha nas nossas crates.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
