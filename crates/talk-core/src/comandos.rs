@@ -266,7 +266,7 @@ pub fn salvar_ajustes(dir: &Path, valores: &Map<String, Value>) -> Value {
 pub fn mascarar_chave(chave: &str) -> String {
     if chave.chars().count() > 8 {
         let ini: String = chave.chars().take(4).collect();
-        let fim: String = chave.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+        let fim: String = chave.chars().skip(chave.chars().count() - 4).collect();
         format!("{ini}{}{fim}", "•".repeat(10))
     } else {
         String::new()

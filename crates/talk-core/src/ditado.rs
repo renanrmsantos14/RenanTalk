@@ -159,7 +159,7 @@ impl Ditado {
         std::thread::spawn(move || d.transcrever_e_colar(&audio, duracao, em_ingles));
     }
 
-    pub fn transcrever_e_colar(&self, amostras: &[i16], duracao: f64, em_ingles: bool) {
+    fn transcrever_e_colar(&self, amostras: &[i16], duracao: f64, em_ingles: bool) {
         if let Err(e) = self.fluxo(amostras, duracao, em_ingles) {
             self.log(&format!("erro: {e}")); // só o tipo da falha: nunca o texto nem a chave
             self.plat.luz(EstadoLuz::Erro);
@@ -169,7 +169,8 @@ impl Ditado {
 
     fn fluxo(&self, amostras: &[i16], duracao: f64, em_ingles: bool) -> Result<(), String> {
         let a = self.ajustes();
-        let texto = self.transcritor.transcrever(&audio::wav(amostras), a["idioma"].as_str().unwrap_or("pt"), &pasta::prompt_vocabulario(&self.dir))?;
+        let idioma = a["idioma"].as_str().unwrap_or("pt");
+        let texto = self.transcritor.transcrever(&audio::wav(amostras), idioma, &pasta::prompt_vocabulario(&self.dir))?;
         self.log(&format!("transcrito {} caracteres", texto.chars().count()));
         if texto.is_empty() {
             self.plat.luz(EstadoLuz::Pronto);
@@ -190,7 +191,7 @@ impl Ditado {
         }
         self.plat.luz(EstadoLuz::Pronto); // antes de gravar: banco travado não atrasa o texto nem a luz
         historico::gravar(&self.dir, &NovoDitado {
-            texto: &final_, original: Some(&texto), app: &app, modo: &modo, idioma: a["idioma"].as_str().unwrap_or("pt"), duracao_s: duracao,
+            texto: &final_, original: Some(&texto), app: &app, modo: &modo, idioma, duracao_s: duracao,
         });
         Ok(())
     }

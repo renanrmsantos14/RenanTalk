@@ -1,5 +1,5 @@
 // Peças pequenas repetidas nas abas.
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 
 export const Salvo = ({ on }: { on: boolean }) => <span className={"saved" + (on ? " on" : "")}>✓ Salvo</span>;
 
@@ -22,5 +22,3 @@ export function Slider({ valor, min, max, passo, rotulo, desligado, aoMover, aoS
   }, []);
   return <input ref={ref} type="range" min={min} max={max} step={passo} value={valor} disabled={desligado} aria-label={rotulo} onChange={(e) => aoMover(+e.target.value)} />;
 }
-
-export const Vazio = ({ children }: { children: ReactNode }) => <div className="vazio">{children}</div>;

@@ -104,6 +104,7 @@ pub struct Quadro {
 }
 
 impl Quadro {
+    #[cfg(test)]
     pub fn pixel(&self, x: u32, y: u32) -> [u8; 4] {
         let i = ((y * self.largura + x) * 4) as usize;
         [self.rgba[i], self.rgba[i + 1], self.rgba[i + 2], self.rgba[i + 3]]
