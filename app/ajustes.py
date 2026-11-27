@@ -2,6 +2,7 @@
 
 Chaves desconhecidas são preservadas ao salvar (atalhos extras e modos virão depois).
 """
+import functools
 import json
 import os
 import threading
@@ -9,7 +10,7 @@ import time
 
 import numpy as np
 
-from comum import ARQ_LOG, PASTA
+from comum import PASTA, log as _log
 
 ARQ_AJUSTES = os.path.join(PASTA, "ajustes.json")
 ARQ_DISPOSITIVOS = os.path.join(PASTA, "dispositivos.json")
@@ -19,6 +20,7 @@ PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+
 IDIOMAS = ("pt", "auto", "en")
 MODIFICADORES = ("ctrl", "alt", "shift", "win")
 TECLAS = tuple("abcdefghijklmnopqrstuvwxyz0123456789") + tuple(f"f{i}" for i in range(1, 13)) + ("space",)
+ATALHOS_PROIBIDOS = ("ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4")  # o colar manda Ctrl+V
 FREQ_BIPE_TAXA = 44100
 TEMAS = ("sistema", "claro", "escuro")
 POSICOES = ("embaixo", "topo")
@@ -34,15 +36,8 @@ CORES_LUZ = {
 _cache: dict = {"mtime": None, "dados": dict(PADROES)}
 
 
-def _log(msg: str) -> None:
-    try:
-        with open(ARQ_LOG, "a", encoding="utf-8") as f:
-            f.write(time.strftime("%d/%m/%Y %H:%M:%S ") + msg + "\n")
-    except OSError:
-        pass
-
-
 # ---------- atalho ----------
+@functools.lru_cache(maxsize=32)  # chamada a cada tecla com os mesmos textos
 def validar_atalho(texto) -> tuple[str, ...] | None:
     """'ctrl+win' -> ('ctrl', 'win'); modificadores em ordem fixa e no máximo uma tecla. None se inválido."""
     if not isinstance(texto, str):
@@ -57,12 +52,7 @@ def validar_atalho(texto) -> tuple[str, ...] | None:
     if len(teclas) > 1 or (teclas and teclas[0] not in TECLAS) or not set(mods) - {"shift"}:
         return None
     saida = tuple(sorted(mods, key=MODIFICADORES.index)) + tuple(teclas)
-    if "+".join(saida) in ATALHOS_PROIBIDOS:  # o colar manda Ctrl+V; os outros são de todo programa
-        return None
-    return saida
-
-
-ATALHOS_PROIBIDOS = ("ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+a", "ctrl+s", "alt+f4")
+    return None if "+".join(saida) in ATALHOS_PROIBIDOS else saida
 
 
 def atalhos_conflitam(a: str, b: str) -> bool:
@@ -151,17 +141,13 @@ def normalizar(bruto) -> dict:
         dados["microfone"] = ""
     if dados["idioma"] not in IDIOMAS:
         dados["idioma"] = PADROES["idioma"]
-    if validar_atalho(dados["atalho_ditar"]) is None:
-        _log(f"ajustes: atalho inválido {dados['atalho_ditar']!r}, usando {PADROES['atalho_ditar']}")
-        dados["atalho_ditar"] = PADROES["atalho_ditar"]
-    else:
-        dados["atalho_ditar"] = "+".join(validar_atalho(dados["atalho_ditar"]))
-    colar = validar_atalho(dados["atalho_colar"])
-    if colar is None or atalhos_conflitam("+".join(colar), dados["atalho_ditar"]):
-        _log(f"ajustes: atalho_colar inválido ou em conflito com o de ditar {dados['atalho_colar']!r}, usando {PADROES['atalho_colar']}")
-        dados["atalho_colar"] = PADROES["atalho_colar"]
-    else:
-        dados["atalho_colar"] = "+".join(colar)
+    for chave in ("atalho_ditar", "atalho_colar"):
+        t = validar_atalho(dados[chave])
+        if t and (chave == "atalho_ditar" or not atalhos_conflitam("+".join(t), dados["atalho_ditar"])):
+            dados[chave] = "+".join(t)
+        else:
+            _log(f"ajustes: {chave} inválido ou em conflito com o de ditar {dados[chave]!r}, usando {PADROES[chave]}")
+            dados[chave] = PADROES[chave]
     dados["luz"] = _normalizar_luz(dados["luz"])
     if dados["tema"] not in TEMAS:
         dados["tema"] = PADROES["tema"]
@@ -203,11 +189,16 @@ def salvar(novos: dict) -> dict:
         atual = {}
     atual.update(novos)
     dados = normalizar(atual)
-    tmp = ARQ_AJUSTES + ".tmp"
+    _gravar_json(ARQ_AJUSTES, dados)
+    return dados
+
+
+def _gravar_json(arquivo: str, dados) -> None:
+    """Escrita atômica (temporário + rename): quem lê nunca vê o arquivo pela metade."""
+    tmp = arquivo + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, ARQ_AJUSTES)
-    return dados
+    os.replace(tmp, arquivo)
 
 
 # ---------- som ----------
@@ -242,19 +233,25 @@ def listar_entradas() -> list[dict]:
         padrao = ""
     vistos, lista = set(), []
     for d in sd.query_devices():
-        if d["max_input_channels"] > 0 and d["name"] not in vistos:
+        if d["max_input_channels"] > 0 and d["name"] not in vistos and _abre_a_16k(d):
             vistos.add(d["name"])
             lista.append({"nome": d["name"], "padrao": d["name"] == padrao})
     return lista
 
 
+def _abre_a_16k(d: dict) -> bool:
+    """No Windows, entradas WDM-KS e saídas listadas como entrada não abrem a 16 kHz: ficam fora da lista."""
+    try:
+        sd.check_input_settings(device=d["index"], channels=1, dtype="int16", samplerate=16000)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def escrever_dispositivos() -> None:
     """Grava `dispositivos.json` para a janela (que é Rust e não enxerga o sounddevice)."""
     try:
-        tmp = ARQ_DISPOSITIVOS + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"dispositivos": listar_entradas()}, f, ensure_ascii=False)
-        os.replace(tmp, ARQ_DISPOSITIVOS)
+        _gravar_json(ARQ_DISPOSITIVOS, {"dispositivos": listar_entradas()})
     except Exception as e:  # noqa: BLE001
         _log(f"dispositivos: não consegui listar ({e!r})")
 

@@ -252,7 +252,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') TAURI ? TAUR
 // ---------- Ditado e som (só na janela Tauri: o modo antigo não tem esses comandos) ----------
 const NOMES_MOD = {ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', win: 'Win'};
 let aj = {}, tSalvar2, ctxAudio, pendente = {};
-const rotuloAtalho = a => a.split('+').map(p => NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase())).join(' + ');
+const rotuloTecla = p => NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase());
+const rotuloAtalho = a => a.split('+').map(rotuloTecla).join(' + ');
 function bipePrevia(v) {  // mesmo timbre do bipe do app: seno 880 Hz, 60 ms, envelope de 8 ms
   if (v <= 0) return;
   ctxAudio = ctxAudio || new AudioContext();
@@ -276,7 +277,7 @@ function salvarSom(valores, msgEl) {
   }, 250);
 }
 function mostrarAtalho(a) {
-  $('dica').innerHTML = 'Segure ' + a.split('+').map(p => '<kbd>' + (NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase())) + '</kbd>').join(' + ') + ', fale e solte.';
+  $('dica').innerHTML = 'Segure ' + a.split('+').map(p => '<kbd>' + rotuloTecla(p) + '</kbd>').join(' + ') + ', fale e solte.';
 }
 // Um cartão de atalho (Ctrl/Alt/Shift/Win + tecla opcional): serve para ditar e para colar o último.
 async function recarregarAtalhos() {

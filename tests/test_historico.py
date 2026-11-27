@@ -8,8 +8,9 @@ from datetime import datetime, timedelta
 from unittest import mock
 
 TMP = tempfile.mkdtemp()
-os.environ["XDG_CONFIG_HOME"] = TMP  # nunca toca no histórico real
+os.environ["XDG_CONFIG_HOME"] = os.environ["APPDATA"] = TMP  # nunca toca no histórico real (Linux e Windows)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app"))
+import comum  # noqa: E402
 import historico  # noqa: E402
 
 
@@ -75,7 +76,7 @@ class Historico(unittest.TestCase):
         with mock.patch.object(historico, "conectar", side_effect=sqlite3.OperationalError("disk I/O")):
             self.assertIsNone(historico.gravar("segredo-xyz"))
             self.assertEqual(historico.limpar_antigos(), 0)
-        with open(historico.ARQ_LOG, encoding="utf-8") as f:
+        with open(comum.ARQ_LOG, encoding="utf-8") as f:
             log = f.read()
         self.assertIn("não gravou", log)
         self.assertNotIn("segredo-xyz", log)

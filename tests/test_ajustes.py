@@ -10,8 +10,9 @@ import unittest
 from unittest import mock
 
 TMP = tempfile.mkdtemp()
-os.environ["XDG_CONFIG_HOME"] = TMP  # nunca toca nos ajustes reais
+os.environ["XDG_CONFIG_HOME"] = os.environ["APPDATA"] = TMP  # nunca toca nos ajustes reais (Linux e Windows)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app"))
+import comum  # noqa: E402
 import ajustes  # noqa: E402
 
 
@@ -33,7 +34,7 @@ class Ajustes(unittest.TestCase):
     def test_corrompido_usa_padroes_e_loga(self):
         gravar("{nao é json")
         self.assertEqual(ajustes.ler(), ajustes.PADROES)
-        with open(ajustes.ARQ_LOG, encoding="utf-8") as f:
+        with open(comum.ARQ_LOG, encoding="utf-8") as f:
             self.assertIn("ilegível", f.read())
 
     def test_chave_desconhecida_preservada(self):
@@ -55,7 +56,7 @@ class Ajustes(unittest.TestCase):
             gravar(json.dumps({"atalho_colar": ruim}))
             ajustes._cache["mtime"] = -1
             self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v", ruim)
-        with open(ajustes.ARQ_LOG, encoding="utf-8") as f:
+        with open(comum.ARQ_LOG, encoding="utf-8") as f:
             self.assertIn("atalho_colar inválido ou em conflito", f.read())
         gravar(json.dumps({"atalho_colar": "Super+Alt+Shift+H"}))
         ajustes._cache["mtime"] = -1
@@ -250,6 +251,7 @@ class Ditado(unittest.TestCase):
         colar, bipe = self.colar_ultimo([{"texto": "x"}], gravando=True)
         colar.assert_not_called()
 
+    @unittest.skipIf(sys.platform == "win32", "usa a bandeja do Linux (notify-send)")
     def test_notificar_desligado_nao_chama_o_sistema(self):
         d = self.d
         bandeja = d.plat.Bandeja.__new__(d.plat.Bandeja)
@@ -259,6 +261,7 @@ class Ditado(unittest.TestCase):
                 bandeja.notificar("oi")
             self.assertEqual(popen.call_count, chamadas)
 
+    @unittest.skipIf(sys.platform == "win32", "usa a luz do Linux (GTK)")
     def test_luz_le_ajustes_a_cada_ditado(self):
         luz = self.d.LUZ
         cfg = {"ligada": True, "cor": "verde", "espessura": "grossa", "posicao": "topo"}
@@ -283,7 +286,7 @@ class Ditado(unittest.TestCase):
             d.garantir_fluxo()
         self.assertIsNotNone(d.fluxo)
         d.fluxo.close()
-        with open(d.ARQ_LOG, encoding="utf-8") as f:
+        with open(comum.ARQ_LOG, encoding="utf-8") as f:
             self.assertIn("não encontrado, usando o padrão", f.read())
 
 

@@ -9,6 +9,7 @@ import os
 for _v in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ[_v] = "1"  # numpy com 1 thread: sem isso reserva ~350 MB para 10 núcleos
 
+import contextlib
 import io
 import json
 import sys
@@ -24,7 +25,7 @@ import sounddevice as sd
 import ajustes
 import atualizador
 import historico
-from comum import ARQ_LOG, WINDOWS, ler_chave, prompt_vocabulario
+from comum import WINDOWS, ler_chave, log, prompt_vocabulario
 
 if WINDOWS:
     import plataforma_windows as plat
@@ -45,11 +46,6 @@ quadros: list[bytes] = []
 inicio = 0.0
 outra_tecla = False
 trava = threading.Lock()
-
-
-def log(msg: str) -> None:
-    with open(ARQ_LOG, "a", encoding="utf-8") as f:
-        f.write(time.strftime("%d/%m/%Y %H:%M:%S ") + msg + "\n")
 
 
 def ao_audio(dados, _frames, _tempo, _status) -> None:
@@ -74,12 +70,14 @@ def garantir_fluxo() -> None:
         fluxo = None
     dispositivo = ajustes.indice_do_microfone(mic, list(sd.query_devices())) if mic else None
     try:
-        fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio, device=dispositivo)
-        fluxo_mic = mic
+        fluxo, fluxo_mic = abrir(dispositivo), mic
     except Exception as e:  # noqa: BLE001 - dispositivo ocupado ou inválido: cai no padrão
         log(f"microfone {mic!r} não abriu ({e!r}), usando o padrão do sistema")
-        fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio)
-        fluxo_mic = None  # tenta o microfone escolhido de novo no próximo ditado
+        fluxo, fluxo_mic = abrir(), None  # None: tenta o escolhido de novo no próximo ditado
+
+
+def abrir(dispositivo=None):
+    return sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio, device=dispositivo)
 
 
 def iniciar_fluxo() -> None:
@@ -90,12 +88,9 @@ def iniciar_fluxo() -> None:
         fluxo.start()
     except Exception as e:  # noqa: BLE001
         log(f"microfone parou de responder ({e!r}), reabrindo no padrão do sistema")
-        try:
+        with contextlib.suppress(Exception):
             fluxo.close()
-        except Exception:  # noqa: BLE001
-            pass
-        fluxo = sd.RawInputStream(samplerate=TAXA, channels=1, dtype="int16", callback=ao_audio)
-        fluxo_mic = None
+        fluxo, fluxo_mic = abrir(), None
         fluxo.start()
 
 
@@ -188,14 +183,6 @@ def transcrever(audio: bytes) -> str:
         return json.load(r)["text"].strip()
 
 
-def guardar_no_historico(texto: str, duracao: float, app: str = "") -> None:
-    """Guarda o ditado no histórico local. Qualquer falha é ignorada: o texto já foi colado."""
-    try:
-        historico.gravar(texto, app=app, idioma=ajustes.ler()["idioma"], duracao_s=duracao)
-    except Exception as e:  # noqa: BLE001
-        log(f"histórico: falhou ({type(e).__name__})")
-
-
 def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
     try:
         texto = transcrever(audio)
@@ -206,7 +193,7 @@ def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
             except Exception:  # noqa: BLE001 - nunca impedir a colagem
                 app = ""
             plat.colar(texto + " ")  # colar primeiro: banco travado não atrasa o texto
-            guardar_no_historico(texto, duracao, app)
+            historico.gravar(texto, app=app, idioma=ajustes.ler()["idioma"], duracao_s=duracao)  # nunca levanta
         LUZ.definir("done")
     except Exception as e:  # noqa: BLE001 - qualquer falha vira log, luz vermelha e bipe grave
         log(f"erro: {e!r}")

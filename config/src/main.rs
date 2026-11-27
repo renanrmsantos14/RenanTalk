@@ -238,7 +238,7 @@ fn ajustes() -> Value {
         a.insert("idioma".into(), json!("pt"));
     }
     let atalho = a.get("atalho_ditar").and_then(Value::as_str).and_then(validar_atalho).unwrap_or_else(|| "ctrl+win".into());
-    let colar = a.get("atalho_colar").and_then(Value::as_str).and_then(validar_atalho).filter(|c| *c != atalho);
+    let colar = a.get("atalho_colar").and_then(Value::as_str).and_then(validar_atalho).filter(|c| !atalhos_conflitam(c, &atalho));
     a.insert("atalho_ditar".into(), json!(atalho));
     a.insert("atalho_colar".into(), json!(colar.unwrap_or_else(|| "alt+win+v".into())));
     let luz = luz_normalizada(a.get("luz"));

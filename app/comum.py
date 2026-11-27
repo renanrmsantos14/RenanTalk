@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -31,6 +32,15 @@ if ANTIGA and not os.path.exists(ARQ_CHAVE) and os.path.exists(os.path.join(ANTI
     shutil.copy2(os.path.join(ANTIGA, "chave.txt"), ARQ_CHAVE)
 
 
+def log(msg: str) -> None:
+    """Uma linha no ditado.log (nunca o texto ditado). Falha de disco é ignorada."""
+    try:
+        with open(ARQ_LOG, "a", encoding="utf-8") as f:
+            f.write(time.strftime("%d/%m/%Y %H:%M:%S ") + msg + "\n")
+    except OSError:
+        pass
+
+
 def abrir(alvo: str) -> None:
     """Abre arquivo ou URL no programa padrão do sistema."""
     if WINDOWS:
@@ -46,12 +56,9 @@ def abrir_configuracoes(aba: str = "voc") -> None:
     import subprocess
 
     app = os.path.dirname(os.path.abspath(__file__))
-    try:
-        import ajustes
+    import ajustes
 
-        ajustes.escrever_dispositivos()  # a janela (Rust) lê a lista de microfones deste arquivo
-    except Exception:  # noqa: BLE001 - sem lista a janela só mostra o padrão
-        pass
+    ajustes.escrever_dispositivos()  # a janela (Rust) lê a lista de microfones deste arquivo
     exe = os.path.join(app, "renantalk-config.exe" if WINDOWS else "renantalk-config")
     if os.path.exists(exe):
         # python.exe (com console oculto pelo Rust) para o "Procurar atualização"; pythonw não devolve saída

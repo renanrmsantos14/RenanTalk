@@ -67,6 +67,9 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
 
     def evento(ev: keyboard.KeyboardEvent) -> None:
         bruto = (ev.name or "").lower()
+        # Shift+1 chega como "!": a fileira de números (scan 2–11) vira o dígito; o teclado numérico não entra
+        if 2 <= (ev.scan_code or 0) <= 11 and not ev.is_keypad:
+            bruto = "1234567890"[ev.scan_code - 2]
         nome = _NOMES.get(bruto, bruto)
         descer = ev.event_type == "down"
         a = ajustes.ler()

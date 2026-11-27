@@ -8,7 +8,7 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 
-from comum import ARQ_LOG, PASTA
+from comum import PASTA, log as _log
 
 ARQ_HISTORICO = os.path.join(PASTA, "historico.db")
 VERSAO = 1
@@ -17,22 +17,14 @@ TIMEOUT_S = 2.0  # banco travado por outro processo: espera pouco e desiste
 _FORMATO = "%Y-%m-%dT%H:%M:%S"
 
 
-def _log(msg: str) -> None:
-    try:
-        with open(ARQ_LOG, "a", encoding="utf-8") as f:
-            f.write(time.strftime("%d/%m/%Y %H:%M:%S ") + msg + "\n")
-    except OSError:
-        pass
-
-
 def conectar(arquivo: str | None = None) -> sqlite3.Connection:
     """Abre (criando, se preciso) o banco e garante o schema."""
     arq = arquivo or ARQ_HISTORICO
     os.makedirs(os.path.dirname(arq), exist_ok=True)
     con = sqlite3.connect(arq, timeout=TIMEOUT_S)
     con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
     if con.execute("PRAGMA user_version").fetchone()[0] < VERSAO:
+        con.execute("PRAGMA journal_mode=WAL")  # fica gravado no arquivo: basta na criação
         con.executescript(
             """
             CREATE TABLE IF NOT EXISTS ditado(
