@@ -2,12 +2,12 @@
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
 - Etapa: 6 de 7 Revisar e verificar
-- Próximo passo: receber a prova no Windows (delegada ao notebook), qualidade-antes-do-pr, verificacao-manter e abrir o PR 1 · sozinho
+- Próximo passo: abrir o PR 1 (desktop-completo → main) · sozinho
 - Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR ainda não
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
 - PROD: ainda não
-- Atualizado: 26/11/2026 22:57
+- Atualizado: 26/11/2026 23:10
 
 ## Contexto levantado (código)
 - Python (bandeja, ditado, luz) + janela de configurações em Tauri/Rust (`config/src/main.rs`, `app/ui/index.html`), com fallback Python+Edge (`app/configuracoes.py`).
@@ -52,7 +52,20 @@
 - Não corrigidos (registrados): busca não ignora acento ("agua" não acha "água"); lista de microfones só atualiza ao reiniciar o app; volume 0 também cala o bipe de erro (decisão: 0 = mudo).
 - Sem achado: XSS, SQL injection, chaves desconhecidas do ajustes.json, retenção, fluxo antigo (`configuracoes.py`).
 
+## Prova no Windows 11 (notebook, delegada, sobre 41a4c94)
+- Passou: `cargo build --release` (5,7 MiB); bipe 60/30/0 (pico 0,6/0,3/sem tocar); `app_ativo()`; `keyboard` + Casador com eventos sintéticos (Ctrl+Win inicia/para, Alt+Win+V com repetição → um só colar); luz verde grossa no topo; notificações liga/desliga; Alt+Win+V livre no `RegisterHotKey`.
+- Achados corrigidos depois (4dca455): testes isolam `APPDATA` (antes regravavam o ajustes.json real), testes Linux com skip no Windows, Shift+número pelo scan_code, lista de microfones só com entradas que abrem a 16 kHz.
+- Não provado: som audível, tecla real e colagem (PC em uso), menu "Colar último ditado", janela Tauri aberta. Rótulo "Ctrl+Win" fixo na dica e no menu (B5); `release.yml` não roda testes.
+
+## Qualidade do PR 1 (26/11/2026)
+- Simplificação: 2 passadas (/simplify + karpathy). 1ª: `comum.log` único, `_gravar_json`, laço dos dois atalhos, `historico.gravar` direto. 2ª: lista de microfones voltou a aparecer (`sd` não importado em `_abre_a_16k`), sai o `lru_cache` de `validar_atalho`, sai try redundante de `app_ativo`.
+- Framework: sem skill de framework para Python/Tauri.
+- /code-review high --fix: confirmação de exclusão não passa para outro item ao buscar (print `depois-exclusao-desarma-na-busca.png`); luz desligada no meio do ditado apaga; Configurações abre em thread; volume NaN/Infinity → padrão. Não corrigidos: busca de microfone por nome sem o filtro de 16 kHz; atualização manual muda com notificações desligadas.
+- Verificação: skills `verificar-janela` e `verificar-ditado` criadas; 39 testes Python + 2 Rust OK; Alt+Win+V colou o último ditado num editor GTK (Xvfb).
+
 ## Pendências e fora de escopo
+- Microfone por nome pode cair numa API que não abre a 16 kHz (cai no padrão).
+- "Procurar atualização" manual sem retorno quando as notificações estão desligadas.
 - Busca do Histórico sem ignorar acento.
 - Provar por clique na janela Tauri as abas novas (tela estava bloqueada em 26/11 22:18).
 - Provar no Windows: bipe gerado, atalho via `keyboard` + Casador.
