@@ -3,7 +3,7 @@
 - Nível: 2 (reescrita do app desktop inteiro: núcleo, instalador, atualização e tela; não cabe numa sessão)
 - Etapa: 7 de 7 Entregar (6 Revisar e verificar concluída)
 - Próximo passo: Renan testa o NSIS no notebook `Betinhos-Renan` (prova nível 5) e faz o merge do PR · com você
-- Branch e PR: rust-tauri · PR único para a `main` (tarefas 1 a 10)
+- Branch e PR: rust-tauri · PR #19 (rascunho) para a `main`, tarefas 1 a 10
 - Protótipo: sem protótipo (a tela copia o visual atual do `app/ui/index.html`)
 - Spec: `docs/features/rust-tauri/spec.md`
 - Go: 27/11/2026 15:14 por Renan (clique no card)
