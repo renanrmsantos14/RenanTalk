@@ -501,6 +501,22 @@ fn fechar(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Aberto sozinho (sem o PID do ditado), sobe o ditado também; o mutex dele evita duplicata.
+fn iniciar_ditado(app: &std::path::Path) {
+    let script = app.join("ditado.pyw");
+    if !script.exists() {
+        return;
+    }
+    let mut cmd = if cfg!(windows) {
+        let mut c = Command::new("pyw");
+        c.arg("-3");
+        c
+    } else {
+        Command::new("python3")
+    };
+    let _ = cmd.arg(&script).current_dir(app).spawn();
+}
+
 fn main() {
     // Uma janela por vez: a porta fica presa enquanto esta instância vive.
     let Ok(_trava) = TcpListener::bind("127.0.0.1:47819") else { return };
@@ -514,6 +530,9 @@ fn main() {
         python: args.get(3).cloned().unwrap_or_else(|| if cfg!(windows) { "python".into() } else { "python3".into() }),
         app: app_dir,
     });
+    if ctx().pid == 0 {
+        iniciar_ditado(&ctx().app);
+    }
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![estado, ajustes, salvar_ajustes, historico_listar, historico_editar, historico_excluir, historico_apagar_tudo, salvar_vocab, salvar_chave, atualizar, abrir, mostrar, fechar])
         .setup(|app| {
