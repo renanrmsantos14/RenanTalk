@@ -1,8 +1,8 @@
 # RenanTalk desktop mais completo (histórico, termos sugeridos, volume do bipe)
 
 - Nível: 2 (várias telas, armazenamento novo, pedido aberto)
-- Etapa: 6 de 7 Construir (PR 3 pronto: prova Windows final aprovada em 27/11 sobre af9ac55)
-- Próximo passo: QA e merge do PR 2 (#9) e depois do PR 3 (#11) por Renan
+- Etapa: 7 de 7 Entregar (PR 2 e PR 3 mergeados em desktop-completo em 27/11; PR 1 #6 leva tudo à main)
+- Próximo passo: Renan decide o merge do #8 e do #6 (merge na main publica release para todas as máquinas)
 - Branch e PR: t3/desktop-historico-termos-volume (remota: desktop-completo) · PR 1: https://github.com/renanrmsantos14/RenanTalk/pull/6 (rascunho)
 - Protótipo: B + C (abre na tela Início com resumo; Histórico em lista com detalhe e correção), escolhido em 26/11/2026
 - Go: 26/11/2026 22:08 por Renan (clique no card)
@@ -91,7 +91,10 @@
 - Abas Ditado e som e Escrita com IA não rolavam (cards cortados): corrigido no PR 3.
 
 ## Retro
--
+- Modelo da Groq desligado (llama-3.3-70b) só apareceu na prova Windows: no Linux não há chave, então a IA real nunca rodou antes do notebook.
+- Abas novas (Ditado e som, Escrita) nasceram sem rolagem: a lista de painéis roláveis no CSS é manual e ninguém lembrou de incluir.
+- Atalho padrão alt+shift+win trocaria o idioma do teclado no Windows: atalho escolhido sem checar combinações reservadas do sistema.
+- Prova de PR 1 no Windows ficou parcial (tela bloqueada), e o #6 seguiu em rascunho até o fim.
 
 ### Prova Windows final do PR 3 (27/11/2026, af9ac55)
 - gpt-oss-120b ativo; 4 modos reais 0,41–0,94 s; injeção não obedecida; Shift+Win colou inglês 5/6; notepad formal ok; chave inválida → literal + log + bipe; 76 testes OK.
