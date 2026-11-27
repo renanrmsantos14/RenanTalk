@@ -203,7 +203,9 @@ fn ajustes() -> Value {
         a.insert("idioma".into(), json!("pt"));
     }
     let atalho = a.get("atalho_ditar").and_then(Value::as_str).and_then(validar_atalho).unwrap_or_else(|| "ctrl+win".into());
+    let colar = a.get("atalho_colar").and_then(Value::as_str).and_then(validar_atalho).filter(|c| *c != atalho);
     a.insert("atalho_ditar".into(), json!(atalho));
+    a.insert("atalho_colar".into(), json!(colar.unwrap_or_else(|| "alt+win+v".into())));
     let dispositivos = fs::read_to_string(pasta().join("dispositivos.json"))
         .ok()
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
@@ -212,7 +214,7 @@ fn ajustes() -> Value {
     json!({ "ajustes": a, "dispositivos": dispositivos })
 }
 
-/// Grava só volume, microfone, idioma e atalho_ditar; as outras chaves do arquivo ficam como estão.
+/// Grava só volume, microfone, idioma e os atalhos de ditar e de colar; as outras chaves do arquivo ficam como estão.
 /// Escrita atômica: arquivo temporário e rename.
 #[tauri::command]
 fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
@@ -229,11 +231,21 @@ fn salvar_ajustes(valores: serde_json::Map<String, Value>) -> Value {
         }
         a.insert("idioma".into(), json!(i));
     }
-    if let Some(t) = valores.get("atalho_ditar").and_then(Value::as_str) {
-        match validar_atalho(t) {
-            Some(ok) => a.insert("atalho_ditar".into(), json!(ok)),
-            None => return json!({ "ok": false, "erro": "Atalho inválido: use pelo menos 2 teclas diferentes." }),
+    // (chave, a outra chave, padrão da outra, o que a outra faz): um atalho não pode repetir o outro
+    for (chave, outra, padrao_outra, para_que) in [
+        ("atalho_ditar", "atalho_colar", "alt+win+v", "colar o último ditado"),
+        ("atalho_colar", "atalho_ditar", "ctrl+win", "ditar"),
+    ] {
+        let Some(t) = valores.get(chave).and_then(Value::as_str) else { continue };
+        let Some(ok) = validar_atalho(t) else {
+            return json!({ "ok": false, "erro": "Atalho inválido: use pelo menos 2 teclas diferentes." });
         };
+        let da_outra = valores.get(outra).and_then(Value::as_str).or_else(|| a.get(outra).and_then(Value::as_str))
+            .and_then(validar_atalho).unwrap_or_else(|| padrao_outra.into());
+        if ok == da_outra {
+            return json!({ "ok": false, "erro": format!("Esse atalho já serve para {para_que}. Escolha outro.") });
+        }
+        a.insert(chave.into(), json!(ok));
     }
     let _ = fs::create_dir_all(pasta());
     let arq = pasta().join("ajustes.json");

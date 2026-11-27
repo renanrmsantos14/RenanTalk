@@ -4,6 +4,7 @@ Chaves desconhecidas são preservadas ao salvar (luz, tema, notificações, atal
 """
 import json
 import os
+import threading
 import time
 
 import numpy as np
@@ -12,7 +13,7 @@ from comum import ARQ_LOG, PASTA
 
 ARQ_AJUSTES = os.path.join(PASTA, "ajustes.json")
 ARQ_DISPOSITIVOS = os.path.join(PASTA, "dispositivos.json")
-PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+win"}
+PADROES = {"volume": 60, "microfone": "", "idioma": "pt", "atalho_ditar": "ctrl+win", "atalho_colar": "alt+win+v"}
 IDIOMAS = ("pt", "auto", "en")
 MODIFICADORES = ("ctrl", "alt", "shift", "win")
 TECLAS = tuple("abcdefghijklmnopqrstuvwxyz0123456789") + tuple(f"f{i}" for i in range(1, 13)) + ("space",)
@@ -46,28 +47,56 @@ def validar_atalho(texto) -> tuple[str, ...] | None:
 
 
 class Casador:
-    """Casa as teclas apertadas com o atalho. Sem X nem teclado: recebe só nomes ('ctrl', 'win', 'd'...).
+    """Casa as teclas apertadas com os atalhos. Sem X nem teclado: recebe só nomes ('ctrl', 'win', 'd'...).
 
-    `evento(nome, descer, alvo, gravando)` devolve 'iniciar', 'parar', 'outra' ou None.
-    Regra herdada do Ctrl+Win: com o ditado em andamento, qualquer tecla fora do atalho cancela.
+    `evento(nome, descer, alvo, gravando, alvo_colar=None)` devolve 'iniciar', 'parar', 'colar', 'outra' ou None.
+    Regra herdada do Ctrl+Win: com o ditado em andamento, qualquer tecla fora do atalho de ditar cancela.
+    O atalho de colar só vale com o ditado parado e dispara uma vez por vez apertada (sem repetição da tecla).
     """
 
     def __init__(self) -> None:
         self.apertadas: set[str] = set()
-        self._alvo: tuple[str, ...] = ()
+        self._alvos: tuple = ()
+        self._colou = False
 
-    def evento(self, nome: str, descer: bool, alvo: tuple[str, ...], gravando: bool) -> str | None:
-        if alvo != self._alvo:  # atalho trocado nas configurações: recomeça do zero
-            self._alvo, self.apertadas = alvo, set()
+    def evento(self, nome: str, descer: bool, alvo: tuple[str, ...], gravando: bool,
+               alvo_colar: tuple[str, ...] | None = None) -> str | None:
+        if alvo_colar == alvo:  # iguais: o de ditar manda
+            alvo_colar = None
+        if (alvo, alvo_colar) != self._alvos:  # atalho trocado nas configurações: recomeça do zero
+            self._alvos, self.apertadas, self._colou = (alvo, alvo_colar), set(), False
+        colar = alvo_colar or ()
         if descer:
-            if nome not in alvo and nome not in MODIFICADORES:
+            if nome not in alvo and nome not in colar and nome not in MODIFICADORES:
                 return "outra" if gravando else None
             self.apertadas.add(nome)
             if gravando:
                 return None if nome in alvo else "outra"
-            return "iniciar" if self.apertadas == set(alvo) else None
+            if self.apertadas == set(alvo):
+                return "iniciar"
+            if colar and self.apertadas == set(colar) and not self._colou:
+                self._colou = True
+                return "colar"
+            return None
         self.apertadas.discard(nome)
+        if nome in colar:
+            self._colou = False
         return "parar" if gravando and nome in alvo else None
+
+    def esperar_soltar(self, limite: float = 2.0) -> None:
+        """Espera as teclas do atalho serem soltas (ou o limite): colar com Alt/Win apertados vira outro atalho."""
+        fim = time.time() + limite
+        while self.apertadas and time.time() < fim:
+            time.sleep(0.02)
+
+
+def colar_ao_soltar(casador: Casador, ao_colar) -> None:
+    """Atalho de colar: espera soltar as teclas (numa thread, para não travar o listener) e só então cola."""
+    def esperar_e_colar() -> None:
+        casador.esperar_soltar()
+        ao_colar()
+
+    threading.Thread(target=esperar_e_colar, daemon=True).start()
 
 
 # ---------- leitura e gravação ----------
@@ -87,6 +116,12 @@ def normalizar(bruto) -> dict:
         dados["atalho_ditar"] = PADROES["atalho_ditar"]
     else:
         dados["atalho_ditar"] = "+".join(validar_atalho(dados["atalho_ditar"]))
+    colar = validar_atalho(dados["atalho_colar"])
+    if colar is None or "+".join(colar) == dados["atalho_ditar"]:
+        _log(f"ajustes: atalho_colar inválido ou igual ao de ditar {dados['atalho_colar']!r}, usando {PADROES['atalho_colar']}")
+        dados["atalho_colar"] = PADROES["atalho_colar"]
+    else:
+        dados["atalho_colar"] = "+".join(colar)
     return dados
 
 

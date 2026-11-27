@@ -9,7 +9,7 @@ from comum import (ARQ_LOG, ICONE, ICONES, NOME, abrir_configuracoes, definir_in
 from luz import WNDCLASSW, WNDPROC, k32, u32
 
 WM_TRAY = 0x8000 + 1
-ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR, ITEM_VOCAB, ITEM_INICIO = 2, 3, 4, 5, 6
+ITEM_LOG, ITEM_ATUALIZAR, ITEM_SAIR, ITEM_VOCAB, ITEM_INICIO, ITEM_COLAR = 2, 3, 4, 5, 6, 7
 
 s32 = ctypes.windll.shell32
 
@@ -62,7 +62,8 @@ u32.DispatchMessageW.argtypes = [ctypes.POINTER(W.MSG)]
 
 # ---------- bandeja ----------
 class Bandeja:
-    def __init__(self, ao_sair, ao_atualizar, versao: str) -> None:
+    def __init__(self, ao_sair, ao_atualizar, versao: str, ao_colar=None) -> None:
+        self.ao_colar = ao_colar
         self.ao_sair = ao_sair
         self.ao_atualizar = ao_atualizar
         self.versao = versao
@@ -121,6 +122,7 @@ class Bandeja:
         self._item(m, 0, "Segure Ctrl + Win para ditar", flags=0x1)  # MF_GRAYED
         u32.AppendMenuW(m, 0x800, 0, None)  # separador
         self._item(m, ITEM_VOCAB, "Configurações…", "menu-config")
+        self._item(m, ITEM_COLAR, "Colar último ditado")
         self._item(m, ITEM_ATUALIZAR, "Procurar atualização", "menu-atualizar")
         self._item(m, ITEM_LOG, "Ver log", "menu-log")
         self._item(m, ITEM_INICIO, "Iniciar com o Windows", flags=0x8 if inicio_automatico() else 0)  # MF_CHECKED
@@ -135,6 +137,8 @@ class Bandeja:
         u32.DestroyMenu(m)
         if item == ITEM_VOCAB:
             self.abrir_configuracoes()
+        elif item == ITEM_COLAR and self.ao_colar:
+            self.ao_colar()  # o foco ainda volta do menu para a janela anterior: o ditado.pyw espera um instante
         elif item == ITEM_ATUALIZAR:
             threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start()
         elif item == ITEM_LOG and os.path.exists(ARQ_LOG):

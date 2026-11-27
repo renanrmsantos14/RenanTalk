@@ -131,9 +131,12 @@ textarea:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
     <div class="card"><div class="row"><div><div>Microfone</div><div class="k">A lista é atualizada quando a janela abre.</div></div><select class="sel" id="mic" aria-label="Microfone"></select></div></div>
     <div class="card"><div class="row"><div><div>Idioma do ditado</div><div class="k">Automático deixa o Whisper detectar.</div></div>
       <select class="sel" id="idi" aria-label="Idioma"><option value="pt">Português</option><option value="auto">Automático</option><option value="en">Inglês</option></select></div></div>
-    <div class="card"><div class="row"><div><div>Atalho de ditar</div><div class="k">Segure, fale e solte. Mínimo de 2 teclas.</div></div><kbd id="atalhov">Ctrl + Win</kbd></div>
-      <div class="mods" id="mods"><button class="mod" data-m="ctrl">Ctrl</button><button class="mod" data-m="alt">Alt</button><button class="mod" data-m="shift">Shift</button><button class="mod" data-m="win">Win</button><span class="k">+</span><select class="sel" id="tecla" aria-label="Tecla extra"></select></div>
-      <div class="msg" id="amsg2"></div></div>
+    <div class="card atalho" data-chave="atalho_ditar"><div class="row"><div><div>Atalho de ditar</div><div class="k">Segure, fale e solte. Mínimo de 2 teclas.</div></div><kbd class="atalhov">Ctrl + Win</kbd></div>
+      <div class="mods"><button class="mod" data-m="ctrl">Ctrl</button><button class="mod" data-m="alt">Alt</button><button class="mod" data-m="shift">Shift</button><button class="mod" data-m="win">Win</button><span class="k">+</span><select class="sel tecla" aria-label="Tecla extra do atalho de ditar"></select></div>
+      <div class="msg amsg"></div></div>
+    <div class="card atalho" data-chave="atalho_colar"><div class="row"><div><div>Atalho de colar o último ditado</div><div class="k">Cola de novo o texto do ditado mais recente. Também está no menu da bandeja.</div></div><kbd class="atalhov">Alt + Win + V</kbd></div>
+      <div class="mods"><button class="mod" data-m="ctrl">Ctrl</button><button class="mod" data-m="alt">Alt</button><button class="mod" data-m="shift">Shift</button><button class="mod" data-m="win">Win</button><span class="k">+</span><select class="sel tecla" aria-label="Tecla extra do atalho de colar"></select></div>
+      <div class="msg amsg"></div></div>
   </section>
   <section class="pane" id="key">
     <h1>Chave Groq</h1>
@@ -228,9 +231,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') TAURI ? TAUR
 
 // ---------- Ditado e som (só na janela Tauri: o modo antigo não tem esses comandos) ----------
 const NOMES_MOD = {ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', win: 'Win'};
-let aj = {}, modsOn = new Set(), tSalvar2, ctxAudio;
+let aj = {}, tSalvar2, ctxAudio, pendente = {};
 const rotuloAtalho = a => a.split('+').map(p => NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase())).join(' + ');
-function atalhoAtual() { const t = $('tecla').value; return ['ctrl', 'alt', 'shift', 'win'].filter(m => modsOn.has(m)).concat(t ? [t] : []); }
 function bipePrevia(v) {  // mesmo timbre do bipe do app: seno 880 Hz, 60 ms, envelope de 8 ms
   if (v <= 0) return;
   ctxAudio = ctxAudio || new AudioContext();
@@ -239,22 +241,42 @@ function bipePrevia(v) {  // mesmo timbre do bipe do app: seno 880 Hz, 60 ms, en
   g.gain.setValueAtTime(v / 100, t + .052); g.gain.linearRampToValueAtTime(0, t + .06);
   o.connect(g).connect(ctxAudio.destination); o.start(t); o.stop(t + .062);
 }
-function salvarSom(valores) {
+function salvarSom(valores, msgEl) {
+  pendente = {...pendente, ...valores};  // várias mudanças seguidas viram uma gravação só
   clearTimeout(tSalvar2);
   tSalvar2 = setTimeout(async () => {
-    const r = await api('salvarAjustes', {valores});
-    if (r.ok) { $('salvo2').classList.add('on'); setTimeout(() => $('salvo2').classList.remove('on'), 1400); }
-    else { const m = $('amsg2'); m.className = 'msg err'; m.textContent = r.erro || 'Não consegui salvar os ajustes.'; }
+    const enviar = pendente; pendente = {};
+    const r = await api('salvarAjustes', {valores: enviar});
+    if (r.ok) { $('salvo2').classList.add('on'); setTimeout(() => $('salvo2').classList.remove('on'), 1400); if (msgEl) msgEl.textContent = ''; }
+    else { const m = msgEl || document.querySelector('.atalho .amsg'); m.className = 'msg amsg err'; m.textContent = r.erro || 'Não consegui salvar os ajustes.'; }
   }, 250);
 }
 function mostrarAtalho(a) {
-  $('atalhov').textContent = rotuloAtalho(a);
   $('dica').innerHTML = 'Segure ' + a.split('+').map(p => '<kbd>' + (NOMES_MOD[p] || (p === 'space' ? 'Espaço' : p.toUpperCase())) + '</kbd>').join(' + ') + ', fale e solte.';
 }
-function trocarAtalho() {
-  const t = atalhoAtual(), m = $('amsg2');
-  if (t.length < 2 || new Set(t).size !== t.length) { m.className = 'msg err'; m.textContent = 'O atalho precisa de pelo menos 2 teclas diferentes.'; return; }
-  m.textContent = ''; mostrarAtalho(t.join('+')); salvarSom({atalho_ditar: t.join('+')});
+// Um cartão de atalho (Ctrl/Alt/Shift/Win + tecla opcional): serve para ditar e para colar o último.
+function iniciarAtalho(card, valor) {
+  const chave = card.dataset.chave, tecla = card.querySelector('.tecla'), msg = card.querySelector('.amsg');
+  const mods = new Set(valor.split('+').filter(p => NOMES_MOD[p]));
+  tecla.append(new Option('sem tecla extra', ''));
+  [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].forEach(c => tecla.append(new Option(c, c.toLowerCase())));
+  for (let i = 1; i <= 12; i++) tecla.append(new Option('F' + i, 'f' + i));
+  tecla.append(new Option('Espaço', 'space'));
+  tecla.value = valor.split('+').find(p => !NOMES_MOD[p]) || '';
+  const atual = () => ['ctrl', 'alt', 'shift', 'win'].filter(m => mods.has(m)).concat(tecla.value ? [tecla.value] : []);
+  const trocar = () => {
+    const t = atual(); msg.className = 'msg amsg';
+    if (t.length < 2) { msg.className = 'msg amsg err'; msg.textContent = 'O atalho precisa de pelo menos 2 teclas diferentes.'; return; }
+    msg.textContent = ''; card.querySelector('.atalhov').textContent = rotuloAtalho(t.join('+'));
+    if (chave === 'atalho_ditar') mostrarAtalho(t.join('+'));
+    salvarSom({[chave]: t.join('+')}, msg);
+  };
+  card.querySelector('.atalhov').textContent = rotuloAtalho(valor);
+  card.querySelectorAll('.mod').forEach(b => {
+    b.classList.toggle('on', mods.has(b.dataset.m));
+    b.onclick = () => { b.classList.toggle('on'); b.classList.contains('on') ? mods.add(b.dataset.m) : mods.delete(b.dataset.m); trocar(); };
+  });
+  tecla.onchange = trocar;
 }
 async function iniciarSom() {
   $('nsom').hidden = false;
@@ -265,14 +287,8 @@ async function iniciarSom() {
   r.dispositivos.forEach(d => mic.append(new Option(d.nome + (d.padrao ? ' (padrão)' : ''), d.nome)));
   if (aj.microfone && ![...mic.options].some(o => o.value === aj.microfone)) mic.append(new Option(aj.microfone + ' (não encontrado)', aj.microfone));
   mic.value = aj.microfone; $('idi').value = aj.idioma;
-  const tecla = $('tecla'); tecla.append(new Option('sem tecla extra', ''));
-  [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].forEach(c => tecla.append(new Option(c, c.toLowerCase())));
-  for (let i = 1; i <= 12; i++) tecla.append(new Option('F' + i, 'f' + i));
-  tecla.append(new Option('Espaço', 'space'));
-  const partes = aj.atalho_ditar.split('+'); modsOn = new Set(partes.filter(p => NOMES_MOD[p]));
-  tecla.value = partes.find(p => !NOMES_MOD[p]) || '';
-  document.querySelectorAll('.mod').forEach(b => { b.classList.toggle('on', modsOn.has(b.dataset.m)); b.onclick = () => { b.classList.toggle('on'); b.classList.contains('on') ? modsOn.add(b.dataset.m) : modsOn.delete(b.dataset.m); trocarAtalho(); }; });
-  tecla.onchange = trocarAtalho; mostrarAtalho(aj.atalho_ditar);
+  document.querySelectorAll('.atalho').forEach(c => iniciarAtalho(c, aj[c.dataset.chave]));
+  mostrarAtalho(aj.atalho_ditar);
   $('vol').oninput = () => { $('volv').textContent = $('vol').value + '%'; };
   $('vol').onchange = () => { bipePrevia(+$('vol').value); salvarSom({volume: +$('vol').value}); };
   $('ouvir').onclick = () => bipePrevia(+$('vol').value);

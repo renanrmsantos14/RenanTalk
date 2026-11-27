@@ -123,8 +123,8 @@ def _codigos(local, alvo) -> dict[int, str]:
     return mapa
 
 
-def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
-    """Escuta o atalho de ditar (RECORD do X11) numa thread e roda o laço do GTK na thread principal."""
+def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
+    """Escuta os atalhos de ditar e de colar o último (RECORD do X11) numa thread e roda o laço do GTK na principal."""
     def escutar() -> None:
         local, rec = display.Display(), display.Display()
         casador = ajustes.Casador()
@@ -138,17 +138,20 @@ def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
         def ao_registro(reply) -> None:
             if reply.category != record.FromServer or reply.client_swapped or not reply.data:
                 return
-            alvo = ajustes.validar_atalho(ajustes.ler()["atalho_ditar"])  # relido: vale sem reiniciar
-            if alvo != estado["alvo"]:
-                estado["alvo"], estado["codigos"] = alvo, _codigos(local, alvo)
+            a = ajustes.ler()  # relido: vale sem reiniciar
+            alvo, alvo_colar = ajustes.validar_atalho(a["atalho_ditar"]), ajustes.validar_atalho(a["atalho_colar"])
+            if (alvo, alvo_colar) != estado["alvo"]:
+                estado["alvo"], estado["codigos"] = (alvo, alvo_colar), _codigos(local, alvo + alvo_colar)
             dados = reply.data
             while dados:
                 ev, dados = rq.EventField(None).parse_binary_value(dados, rec.display, None, None)
                 if ev.type not in (X.KeyPress, X.KeyRelease):
                     continue
                 nome = estado["codigos"].get(ev.detail, "outra")
-                r = casador.evento(nome, ev.type == X.KeyPress, alvo, esta_gravando())
-                if r == "iniciar":
+                r = casador.evento(nome, ev.type == X.KeyPress, alvo, esta_gravando(), alvo_colar)
+                if r == "colar" and ao_colar:
+                    ajustes.colar_ao_soltar(casador, ao_colar)
+                elif r == "iniciar":
                     ao_iniciar()
                 elif r == "parar":
                     ao_parar()
@@ -276,8 +279,8 @@ class Luz:
 
 # ---------- bandeja ----------
 class Bandeja:
-    def __init__(self, ao_sair, ao_atualizar, versao: str) -> None:
-        self.ao_sair, self.ao_atualizar, self.versao = ao_sair, ao_atualizar, versao
+    def __init__(self, ao_sair, ao_atualizar, versao: str, ao_colar=None) -> None:
+        self.ao_sair, self.ao_atualizar, self.versao, self.ao_colar = ao_sair, ao_atualizar, versao, ao_colar
         menu = Gtk.Menu()
 
         def item(rotulo: str, acao=None, negrito: bool = False, icone: str | None = None) -> None:
@@ -299,6 +302,7 @@ class Bandeja:
         item("Segure Ctrl + Super para ditar")
         menu.append(Gtk.SeparatorMenuItem())
         item("Configurações…", lambda: self.abrir_configuracoes(), negrito=True, icone="preferences-system")
+        item("Colar último ditado", lambda: self.ao_colar and self.ao_colar(), icone="edit-paste")
         item("Procurar atualização",
              lambda: threading.Thread(target=self.ao_atualizar, args=(True,), daemon=True).start(), icone="view-refresh")
         item("Ver log", lambda: abrir(ARQ_LOG), icone="text-x-generic")

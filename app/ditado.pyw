@@ -187,6 +187,30 @@ def transcrever_e_colar(audio: bytes, duracao: float = 0.0) -> None:
         plat.bipe(300, 250)
 
 
+def colar_ultimo(atraso: float = 0.0) -> None:
+    """Cola o texto do ditado mais recente (já corrigido). Histórico vazio: bipe grave e nada colado.
+
+    `atraso` deixa o menu da bandeja fechar e o foco voltar para a janela anterior antes do Ctrl+V."""
+    def fazer() -> None:
+        try:
+            if gravando:
+                return
+            if atraso:
+                time.sleep(atraso)
+            itens = historico.listar(limite=1)
+            if not itens:
+                log("colar último: histórico vazio")
+                plat.bipe(300, 150)
+                return
+            plat.colar(itens[0]["texto"] + " ")
+            log("colar último: colado")
+        except Exception as e:  # noqa: BLE001 - nunca derruba o app; o motivo vai ao log
+            log(f"colar último: falhou ({type(e).__name__})")
+            plat.bipe(300, 150)
+
+    threading.Thread(target=fazer, daemon=True).start()
+
+
 def reiniciar() -> None:
     """Fecha esta instância e abre a versão nova que acabou de ser copiada."""
     import subprocess
@@ -227,10 +251,11 @@ if __name__ == "__main__":
     atualizador.limpar_antigos()
     versao = atualizador.versao_texto()
     log(f"iniciado v{versao} ({sys.platform})")
-    bandeja = plat.Bandeja(ao_sair=lambda: os._exit(0), ao_atualizar=atualizar, versao=versao)
+    bandeja = plat.Bandeja(ao_sair=lambda: os._exit(0), ao_atualizar=atualizar, versao=versao,
+                           ao_colar=lambda: colar_ultimo(0.35))  # pelo menu: espera o foco voltar
     if not ler_chave():
         bandeja.abrir_configuracoes("key")
     threading.Thread(target=ciclo_atualizacao, daemon=True).start()
     threading.Thread(target=ajustes.escrever_dispositivos, daemon=True).start()
     threading.Thread(target=historico.ciclo_retencao, daemon=True).start()  # apaga > 30 dias ao iniciar e 1x por dia
-    plat.rodar(comecar, parar, marcar_outra_tecla, lambda: gravando)
+    plat.rodar(comecar, parar, marcar_outra_tecla, lambda: gravando, lambda: colar_ultimo(0.1))

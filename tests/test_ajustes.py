@@ -49,6 +49,18 @@ class Ajustes(unittest.TestCase):
         gravar(json.dumps({"atalho_ditar": "ctrl"}))
         self.assertEqual(ajustes.ler()["atalho_ditar"], "ctrl+win")
 
+    def test_atalho_colar_padrao_invalido_e_igual(self):
+        self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v")
+        for ruim in ("v", "alt+win+v+x", 5, "ctrl+win"):  # inválidos e igual ao de ditar (ctrl+win)
+            gravar(json.dumps({"atalho_colar": ruim}))
+            ajustes._cache["mtime"] = -1
+            self.assertEqual(ajustes.ler()["atalho_colar"], "alt+win+v", ruim)
+        with open(ajustes.ARQ_LOG, encoding="utf-8") as f:
+            self.assertIn("atalho_colar inválido ou igual", f.read())
+        gravar(json.dumps({"atalho_colar": "Super+Ctrl+Shift+H"}))
+        ajustes._cache["mtime"] = -1
+        self.assertEqual(ajustes.ler()["atalho_colar"], "ctrl+shift+win+h")
+
     def test_validar_atalho(self):
         v = ajustes.validar_atalho
         self.assertEqual(v("Super+Ctrl"), ("ctrl", "win"))
@@ -102,6 +114,53 @@ class Atalho(unittest.TestCase):
         self.assertEqual(s, [None, None, "iniciar", "parar"])
 
 
+class AtalhoColar(unittest.TestCase):
+    DITAR, COLAR = ("ctrl", "win"), ("alt", "win", "v")
+
+    def passos(self, passos, gravando=False):
+        c, saidas = ajustes.Casador(), []
+        for nome, desceu in passos:
+            saidas.append(c.evento(nome, desceu, self.DITAR, gravando, self.COLAR))
+        return saidas
+
+    def test_colar_e_ditar_separados(self):
+        self.assertEqual(self.passos([("alt", True), ("win", True), ("v", True), ("v", False)]), [None, None, "colar", None])
+        self.assertEqual(self.passos([("ctrl", True), ("win", True), ("win", False)]), [None, "iniciar", None])
+
+    def test_colar_nao_repete_com_a_tecla_segurada(self):
+        s = self.passos([("alt", True), ("win", True), ("v", True), ("v", True), ("v", False), ("v", True)])
+        self.assertEqual(s, [None, None, "colar", None, None, "colar"])
+
+    def test_tecla_do_colar_sozinha_ou_com_modificadores_errados_nao_dispara(self):
+        self.assertEqual(self.passos([("v", True), ("v", False)]), [None, None])
+        self.assertEqual(self.passos([("ctrl", True), ("alt", True), ("v", True)]), [None, None, None])
+
+    def test_outra_tecla_continua_cancelando_o_ditado(self):
+        c, g = ajustes.Casador(), False
+        saidas = []
+        for nome, d in [("ctrl", True), ("win", True), ("v", True), ("win", False)]:  # v é do colar, mas está gravando
+            r = c.evento(nome, d, self.DITAR, g, self.COLAR)
+            g = True if r == "iniciar" else (False if r == "parar" else g)
+            saidas.append(r)
+        self.assertEqual(saidas, [None, "iniciar", "outra", "parar"])
+
+    def test_colar_ignorado_gravando_e_igual_ao_de_ditar(self):
+        self.assertNotIn("colar", self.passos([("alt", True), ("win", True), ("v", True)], gravando=True))
+        c = ajustes.Casador()
+        self.assertEqual([c.evento(n, True, self.DITAR, False, self.DITAR) for n in ("ctrl", "win")], [None, "iniciar"])
+
+    def test_esperar_soltar(self):
+        c = ajustes.Casador()
+        c.evento("alt", True, self.DITAR, False, self.COLAR)
+        c.evento("alt", False, self.DITAR, False, self.COLAR)
+        c.esperar_soltar(0.2)  # já solto: volta na hora
+        c.apertadas.add("win")
+        import time
+        t0 = time.time()
+        c.esperar_soltar(0.1)
+        self.assertGreaterEqual(time.time() - t0, 0.09)
+
+
 class Ditado(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -131,6 +190,34 @@ class Ditado(unittest.TestCase):
     def test_idioma_no_multipart(self):
         self.assertNotIn(b'name="language"', self.corpo("auto"))
         self.assertRegex(self.corpo("en"), rb'name="language"\r\n\r\nen\r\n')
+
+    def colar_ultimo(self, itens, gravando=False):
+        d = self.d
+        d.gravando = gravando
+        feito = d.threading.Event()
+        com_fim = lambda *a, **k: feito.set()
+        with mock.patch.object(d.historico, "listar", return_value=itens), \
+                mock.patch.object(d.plat, "colar", side_effect=com_fim) as colar, \
+                mock.patch.object(d.plat, "bipe", side_effect=com_fim) as bipe:
+            d.colar_ultimo(0.01)
+            feito.wait(1)
+            d.time.sleep(0.05)
+        d.gravando = False
+        return colar, bipe
+
+    def test_colar_ultimo_cola_o_texto_mais_recente(self):
+        colar, bipe = self.colar_ultimo([{"texto": "oi, tudo bem?"}])
+        colar.assert_called_once_with("oi, tudo bem? ")
+        bipe.assert_not_called()
+
+    def test_colar_ultimo_sem_historico_faz_bipe_grave_e_nao_cola(self):
+        colar, bipe = self.colar_ultimo([])
+        colar.assert_not_called()
+        bipe.assert_called_once_with(300, 150)
+
+    def test_colar_ultimo_ignorado_gravando(self):
+        colar, bipe = self.colar_ultimo([{"texto": "x"}], gravando=True)
+        colar.assert_not_called()
 
     def test_microfone_inexistente_abre_padrao_e_loga(self):
         d = self.d

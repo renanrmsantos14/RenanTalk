@@ -61,21 +61,24 @@ _NOMES = {"ctrl": "ctrl", "left ctrl": "ctrl", "right ctrl": "ctrl", "alt": "alt
           "windows": "win", "left windows": "win", "right windows": "win"}
 
 
-def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando) -> None:
-    """Escuta o atalho de ditar (bloqueia a thread principal). O atalho é relido a cada tecla."""
+def rodar(ao_iniciar, ao_parar, ao_outra, esta_gravando, ao_colar=None) -> None:
+    """Escuta os atalhos de ditar e de colar o último (bloqueia a thread principal). Relidos a cada tecla."""
     casador = ajustes.Casador()
 
     def evento(ev: keyboard.KeyboardEvent) -> None:
         bruto = (ev.name or "").lower()
         nome = _NOMES.get(bruto, bruto)
         descer = ev.event_type == "down"
-        alvo = ajustes.validar_atalho(ajustes.ler()["atalho_ditar"])
+        a = ajustes.ler()
+        alvo, alvo_colar = ajustes.validar_atalho(a["atalho_ditar"]), ajustes.validar_atalho(a["atalho_colar"])
         if descer and not esta_gravando():  # solta teclas "presas" (Win+L, etc. não entregam o key-up)
             for m in list(casador.apertadas):
                 if m in ajustes.MODIFICADORES and not keyboard.is_pressed("windows" if m == "win" else m):
                     casador.apertadas.discard(m)
-        r = casador.evento(nome, descer, alvo, esta_gravando())
-        if r == "iniciar":
+        r = casador.evento(nome, descer, alvo, esta_gravando(), alvo_colar)
+        if r == "colar" and ao_colar:
+            ajustes.colar_ao_soltar(casador, ao_colar)
+        elif r == "iniciar":
             ao_iniciar()
         elif r == "parar":
             ao_parar()
