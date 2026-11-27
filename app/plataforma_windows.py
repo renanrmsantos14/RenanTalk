@@ -4,7 +4,6 @@ import os
 import time
 
 import keyboard
-import pyperclip
 
 import ajustes
 from comum import log
@@ -18,13 +17,75 @@ def bipe(freq: int, ms: int) -> None:
     ajustes.bipe(freq, ms)  # tom gerado, com o volume dos ajustes (winsound.Beep não tem volume)
 
 
+# ---------- colar sem deixar rastro na área de transferência ----------
+_u32 = ctypes.WinDLL("user32", use_last_error=True)
+_k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+_H = ctypes.c_void_p
+for _f, _args, _ret in (
+    (_u32.OpenClipboard, [_H], ctypes.c_int), (_u32.CloseClipboard, [], ctypes.c_int),
+    (_u32.EmptyClipboard, [], ctypes.c_int), (_u32.EnumClipboardFormats, [ctypes.c_uint], ctypes.c_uint),
+    (_u32.GetClipboardData, [ctypes.c_uint], _H), (_u32.SetClipboardData, [ctypes.c_uint, _H], _H),
+    (_u32.RegisterClipboardFormatW, [ctypes.c_wchar_p], ctypes.c_uint),
+    (_k32.GlobalAlloc, [ctypes.c_uint, ctypes.c_size_t], _H), (_k32.GlobalFree, [_H], _H),
+    (_k32.GlobalLock, [_H], _H), (_k32.GlobalUnlock, [_H], ctypes.c_int), (_k32.GlobalSize, [_H], ctypes.c_size_t),
+):
+    _f.argtypes, _f.restype = _args, _ret
+CF_UNICODETEXT = 13
+# CF_BITMAP, METAFILEPICT, PALETTE, ENHMETAFILE e os de exibição guardam handles GDI, não memória: o Windows
+# refaz o CF_BITMAP a partir do CF_DIB, que é copiado
+_NAO_MEMORIA = {2, 3, 9, 14, 0x80, 0x82, 0x83, 0x8E}
+# marcas que tiram o conteúdo do histórico (Win+V) e da sincronização na nuvem
+_SEM_HISTORICO = [(_u32.RegisterClipboardFormatW(n), b"\0\0\0\0") for n in (
+    "ExcludeClipboardContentFromMonitorProcessing", "CanIncludeInClipboardHistory", "CanUploadToCloudClipboard")]
+
+
+def _abrir_area() -> bool:
+    for _ in range(50):  # outro app pode estar com ela aberta
+        if _u32.OpenClipboard(None):
+            return True
+        time.sleep(0.01)
+    return False
+
+
+def _ler_area() -> list[tuple[int, bytes]]:
+    itens, f = [], 0
+    while f := _u32.EnumClipboardFormats(f):
+        h = _u32.GetClipboardData(f) if f not in _NAO_MEMORIA else None
+        p = _k32.GlobalLock(h) if h else None
+        if p:
+            itens.append((f, ctypes.string_at(p, _k32.GlobalSize(h))))
+            _k32.GlobalUnlock(h)
+    return itens
+
+
+def _gravar_area(itens: list[tuple[int, bytes]]) -> None:
+    _u32.EmptyClipboard()
+    for f, dados in itens:
+        h = _k32.GlobalAlloc(0x0002, max(len(dados), 1))  # GMEM_MOVEABLE; o Windows passa a ser o dono
+        ctypes.memmove(_k32.GlobalLock(h), dados, len(dados))
+        _k32.GlobalUnlock(h)
+        if not _u32.SetClipboardData(f, h):
+            _k32.GlobalFree(h)
+
+
 def colar(texto: str) -> None:
-    anterior = pyperclip.paste()
-    pyperclip.copy(texto)
+    """Cola pelo Ctrl+V e devolve a área de transferência como estava, sem o ditado no histórico."""
+    if not _abrir_area():
+        log("colar: área de transferência ocupada por outro app")
+        return
+    try:
+        anterior = _ler_area()
+        _gravar_area([(CF_UNICODETEXT, (texto + "\0").encode("utf-16-le")), *_SEM_HISTORICO])
+    finally:
+        _u32.CloseClipboard()
     time.sleep(0.05)
     keyboard.send("ctrl+v")
     time.sleep(0.3)
-    pyperclip.copy(anterior)  # devolve o que estava na área de transferência
+    if _abrir_area():
+        try:  # devolvido fora do histórico também, senão o item anterior aparece duplicado no Win+V
+            _gravar_area([*anterior, *_SEM_HISTORICO] if anterior else [])
+        finally:
+            _u32.CloseClipboard()
 
 
 def app_ativo() -> str:

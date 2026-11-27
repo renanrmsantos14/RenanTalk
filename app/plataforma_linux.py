@@ -183,8 +183,12 @@ def colar(texto: str) -> None:
     else:
         _teclar(XK.XK_Control_L, XK.XK_v)
     time.sleep(0.3)
-    if estado.get("anterior") is not None:  # devolve o que estava na área de transferência
-        GLib.idle_add(lambda: (Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(estado["anterior"], -1), False)[1])
+    def devolver():  # o que estava antes; se estava vazia, volta vazia (o ditado não fica nela)
+        clip = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        clip.set_text(estado["anterior"], -1) if estado.get("anterior") is not None else clip.clear()
+        return False
+
+    GLib.idle_add(devolver)
 
 
 # ---------- atalho ----------
